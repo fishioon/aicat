@@ -68,6 +68,8 @@ python3 e2e/prototype.py --only transport
 python3 e2e/prototype.py --only rules
 # 仅验证流量侧边栏的顺序、中英文标签与 Domain 计数
 node e2e/desktop.cjs bin/aicat-e2e build/sidebar-e2e sidebar
+# 仅验证 App → 域名 → 路径树及跨应用隔离、搜索、折叠与历史
+node e2e/desktop.cjs bin/aicat-e2e build/app-tree-e2e app-tree
 # 仅验证图标在 WebView/浏览器、浅深色和不同宽度下的居中与边界
 node e2e/desktop.cjs bin/aicat-e2e build/icons-e2e icons
 ```

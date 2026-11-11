@@ -256,6 +256,26 @@ async function verifyIconLayout() {
     "icon centering and bounds across titlebar, navigation, tree, copy, menus and extensions in WKWebView and Chromium",
   );
 }
+async function verifyAppTree() {
+  report.appTree = await require("./app-tree.cjs")({
+    page,
+    root,
+    send,
+    request,
+    api,
+    fixturePort,
+    proxyPort,
+    navigate,
+    settled,
+    evaluate,
+    wait,
+    auto,
+  });
+  assert.deepEqual(errors, []);
+  check(
+    "App/domain/path trees, per-app counts and filtering, collapse, history, search and independent expansion in Chromium and WKWebView",
+  );
+}
 (async () => {
   try {
     if (
@@ -362,12 +382,19 @@ async function verifyIconLayout() {
       report.passed = true;
       return;
     }
+    if (process.argv[4] === "app-tree") {
+      await verifyAppTree();
+      report.scenario = "app-tree";
+      report.passed = true;
+      return;
+    }
     await verifySidebar();
     if (process.argv[4] === "sidebar") {
       report.scenario = "sidebar";
       report.passed = true;
       return;
     }
+    await verifyAppTree();
     await verifyIconLayout();
     await page.screenshot({ path: path.join(root, "empty.png") });
     let index = 0;

@@ -7,12 +7,11 @@ import { expanded } from "../state/sidebar";
 import { t } from "../i18n";
 const props = defineProps<{ node: TreeNode }>();
 const open = computed(() => expanded.has(props.node.key));
-const selected = computed(() =>
-  props.node.app !== undefined
-    ? shell.app === props.node.app
-    : shell.app === null &&
-      shell.host === props.node.host &&
-      shell.path === (props.node.path ?? ""),
+const selected = computed(
+  () =>
+    shell.app === (props.node.app ?? null) &&
+    shell.host === (props.node.host ?? "") &&
+    shell.path === (props.node.path ?? ""),
 );
 function choose() {
   navigate("traffic", {
@@ -27,13 +26,15 @@ function toggle() {
   if (!node.children.length) return;
   if (open.value) {
     expanded.delete(node.key);
+    const path = node.path ?? "";
     if (
-      shell.host === node.host &&
-      shell.path &&
-      shell.path !== (node.path ?? "") &&
-      shell.path.startsWith(node.path ?? "/")
+      shell.app === (node.app ?? null) &&
+      ((node.host === undefined && shell.host) ||
+        (shell.host === node.host &&
+          shell.path !== path &&
+          (!path || shell.path.startsWith(path.replace(/\/$/, "") + "/"))))
     )
-      navigate("traffic", { host: node.host, path: node.path ?? "" });
+      choose();
   } else expanded.add(node.key);
 }
 function context(event: MouseEvent) {

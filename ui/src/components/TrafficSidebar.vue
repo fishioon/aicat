@@ -8,7 +8,7 @@ function toggle(key: string) {
     expanded.delete(key);
     if (
       (key === "apps" && shell.app !== null) ||
-      (key === "domains" && shell.host)
+      (key === "domains" && shell.app === null && shell.host)
     )
       navigate("traffic");
   } else expanded.add(key);

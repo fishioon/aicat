@@ -18,7 +18,12 @@ interface Branch {
   count: number;
   children: Map<string, Branch>;
 }
-function tree(domain: string, rows: Summary[], source: string): TreeNode {
+function tree(
+  domain: string,
+  rows: Summary[],
+  source: string,
+  app?: string,
+): TreeNode {
   const root: Branch = { path: "", count: rows.length, children: new Map() };
   for (const row of rows) {
     let current = root,
@@ -40,6 +45,7 @@ function tree(domain: string, rows: Summary[], source: string): TreeNode {
         count: node.count,
         host: domain,
         path: node.path,
+        app,
         children: children(node),
       }));
   return {
@@ -48,6 +54,7 @@ function tree(domain: string, rows: Summary[], source: string): TreeNode {
     count: rows.length,
     host: domain,
     path: "",
+    app,
     children: children(root),
   };
 }
@@ -55,7 +62,12 @@ export const groups = computed(() => {
   const hosts = new Map<string, Summary[]>();
   const apps = new Map<
     string,
-    { name: string; requests: number; tunnels: number }
+    {
+      name: string;
+      requests: number;
+      tunnels: number;
+      hosts: Map<string, Summary[]>;
+    }
   >();
   for (const row of records.value.values()) {
     const host = new URL(row.url).host;
@@ -67,8 +79,12 @@ export const groups = computed(() => {
         name: row.clientApp?.name ?? t("未知应用"),
         requests: 0,
         tunnels: 0,
+        hosts: new Map(),
       });
-    apps.get(key)![row.tunnel ? "tunnels" : "requests"]++;
+    const app = apps.get(key)!;
+    app[row.tunnel ? "tunnels" : "requests"]++;
+    if (!app.hosts.has(host)) app.hosts.set(host, []);
+    app.hosts.get(host)!.push(row);
   }
   const query = shell.sideQuery.toLowerCase();
   const pins = state.value?.pinnedDomains ?? [];
@@ -102,7 +118,17 @@ export const groups = computed(() => {
       count: apps.size,
       nodes: [...apps]
         .sort(([, a], [, b]) => a.name.localeCompare(b.name))
-        .filter(([, app]) => app.name.toLowerCase().includes(query))
+        .filter(
+          ([, app]) =>
+            app.name.toLowerCase().includes(query) ||
+            [...app.hosts].some(
+              ([host, rows]) =>
+                host.toLowerCase().includes(query) ||
+                rows.some((row) =>
+                  new URL(row.url).pathname.toLowerCase().includes(query),
+                ),
+            ),
+        )
         .map(([key, app]): TreeNode => ({
           key: "app:" + key,
           app: key,
@@ -110,7 +136,11 @@ export const groups = computed(() => {
           count:
             app.requests +
             (app.tunnels ? " · " + app.tunnels + " " + t("隧道") : ""),
-          children: [],
+          children: [...app.hosts]
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([host, rows]) =>
+              tree(host, rows, "app:" + JSON.stringify(key) + ":", key),
+            ),
         })),
     },
   ];
