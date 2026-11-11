@@ -1,0 +1,12 @@
+{
+  "name": "aicat",
+  "slug": "aicat",
+  "identifier": "ai.netcat.aicat",
+  "version": "0.1.0",
+  "main": "./cmd/aicat",
+  "out": "build/native",
+  "i18n": {
+    "dir": "internal/app/locales",
+    "source": "zh-Hans"
+  }
+}

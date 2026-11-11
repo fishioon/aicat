@@ -1,0 +1,65 @@
+{
+  "ca": {
+    "subject": "CN=aicat Local CA,O=aicat",
+    "sha256": "e58d836e6040d9c5cbb279b114063020849d8d2cb9b11708dd56533ffcda7268"
+  },
+  "scenarios": [
+    {
+      "name": "openai_base_url",
+      "wireForm": "origin form at aicat's own address",
+      "observed": [
+        "200 text/event-stream, first event out before the upstream ended its reply: data: {\"model\":\"private-cloud\"}",
+        "the upstream saw POST /backend-api/codex/responses, addressed as Codex's backend, with the body unchanged",
+        "the rest of the stream followed: data: {\"response\":{\"model\":\"private-cloud\",\"usage\":{\"input_tokens\":23,\"output_tokens\":7}}}\n\ndata: [DONE]"
+      ]
+    },
+    {
+      "name": "HTTP_PROXY",
+      "wireForm": "upstream omits SSE Content-Type; streaming and token usage survive",
+      "observed": [
+        "200 text/event-stream, first event out before the upstream ended its reply: data: {\"model\":\"private-cloud\"}",
+        "the upstream saw POST /backend-api/codex/responses, addressed as Codex's backend, with the body unchanged",
+        "the rest of the stream followed: data: {\"response\":{\"model\":\"private-cloud\",\"usage\":{\"input_tokens\":23,\"output_tokens\":7}}}\n\ndata: [DONE]"
+      ]
+    },
+    {
+      "name": "HTTP_PROXY",
+      "wireForm": "absolute form, addressed to aicat as a proxy",
+      "observed": [
+        "a codex request through the proxy reached its path: 200 {\"models\":[\"private-cloud\"]}",
+        "a client's unrelated request passed through untouched: 200 untouched",
+        "a websocket call was turned down before the upstream was dialled: 426 aicat serves Codex over plain HTTP"
+      ]
+    },
+    {
+      "name": "system proxy",
+      "wireForm": "CONNECT to a host the addon turns down",
+      "observed": [
+        "the tunnel answered 200 and carried \"ping\" back untouched, with no certificate of aicat's in the way"
+      ]
+    },
+    {
+      "name": "system proxy",
+      "wireForm": "CONNECT to chatgpt.com, decrypted",
+      "observed": [
+        "the tunnel's leaf is 2a569ae07b15897782dfb55aecfee404cad5d47362ddbc67d7670d1ad230ddb0, signed by aicat's own CA (CN=aicat Local CA,O=aicat)",
+        "a client verifies the chain aicat presents against aicat's root alone, in 2 certificate(s)",
+        "a websocket call inside the tunnel was answered 426 \"aicat serves Codex over plain HTTP\" without the upstream being dialled"
+      ]
+    },
+    {
+      "name": "usage ledger",
+      "wireForm": "what aicat wrote down about the calls it served",
+      "observed": [
+        "5 call(s) recorded in /var/folders/4m/gqtrwsvn5_39fkymz156tflm0000gn/T/TestGatewayEndToEnd4284301325/001/.aicat/usage.jsonl",
+        "01:57:27 /backend-api/codex/responses: agent codex, model \"private-cloud\", status 200",
+        "01:57:27 /backend-api/codex/responses: agent codex, model \"private-cloud\", status 200",
+        "01:57:27 /backend-api/codex/models: agent codex, model \"\", status 200",
+        "01:57:27 /backend-api/codex/responses: agent codex, model \"\", status 426",
+        "01:57:27 /backend-api/codex/responses: agent codex, model \"\", status 426",
+        "observed transports: map[http_proxy:2 mitm:1 origin:2]",
+        "both of Codex's wire forms are in it, the streamed turn names the model its reply named, the unrelated request through the proxy is in none of it"
+      ]
+    }
+  ]
+}

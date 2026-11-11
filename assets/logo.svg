@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">aicat</title>
+  <!-- Canonical layered artwork. The background is optional and not painted here. -->
+  <defs>
+    <rect id="logo-background" width="256" height="256" fill="#f5f2ed"/>
+    <clipPath id="logo-rounded"><rect width="256" height="256" rx="48"/></clipPath>
+  </defs>
+  <g id="logo-mark">
+  <path fill="#16325c" d="M134 198H87C51 198 27 177 27 147C27 127 36 112 52 101L57 86C59 78 63 77 70 81L81 84C86 85 89 82 94 76C105 64 119 57 136 57C164 57 184 73 192 98C215 108 230 125 230 147C230 165 222 181 205 190L195 176C206 169 212 158 212 147C212 131 202 119 185 112C180 110 177 107 176 102C170 85 155 75 137 75C123 75 113 81 103 93C96 101 89 104 79 101L72 99L70 108C69 112 67 114 63 116C51 123 45 134 45 147C45 167 61 181 87 181H134C145 181 145 198 134 198Z"/>
+  <!-- Teal-500 (T500): sRGB #00BBA7; CSS oklch(70.4% 0.14 182.503). -->
+  <path fill="#00bba7" d="M205 190C194 196 181 199 170 195C159 191 154 182 155 172C156 162 162 154 173 150C178 148 184 150 186 155C188 160 184 165 179 166C174 168 172 170 172 173C172 178 176 180 181 180C186 181 191 179 195 176Z"/>
+  </g>
+</svg>
