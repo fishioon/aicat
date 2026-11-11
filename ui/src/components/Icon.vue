@@ -7,6 +7,14 @@ const markup = computed(() => icon(props.name));
 <template><span class="icon" v-html="markup"></span></template>
 <style scoped>
 .icon {
-  display: contents;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  line-height: 0;
+  flex: none;
+}
+.icon :deep(svg) {
+  display: block;
 }
 </style>

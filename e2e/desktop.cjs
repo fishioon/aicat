@@ -239,6 +239,23 @@ async function verifySidebar() {
     "Pin/Domain/App order, contextual App versus Apply, Chinese labels and keyed domain count in browser and WKWebView",
   );
 }
+async function verifyIconLayout() {
+  report.icons = await require("./icons.cjs")({
+    page,
+    root,
+    send,
+    navigate,
+    settled,
+    evaluate,
+    wait,
+    auto,
+    click,
+  });
+  assert.deepEqual(errors, []);
+  check(
+    "icon centering and bounds across titlebar, navigation, tree, copy, menus and extensions in WKWebView and Chromium",
+  );
+}
 (async () => {
   try {
     if (
@@ -339,12 +356,19 @@ async function verifySidebar() {
     check(
       "real MyGo WebView, portable browser frontend, authenticated preview and cross-origin denial",
     );
+    if (process.argv[4] === "icons") {
+      await verifyIconLayout();
+      report.scenario = "icons";
+      report.passed = true;
+      return;
+    }
     await verifySidebar();
     if (process.argv[4] === "sidebar") {
       report.scenario = "sidebar";
       report.passed = true;
       return;
     }
+    await verifyIconLayout();
     await page.screenshot({ path: path.join(root, "empty.png") });
     let index = 0;
     await Promise.all(
@@ -814,13 +838,13 @@ async function verifySidebar() {
     await wait(
       async () => await evaluate("window.desktop.state().recording===true"),
     );
-    await evaluate("window.desktop.navigate('general');true");
+    await evaluate("(window.desktop.navigate('general'),true)");
     await wait(
       async () =>
         await evaluate("!!document.querySelector('#preference-theme-dark')"),
     );
     await evaluate(
-      "document.querySelector('#preference-theme-dark').click();true",
+      "(document.querySelector('#preference-theme-dark').click(),true)",
     );
     await wait(
       async () =>

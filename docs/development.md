@@ -17,7 +17,7 @@
 | `internal/traffic/` 等业务包 | 业务模型与规则，不依赖 MyGo、Vue 或页面状态 |
 | `docs/design/aicat-shell.html` | HTML 设计稿快照，含尚未交付的产品方向；不代表稿内全部功能已实现 |
 
-`ui/src/design.css` 提取设计稿样式；`layout.css` 承载桌面尺寸和真实数据适配，`style.css` 提供动态列表等基础布局。Vue 模板沿用相同结构和 class，不引入改变视觉规范的组件库。页面不加载 CDN。变更设计稿时同步组件并复核浅深色截图。
+`ui/src/design.css` 提取设计稿样式；`layout.css` 承载桌面尺寸和真实数据适配，`style.css` 提供动态列表等基础布局。Vue 模板沿用相同结构和 class，不引入改变视觉规范的组件库。纯图标按钮统一使用 `icon-button` 居中，SVG 通过 `Icon.vue` 避免参与文字基线排版。页面不加载 CDN。变更设计稿时同步组件并复核浅深色截图。
 
 需要 Go 1.27.3+、Node.js 22.12+（本轮以 Node.js 26 验证）及 npm。MyGo Go 模块和 CLI tool 固定为同一提交；UI 依赖由 `ui/package-lock.json` 锁定。TypeScript 使用与当前 vue-tsc 兼容的 5.9 系列。
 
@@ -68,6 +68,8 @@ python3 e2e/prototype.py --only transport
 python3 e2e/prototype.py --only rules
 # 仅验证流量侧边栏的顺序、中英文标签与 Domain 计数
 node e2e/desktop.cjs bin/aicat-e2e build/sidebar-e2e sidebar
+# 仅验证图标在 WebView/浏览器、浅深色和不同宽度下的居中与边界
+node e2e/desktop.cjs bin/aicat-e2e build/icons-e2e icons
 ```
 
 `e2e/prototype.py` 不带 `--only` 时三组必须全部通过；`--output` 指定工件根目录，默认 `build/full-e2e-*/`。

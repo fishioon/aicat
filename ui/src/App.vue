@@ -122,6 +122,7 @@ window.desktop = { navigate, problem, refresh, state: () => state.value };
     <div class="window-space">
       <button
         id="history-back"
+        class="icon-button"
         :aria-label="t('后退')"
         :disabled="shell.historyAt <= 0"
         @click="travel(-1)"
@@ -130,6 +131,7 @@ window.desktop = { navigate, problem, refresh, state: () => state.value };
       </button>
       <button
         id="history-forward"
+        class="icon-button"
         :aria-label="t('前进')"
         :disabled="shell.historyAt >= shell.history.length - 1"
         @click="travel(1)"
@@ -138,6 +140,7 @@ window.desktop = { navigate, problem, refresh, state: () => state.value };
       </button>
       <button
         id="sidebar-toggle"
+        class="icon-button"
         :aria-label="t('折叠侧边栏')"
         @click="shell.sidebarHidden = !shell.sidebarHidden"
       >
@@ -147,6 +150,7 @@ window.desktop = { navigate, problem, refresh, state: () => state.value };
     <span class="breadcrumb" id="breadcrumb">{{ breadcrumb }}</span>
     <button
       id="export"
+      class="icon-button"
       :hidden="shell.route !== 'traffic'"
       :aria-label="t('导出记录')"
       @click="run(() => host.exportTraffic(filtered.map((row) => row.id)))"
@@ -171,7 +175,12 @@ window.desktop = { navigate, problem, refresh, state: () => state.value };
         )
       }}</span>
     </button>
-    <button id="theme" :aria-label="t('切换主题')" @click="toggleTheme">
+    <button
+      id="theme"
+      class="icon-button"
+      :aria-label="t('切换主题')"
+      @click="toggleTheme"
+    >
       <Icon name="sun" />
     </button>
   </header>
@@ -180,7 +189,7 @@ window.desktop = { navigate, problem, refresh, state: () => state.value };
       <button
         v-if="state?.trafficEnabled && state.navigationPins.includes('traffic')"
         id="nav-traffic"
-        class="ac-nav"
+        class="ac-nav icon-button"
         :class="{ active: shell.route === 'traffic' }"
         :title="t('流量')"
         :aria-label="t('流量')"
@@ -190,7 +199,7 @@ window.desktop = { navigate, problem, refresh, state: () => state.value };
       </button>
       <button
         id="nav-extensions"
-        class="ac-nav"
+        class="ac-nav icon-button"
         :class="{
           active: shell.route === 'extensions' || shell.route === 'community',
         }"
@@ -202,7 +211,7 @@ window.desktop = { navigate, problem, refresh, state: () => state.value };
       </button>
       <button
         id="nav-more"
-        class="ac-nav"
+        class="ac-nav icon-button"
         :title="t('更多')"
         :aria-label="t('更多')"
         @click="more"

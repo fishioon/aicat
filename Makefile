@@ -57,6 +57,7 @@ frontend-check: ui/node_modules/.aicat-install bindings
 	npm --prefix ui run format:check
 	node --check e2e/desktop.cjs
 	node --check e2e/design.cjs
+	node --check e2e/icons.cjs
 
 verify: frontend-check fmt-check vet build cli app
 	$(GO) test ./...

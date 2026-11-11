@@ -171,7 +171,7 @@ function decrypt() {
       </div>
       <span class="ac-grow"></span
       ><button
-        class="copy"
+        class="copy icon-button"
         :data-side-copy="side"
         :aria-label="t(side === 'request' ? '复制请求' : '复制响应')"
         :disabled="!!tunnel"

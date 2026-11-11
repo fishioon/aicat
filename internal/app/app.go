@@ -127,7 +127,12 @@ func Run(o Options) error {
 					return
 				}
 				a.ready.Store(true)
-				a.win = mygo.NewWindow(mygo.WindowOptions{Title: "aicat", Width: 1180, Height: 900, MinWidth: 900, MinHeight: 600, TitleBarStyle: mygo.TitleBarHidden, URL: "/"})
+				a.win = mygo.NewWindow(mygo.WindowOptions{
+					Title: "aicat", Width: 1180, Height: 900, MinWidth: 900, MinHeight: 600,
+					TitleBarStyle: mygo.TitleBarHidden, TitleBarHeight: 48,
+					TrafficLightPosition: &mygo.Point{X: 12, Y: 17},
+					URL:                  "/",
+				})
 				a.win.OnReadyToShow(func() { a.win.Focus(); mygo.App.Focus() })
 				a.win.OnClose(func(e *mygo.CloseEvent) {
 					if !a.quitting.Load() {

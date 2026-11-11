@@ -45,6 +45,13 @@ button {
 button:hover {
   background: var(--stripe);
 }
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  line-height: 1;
+}
 button:focus-visible,
 input:focus-visible {
   outline: 1px solid var(--brand);
@@ -87,9 +94,6 @@ input:focus-visible {
   gap: 7px;
   color: var(--muted);
   font-size: 11px;
-}
-#theme {
-  font-size: 22px;
 }
 .dot {
   display: inline-block;

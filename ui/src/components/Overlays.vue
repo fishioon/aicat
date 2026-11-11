@@ -48,6 +48,7 @@ onUnmounted(() => document.removeEventListener("pointerdown", outside, true));
       </button>
       <button
         v-if="item.pin"
+        class="icon-button"
         data-action="pin-navigation"
         :title="t(item.pinned ? '取消固定' : '固定到侧边栏')"
         @click="
