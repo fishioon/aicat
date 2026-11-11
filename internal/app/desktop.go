@@ -17,6 +17,7 @@ import (
 	"github.com/fishioon/aicat/internal/config"
 	"github.com/fishioon/aicat/internal/gateway"
 	"github.com/fishioon/aicat/internal/listenaddr"
+	"github.com/fishioon/aicat/internal/provider"
 	"github.com/fishioon/aicat/internal/systemproxy"
 	"github.com/fishioon/aicat/internal/traffic"
 )
@@ -27,20 +28,21 @@ type Desktop struct{ app *application }
 
 // DesktopState is a coherent snapshot of settings and live desktop state.
 type DesktopState struct {
-	Preferences      config.Preferences `json:"preferences"`
-	Language         string             `json:"language"`
-	TrafficEnabled   bool               `json:"trafficEnabled"`
-	Recording        bool               `json:"recording"`
-	NavigationPins   []string           `json:"navigationPins"`
-	PinnedDomains    []string           `json:"pinnedDomains"`
-	Gateway          gateway.Status     `json:"gateway"`
-	Addresses        []string           `json:"addresses"`
-	Certificate      certificate.Status `json:"certificate"`
-	CertificateError string             `json:"certificateError"`
-	Proxy            systemproxy.Status `json:"proxy"`
-	Domains          []string           `json:"domains"`
-	Production       bool               `json:"production"`
-	Revision         uint64             `json:"revision"`
+	Preferences      config.Preferences  `json:"preferences"`
+	Language         string              `json:"language"`
+	TrafficEnabled   bool                `json:"trafficEnabled"`
+	Recording        bool                `json:"recording"`
+	NavigationPins   []string            `json:"navigationPins"`
+	PinnedDomains    []string            `json:"pinnedDomains"`
+	Gateway          gateway.Status      `json:"gateway"`
+	Addresses        []string            `json:"addresses"`
+	Certificate      certificate.Status  `json:"certificate"`
+	CertificateError string              `json:"certificateError"`
+	Proxy            systemproxy.Status  `json:"proxy"`
+	Domains          []string            `json:"domains"`
+	Providers        []provider.Provider `json:"providers"`
+	Production       bool                `json:"production"`
+	Revision         uint64              `json:"revision"`
 }
 
 // StateChange invalidates the page's snapshot after a committed mutation.
@@ -67,7 +69,7 @@ func (d *Desktop) State(ctx context.Context) (DesktopState, error) {
 		a.checkedAt = time.Now()
 	}
 	addresses, _ := listenaddr.Addresses()
-	return DesktopState{Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, Recording: a.recording, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
+	return DesktopState{Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, Recording: a.recording, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Providers: a.r.providers.List(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
 }
 func (d *Desktop) mutate(ctx context.Context, operation func() error) error {
 	a := d.app
@@ -144,6 +146,15 @@ func (d *Desktop) SetListener(ctx context.Context, address string) error {
 }
 func (d *Desktop) SetDecryptionDomain(ctx context.Context, host string, enabled bool) error {
 	return d.mutate(ctx, func() error { return d.app.r.interception.set(host, enabled) })
+}
+
+// SetProvider saves a model vendor's endpoint and API key. An empty key keeps
+// the saved one; keys are never returned to the page.
+func (d *Desktop) SetProvider(ctx context.Context, id, baseURL, key string) error {
+	return d.mutate(ctx, func() error { return d.app.r.providers.Set(id, baseURL, key) })
+}
+func (d *Desktop) DeleteProvider(ctx context.Context, id string) error {
+	return d.mutate(ctx, func() error { return d.app.r.providers.Delete(id) })
 }
 func (d *Desktop) SetSystemProxy(ctx context.Context, enabled bool) error {
 	return d.mutate(ctx, func() error { return d.app.r.connection.set(ctx, enabled) })

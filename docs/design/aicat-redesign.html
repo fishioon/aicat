@@ -1,0 +1,1152 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aicat 重新设计稿</title>
+<!--
+  aicat 外壳重新设计稿（2026-11-11）。可独立打开：不依赖宿主、图标库或网络。
+  覆盖：概览（已接入 / 首次接入 / 接入 Agent）、流量、扩展、设置（通用 / 代理），明暗两套。
+  数据全部为演示数据。界面文案只做了简体中文。
+
+  骨架：标题栏（前进后退、面包屑、监听地址、主题）+ 左侧图标导航栏 + 各模块自己的侧栏 + 主区。
+  色板沿用公司设定：品牌青 #00bba7（与 netcat 网站和 assets/logo.svg 一致）、中性灰底色，
+  取值对应 ui/src/design.css 的 --ac-* 变量；--ink-2、--line-strong、--warn-soft 是在同一灰阶上补的。
+
+  设计规则
+  1. 品牌青只表示三件事：aicat 自己、你现在的位置、这一屏的主操作。状态一律用 ok / warn / bad。
+     浅色下细线标记和焦点环用 --mark-line（对白底 3:1 以上），大面积填充用 --mark。
+     品牌青和成功绿在浅色下很接近，所以靠形态区分：品牌色只以线条和填充出现，
+     状态只以“圆点 + 文字”出现，品牌色不做圆点。
+  2. 正常是安静的。2xx、已连接、已信任的文字都用正文色，只有需要看的才上色。
+     请求列表行首的状态点是例外：成功也给绿点，方便一眼扫过整列。
+  3. 数字和地址用 --num（DIN Alternate），代码用 --code，其余用 --ui。
+  4. 字号 11 / 12 / 13 / 15 / 20 / 28；圆角 4 / 8 / 12；间距取 4 的倍数；主区左边线统一为 --gutter。
+-->
+<style>
+:root{
+  color-scheme:light;
+  --desk:#E6E6EA; --chrome:#F6F6F7; --surface:#FFFFFF; --sunken:#F2F2F5;
+  --ink:#242428; --ink-2:#4B4B53; --ink-3:#66666F;
+  --line:#E1E1E5; --line-strong:#85858F; --hover:#E9E9ED;
+  --mark:#00BBA7; --mark-line:#077A6F; --mark-soft:#E5F5F1; --on-mark:#111827;
+  --logo:#16325C; --logo-bg:#F5F2ED; --float:#2B2B30;
+  --ok:#18794E; --warn:#926117; --bad:#B42318; --warn-soft:#FBF1DF; --bad-soft:#FFF0EE;
+  --syn-key:#375BB5; --syn-str:#7B3FB0; --syn-num:#926117;
+  --s1:#2A78D6; --s2:#EB6834; --s3:#6250D6;
+  --ui:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+  --num:"DIN Alternate","Bahnschrift","Roboto Condensed",-apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif;
+  --code:"SF Mono",ui-monospace,Menlo,Consolas,"Noto Sans Mono",monospace;
+  --t11:11px; --t12:12px; --t13:13px; --t15:15px; --t20:20px; --t28:28px;
+  --r1:4px; --r2:8px; --r3:12px;
+  --gutter:16px;
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --desk:#121214; --chrome:#252527; --surface:#202022; --sunken:#272729;
+  --ink:#E9E9ED; --ink-2:#C4C4CC; --ink-3:#A6A6B0;
+  --line:#37373B; --line-strong:#7C7C86; --hover:#303033;
+  --mark:#00BBA7; --mark-line:#00BBA7; --mark-soft:#123B38; --on-mark:#111827;
+  --logo:#16325C; --logo-bg:#F5F2ED; --float:#303033;
+  --ok:#79CBA5; --warn:#F2BD5C; --bad:#FF8A7A; --warn-soft:#33280F; --bad-soft:#2C1918;
+  --syn-key:#9EB9EF; --syn-str:#C8A6F5; --syn-num:#F2BD5C;
+  --s1:#3987E5; --s2:#D95926; --s3:#9085E9;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--desk);color:var(--ink);font:var(--t13)/1.5 var(--ui);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;align-items:center;padding:16px}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--mark-line);outline-offset:2px;border-radius:var(--r1)}
+h1,h2,h3,p,ul,ol{margin:0;padding:0}
+ul,ol{list-style:none}
+.num{font-family:var(--num);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+code,.code{font-family:var(--code);font-size:var(--t12)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+/* 预览条：不属于产品界面 */
+.preview{width:100%;max-width:1240px;display:flex;align-items:center;gap:12px;padding:0 4px 12px;color:var(--ink-2);font-size:var(--t12)}
+.preview strong{color:var(--ink);font-weight:600}
+.preview .grow{flex:1}
+
+/* 控件 */
+.btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--r2);background:var(--surface);white-space:nowrap}
+.btn:hover{background:var(--sunken)}
+.btn.primary{background:var(--mark);border-color:var(--mark-line);color:var(--on-mark);font-weight:600}
+.btn.primary:hover{filter:brightness(.95)}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.icon-btn{display:inline-grid;place-items:center;width:28px;height:28px;border:0;border-radius:var(--r2);background:none;color:var(--ink-2)}
+.icon-btn:hover{background:var(--sunken);color:var(--ink)}
+.link{border:0;background:none;padding:0;color:var(--ink);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong)}
+.link:hover{text-decoration-color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:var(--r2);overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:none;height:26px;padding:0 12px;color:var(--ink-2)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"],.seg button[aria-checked="true"]{background:var(--ink);color:var(--surface);font-weight:600}
+.seg button:focus-visible{outline-offset:-3px}
+.seg button[aria-pressed="true"]:focus-visible,.seg button[aria-checked="true"]:focus-visible{outline-color:var(--surface)}
+.field{height:28px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r2);background:var(--surface);min-width:0}
+.field::placeholder{color:var(--ink-3)}
+.switch{position:relative;width:36px;height:20px;flex:none;border:1px solid var(--line-strong);border-radius:10px;background:var(--sunken);padding:0}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--ink-3);transition:transform .15s}
+.switch[aria-checked="true"]{background:var(--ink);border-color:var(--ink)}
+.switch[aria-checked="true"]::after{transform:translateX(16px);background:var(--surface)}
+.switch:disabled{opacity:.5;cursor:not-allowed}
+.state{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.state::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
+.state.ok{color:var(--ink-2)} .state.ok::before{background:var(--ok)}
+.state.warn{color:var(--warn)} .state.bad{color:var(--bad)}
+.state.idle{color:var(--ink-3)} .state.idle::before{background:none;border:1.5px solid currentColor}
+.copyline{display:flex;align-items:center;gap:4px;min-width:0;border:1px solid var(--line);border-radius:var(--r2);background:var(--sunken);padding:0 4px 0 12px;min-height:36px}
+.copyline code{flex:1;min-width:0;overflow-wrap:anywhere;padding:8px 0;user-select:all}
+
+/* 窗口 */
+.win{width:100%;max-width:1240px;flex:1;min-height:0;max-height:820px;display:grid;grid-template-columns:52px minmax(0,1fr);grid-template-rows:44px minmax(0,1fr);background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r3);overflow:hidden;box-shadow:0 24px 48px -24px rgba(21,25,39,.3);position:relative}
+.bar{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:0 12px 0 16px;background:var(--chrome);border-bottom:1px solid var(--line);min-width:0}
+.lights{display:flex;gap:8px;flex:none} .lights i{width:12px;height:12px;border-radius:50%;background:var(--line-strong);opacity:.55}
+.hist{display:flex;gap:2px;flex:none;margin-left:4px}
+.icon-btn:disabled{opacity:.4;cursor:default;background:none;color:var(--ink-2)}
+.crumb{display:flex;align-items:center;gap:6px;min-width:0;font-size:var(--t13);color:var(--ink-2);white-space:nowrap;overflow:hidden}
+.crumb svg{width:12px;height:12px;color:var(--ink-3)}
+.crumb span{overflow:hidden;text-overflow:ellipsis}
+.crumb span:first-child{flex:none}
+.crumb span:last-child{color:var(--ink);font-weight:600}
+.bar .grow{flex:1}
+.rail{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 0;background:var(--chrome);border-right:1px solid var(--line);min-height:0}
+.rail button{position:relative;display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:var(--r2);background:none;color:var(--ink-3)}
+.rail button svg{width:20px;height:20px}
+.rail button:hover{background:var(--hover);color:var(--ink)}
+.rail button[aria-current="page"],.rail button[aria-expanded="true"]{background:var(--mark-soft);color:var(--mark-line)}
+.rail .grow{flex:1}
+.addr{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 8px 0 10px;border:1px solid var(--line);border-radius:var(--r2);background:var(--surface);font-size:var(--t13);flex:none}
+.addr:hover{border-color:var(--line-strong)}
+.addr .dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.addr svg{color:var(--ink-3)}
+.page{min-height:0;min-width:0;overflow:hidden}
+.split{display:grid;grid-template-columns:224px minmax(0,1fr);height:100%}
+.side{background:var(--chrome);border-right:1px solid var(--line);overflow:auto;padding:12px 8px;display:flex;flex-direction:column;gap:4px;min-height:0}
+.main{min-width:0;min-height:0;overflow:auto}
+.side .search{flex:none}
+.side-title{padding:12px 8px 4px;font-size:var(--t12);color:var(--ink-3);display:flex;justify-content:space-between}
+.side-item{position:relative;display:flex;align-items:center;gap:6px;width:100%;min-height:28px;padding:2px 8px;border:0;border-radius:var(--r1);background:none;text-align:left}
+.side-item:hover{background:var(--sunken)}
+.side-item[aria-current="true"]{background:var(--mark-soft);font-weight:600}
+.side-item[aria-current="true"]::before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:3px;border-radius:2px;background:var(--mark-line)}
+.side-item .label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side-item .count{color:var(--ink-3);font-size:var(--t12);font-weight:400}
+.side-item[aria-current="true"] .count{color:var(--ink-2)}
+.side-item small{display:block;color:var(--ink-2);font-size:var(--t12);font-weight:400}
+.side-foot{margin-top:auto;padding:12px 8px 4px;color:var(--ink-3);font-size:var(--t12)}
+.trow{display:flex;align-items:center;gap:2px}
+.trow .side-item{flex:1;min-width:0}
+.twist{display:inline-grid;place-items:center;width:16px;height:16px;border:0;background:none;padding:0;color:var(--ink-3);flex:none}
+.twist svg{width:12px;height:12px;transition:transform .12s}
+.twist[aria-expanded="true"] svg{transform:rotate(90deg)}
+.twist.none{visibility:hidden}
+
+/* 概览 */
+.ov{max-width:1080px;margin:0 auto;padding:32px}
+.ov-head{display:flex;align-items:flex-end;gap:16px;margin-bottom:24px}
+.ov-head h1{font-size:var(--t20);font-weight:600;line-height:1.3}
+.ov-head p{color:var(--ink-2);margin-top:4px}
+.ov-head .grow{flex:1}
+.ov-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.card{border:1px solid var(--line);border-radius:var(--r3);background:var(--surface)}
+.tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
+.tile{min-width:0;padding:12px 16px}
+.tile+.tile{border-left:1px solid var(--line)}
+.tile h2{font-size:var(--t12);font-weight:400;color:var(--ink-2)}
+.tile .v{font-size:var(--t20);font-weight:600;line-height:1.5;white-space:nowrap}
+.tile .v small{margin-left:4px;font:400 var(--t12) var(--ui);color:var(--ink-2)}
+.tile .s{font-size:var(--t12);color:var(--ink-2)}
+.tile .s b{font-weight:600;color:var(--bad)}
+.meter{height:4px;margin-top:8px;border-radius:2px;background:var(--line);overflow:hidden}
+.meter i{display:block;height:100%;border-radius:2px;background:var(--ink-2)}
+.usage{margin-top:12px}
+.usage-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line)}
+.usage-head .grow{flex:1}
+.usage-head .lbl{font-size:var(--t12);color:var(--ink-3)}
+.usage-body{display:grid;grid-template-columns:minmax(0,1fr) 248px}
+.chart{display:grid;grid-template-columns:48px minmax(0,1fr);grid-template-rows:200px 20px;padding:20px 16px 8px 4px}
+.yaxis{position:relative;font-size:var(--t11);color:var(--ink-3)}
+.yaxis span{position:absolute;right:8px;transform:translateY(50%);white-space:nowrap}
+.plot{position:relative}
+.plot .grid{position:absolute;left:0;right:0;height:1px;background:var(--line)}
+.cols{position:absolute;inset:0;display:flex}
+.col{flex:1;min-width:0;display:flex;justify-content:center;border-radius:var(--r1) var(--r1) 0 0}
+.col:hover,.col:focus-visible{background:var(--sunken)}
+.col:focus-visible{outline-offset:-2px}
+.stack{display:flex;flex-direction:column-reverse;gap:2px;width:min(24px,64%);height:100%}
+.stack i{display:block;flex:none;min-height:1px}
+.stack i:last-child{border-radius:var(--r1) var(--r1) 0 0}
+.xaxis{display:flex;align-items:flex-end;font-size:var(--t11);color:var(--ink-3)}
+.xaxis span{flex:1;min-width:0;text-align:center;white-space:nowrap}
+.tip{position:absolute;top:0;z-index:2;display:grid;gap:2px;min-width:168px;padding:8px 10px;border:1px solid var(--line-strong);border-radius:var(--r2);background:var(--surface);box-shadow:0 8px 24px -12px rgba(0,0,0,.4);font-size:var(--t12);pointer-events:none}
+.tip[hidden]{display:none}
+.tip strong{font-weight:600}
+.tip div{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:8px;align-items:center;color:var(--ink-2)}
+.tip div i,.legend li>i{width:8px;height:8px;border-radius:2px}
+.tip div b{font-weight:600;color:var(--ink)}
+.tip .sum{margin-top:2px;padding-top:4px;border-top:1px solid var(--line)}
+.legend{display:grid;gap:12px;align-content:start;padding:16px;border-left:1px solid var(--line)}
+.legend li{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:0 8px;align-items:center}
+.legend .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.legend b{font-weight:600}
+.legend .sub{grid-column:2/-1;font-size:var(--t12);color:var(--ink-2)}
+.start{padding:0 20px 20px}
+.conn li{display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--line)}
+.conn li>div{flex:1;min-width:0}
+.conn strong{display:block;font-weight:600}
+.conn .who{display:block;font-size:var(--t12);color:var(--ink-2)}
+.conn .bad{color:var(--bad);font-weight:600} .conn .warn{color:var(--warn)}
+.form{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 12px;align-items:center;max-width:520px;margin:12px 0}
+.form label{font-size:var(--t12);color:var(--ink-2)}
+.ov-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;margin-top:32px}
+.ov-cols h2{font-size:var(--t15);font-weight:600}
+.ov-cols .sub{color:var(--ink-3);font-size:var(--t12);margin-bottom:8px}
+.endpoints{display:grid;gap:8px}
+.endpoints label{display:block;color:var(--ink-2);font-size:var(--t12);margin-bottom:4px}
+/* 接入 Agent */
+.back{margin-bottom:16px}
+.steps{display:grid;gap:24px;margin-top:24px;max-width:720px}
+.step{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px}
+.step .n{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--line-strong);display:grid;place-items:center;font-size:var(--t13);color:var(--ink-2)}
+.step.now .n{background:var(--mark);border-color:var(--mark);color:var(--on-mark);font-weight:700}
+.step.done .n{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.step h2{font-size:var(--t15);font-weight:600;line-height:28px}
+.step p{color:var(--ink-2);margin-bottom:12px;max-width:60ch}
+.snippet{border:1px solid var(--line);border-radius:var(--r2);background:var(--sunken);margin:12px 0;overflow:hidden}
+.snippet header{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 4px 12px;border-bottom:1px solid var(--line);color:var(--ink-2);font-size:var(--t12)}
+.snippet pre{margin:0;padding:12px;font:var(--t12)/1.6 var(--code);white-space:pre-wrap;overflow-wrap:anywhere}
+.waiting{display:flex;align-items:center;gap:8px;color:var(--ink-2)}
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--line-strong);border-top-color:var(--ink);animation:spin .9s linear infinite;flex:none;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 流量 */
+.tr{display:grid;grid-template-rows:auto minmax(120px,1fr) auto auto;height:100%;min-height:0}
+.tr.open{grid-template-rows:auto minmax(120px,5fr) minmax(0,6fr) auto}
+.tools{display:flex;align-items:center;gap:8px;padding:8px var(--gutter);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.search{position:relative;flex:1;min-width:180px;display:flex}
+.search svg{position:absolute;left:8px;top:6px;color:var(--ink-3)}
+.search input{flex:1;padding-left:30px;padding-right:44px}
+.search kbd{position:absolute;right:8px;top:5px;font:var(--t11) var(--ui);color:var(--ink-3);border:1px solid var(--line);border-radius:var(--r1);padding:0 4px;line-height:16px}
+.listwrap{overflow:auto;min-height:0}
+table.list{width:100%;border-collapse:collapse;table-layout:fixed;font-size:var(--t12)}
+.list th{position:sticky;top:0;z-index:1;background:var(--surface);text-align:left;font-weight:400;color:var(--ink-3);height:28px;padding:0 8px;border-bottom:1px solid var(--line)}
+.list td{height:28px;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.list th:first-child,.list td:first-child{padding-left:var(--gutter)}
+.list th:last-child,.list td:last-child{padding-right:var(--gutter)}
+.list .r{text-align:right}
+.list tbody tr{cursor:default}
+.list tbody tr:nth-child(even){background:var(--sunken)}
+.list tbody tr:hover{background:var(--hover)}
+.list tbody tr[aria-selected="true"]{background:var(--mark-soft);box-shadow:inset 3px 0 0 var(--mark-line)}
+.list tbody tr:focus-visible{outline-offset:-2px}
+.list .dim{color:var(--ink-3)} .list .path{color:var(--ink-2)}
+.list tbody tr[aria-selected="true"] .dim{color:var(--ink-2)}
+.st-bad{color:var(--bad);font-weight:700}
+.sd{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle}
+.sd.ok{background:var(--ok)} .sd.bad{background:var(--bad)} .sd.mute{background:var(--ink-3)}
+.sd.ring{border:1.5px solid var(--ink-3)}
+.sd-run{width:10px;height:10px;vertical-align:middle}
+.list td.dotc{padding-right:0;text-overflow:clip}
+.list th:nth-child(2),.list td:nth-child(2){padding-left:0}
+.sum .st{display:inline-flex;align-items:center;gap:6px;align-self:center}
+.empty{display:grid;place-content:center;justify-items:start;gap:12px;height:100%;padding:32px var(--gutter);max-width:560px;margin:0 auto}
+.empty h2{font-size:var(--t20);font-weight:600}
+.empty p{color:var(--ink-2)}
+.empty .copyline{width:100%}
+.insp{display:grid;grid-template-rows:auto minmax(0,1fr);border-top:1px solid var(--line-strong);min-height:0}
+.sum{display:flex;align-items:baseline;gap:12px;padding:8px var(--gutter);border-bottom:1px solid var(--line);min-width:0}
+.sum .m{font-weight:700}
+.sum .url{flex:1;min-width:0;font:var(--t12)/1.5 var(--code);overflow-wrap:anywhere;max-height:3em;overflow:auto;user-select:text}
+.sum .meta{color:var(--ink-2);font-size:var(--t12);white-space:nowrap}
+.panes{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:0}
+.pane{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;min-width:0}
+.pane+.pane{border-left:1px solid var(--line)}
+.pane-head{display:flex;align-items:center;gap:12px;padding:0 8px 0 var(--gutter);height:36px;border-bottom:1px solid var(--line)}
+.pane-head h3{font-size:var(--t13);font-weight:600}
+.ptabs{display:flex;align-self:stretch;flex:1;min-width:0}
+.ptabs button{position:relative;border:0;background:none;padding:0 8px;color:var(--ink-2);font-size:var(--t12)}
+.ptabs button[aria-selected="true"]{color:var(--ink);font-weight:600}
+.ptabs button[aria-selected="true"]::after{content:"";position:absolute;left:8px;right:8px;bottom:0;height:2px;background:var(--mark-line)}
+.ptabs button:focus-visible{outline-offset:-4px}
+.pane-body{overflow:auto;min-height:0;padding:8px var(--gutter) 16px;user-select:text}
+.kv{width:100%;border-collapse:collapse;font:var(--t12)/1.5 var(--code)}
+.kv th{text-align:left;font-weight:400;color:var(--ink-2);vertical-align:top;padding:3px 16px 3px 0;white-space:nowrap;width:1%}
+.kv td{padding:3px 0;color:var(--ink);overflow-wrap:anywhere}
+pre.body{margin:0;font:var(--t12)/1.6 var(--code);white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink)}
+.k{color:var(--syn-key)} .s{color:var(--syn-str)} .n{color:var(--syn-num)}
+.note{padding:6px 12px;border-radius:var(--r2);background:var(--warn-soft);color:var(--warn);font-size:var(--t12);margin-bottom:8px}
+.note.plain{background:var(--sunken);color:var(--ink-2)}
+.note.bad{background:var(--bad-soft);color:var(--bad)}
+.events li{display:grid;grid-template-columns:28px 148px minmax(0,1fr);gap:8px;padding:3px 0;font:var(--t12)/1.5 var(--code);border-bottom:1px solid var(--line)}
+.events .ix{color:var(--ink-3);text-align:right}
+.events .ev{color:var(--syn-key);overflow:hidden;text-overflow:ellipsis}
+.events .d{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tunnel{padding:24px var(--gutter);max-width:560px;display:grid;gap:12px;justify-items:start;align-content:start;overflow:auto}
+.tunnel h3{font-size:var(--t15);font-weight:600}
+.tunnel p{color:var(--ink-2)}
+.foot{display:flex;gap:16px;align-items:center;padding:0 var(--gutter);height:28px;border-top:1px solid var(--line);color:var(--ink-2);font-size:var(--t12);background:var(--chrome)}
+.foot .grow{flex:1}
+
+/* 扩展：侧栏是可折叠分组的扩展列表，主区是所选扩展的详情（参考 VS Code 的扩展视图） */
+.split.wide{grid-template-columns:272px minmax(0,1fr)}
+.xsec{display:flex;align-items:center;gap:4px;width:100%;height:28px;margin-top:4px;padding:0 8px 0 4px;border:0;border-radius:var(--r1);background:none;font-size:var(--t12);font-weight:600;color:var(--ink-2);text-align:left}
+.xsec:hover{background:var(--sunken)}
+.xsec svg{width:12px;height:12px;color:var(--ink-3);transition:transform .12s}
+.xsec[aria-expanded="true"] svg{transform:rotate(90deg)}
+.xsec .label{flex:1}
+.badge{display:inline-grid;place-items:center;min-width:20px;height:16px;padding:0 6px;border-radius:8px;background:var(--hover);color:var(--ink-2);font-size:var(--t11);font-weight:400}
+.xnote{padding:2px 8px 8px 24px;font-size:var(--t12);color:var(--ink-3)}
+.xitem{position:relative;display:grid;grid-template-columns:36px minmax(0,1fr);gap:0 10px;width:100%;padding:8px;border:0;border-radius:var(--r1);background:none;text-align:left}
+.xitem:hover{background:var(--sunken)}
+.xitem[aria-current="true"]{background:var(--mark-soft)}
+.xitem[aria-current="true"]::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:2px;background:var(--mark-line)}
+.xicon{display:grid;place-items:center;width:36px;height:36px;border:1px solid var(--line);border-radius:var(--r2);background:var(--surface);color:var(--ink-2)}
+.xicon svg{width:20px;height:20px}
+.xitem .xicon{grid-row:1/3}
+.xitem strong,.xitem .desc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xitem strong{font-weight:600}
+.xitem .tag{margin-left:4px;vertical-align:1px}
+.xitem .desc{font-size:var(--t12);color:var(--ink-2)}
+.xitem .top{display:flex;align-items:baseline;gap:8px;min-width:0}
+.xitem .top strong{flex:1;min-width:0}
+.xitem .st{flex:none;font-size:var(--t11);color:var(--ink-3)}
+.xitem[aria-current="true"] .st{color:var(--ink-2)}
+.xitem.off strong{font-weight:400;color:var(--ink-2)}
+.xd{max-width:920px;padding:32px}
+.xd-head{display:grid;grid-template-columns:64px minmax(0,1fr);gap:4px 16px}
+.xd-head .xicon{grid-row:1/6;width:64px;height:64px;border-radius:var(--r3);background:var(--sunken)}
+.xd-head .xicon svg{width:32px;height:32px}
+.xd-head h1{display:flex;align-items:center;gap:8px;font-size:var(--t20);font-weight:600;line-height:1.3}
+.tag{border:1px solid var(--line-strong);border-radius:var(--r1);padding:0 6px;font-size:var(--t11);font-weight:400;line-height:16px;color:var(--ink-2)}
+.xd-meta{display:flex;gap:8px;font-size:var(--t12);color:var(--ink-2)}
+.xd-meta span+span::before{content:"·";margin-right:8px;color:var(--ink-3)}
+.xd .lede{color:var(--ink-2);max-width:60ch}
+.xd-acts{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
+.xbtn{height:24px;padding:0 10px;border:0;border-radius:var(--r1);background:var(--hover);font-size:var(--t12);white-space:nowrap}
+.xbtn:hover{background:var(--line)}
+.xbtn.primary{background:var(--mark);color:var(--on-mark);font-weight:600}
+.xbtn.primary:hover{background:var(--mark);filter:brightness(.95)}
+.xd-acts .icon-btn{width:24px;height:24px;border-radius:var(--r1)}
+.xd-status{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:var(--t12);color:var(--ink-2)}
+.xd-status svg{color:var(--ink-3)}
+.xtabs{height:36px;margin-top:24px;border-bottom:1px solid var(--line)}
+.xtabs button{font-size:var(--t13)}
+.xd-body{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:32px;margin-top:20px}
+.xd-body h2{font-size:var(--t13);font-weight:600;margin:20px 0 4px}
+.xd-body h2:first-child{margin-top:0}
+.xd-body p{color:var(--ink-2);max-width:60ch}
+.xd-body p+p{margin-top:8px}
+.feat{width:100%;border-collapse:collapse;font-size:var(--t12)}
+.feat th{width:96px;padding:8px 16px 8px 0;text-align:left;vertical-align:top;font-weight:400;color:var(--ink-3);white-space:nowrap}
+.feat td{padding:8px 0;color:var(--ink)}
+.feat tr+tr th,.feat tr+tr td{border-top:1px solid var(--line)}
+.xd-side h2{font-size:var(--t12);font-weight:400;color:var(--ink-3)}
+.xd-side dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:0;font-size:var(--t12)}
+.xd-side dt{color:var(--ink-2)} .xd-side dd{margin:0;text-align:right}
+.xd-side .tags{display:flex;gap:4px;flex-wrap:wrap}
+
+/* 设置 */
+.doc{max-width:680px;padding:32px}
+.doc h1{font-size:var(--t20);font-weight:600;line-height:1.3}
+.doc .lede{color:var(--ink-2);margin-top:4px;max-width:60ch}
+.rows{margin-top:24px;border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 24px;align-items:center;padding:16px 0;border-bottom:1px solid var(--line)}
+.row h2{font-size:var(--t13);font-weight:600}
+.row p{color:var(--ink-2);font-size:var(--t12);max-width:56ch}
+.row .ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.row .wide{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.hosts li{display:flex;align-items:center;gap:8px;padding:2px 0 2px 12px;border:1px solid var(--line);border-radius:var(--r2);margin-top:4px}
+.hosts code{flex:1}
+.cert{font-size:var(--t12);color:var(--ink-2);display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px}
+.cert dd{margin:0;color:var(--ink);overflow-wrap:anywhere}
+.cert dt{white-space:nowrap}
+
+/* 浮层 */
+.toast{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:var(--r2);background:var(--float);color:#fff;border:1px solid var(--line-strong);font-size:var(--t12);box-shadow:0 8px 24px -8px rgba(0,0,0,.4);z-index:5;max-width:calc(100% - 32px)}
+.toast:empty{display:none}
+.toast button{border:0;background:none;color:var(--mark);font-weight:600;padding:0}
+.toast button:focus-visible{outline-color:var(--mark)}
+.menu{position:fixed;z-index:9;min-width:168px;padding:4px;border:1px solid var(--line-strong);border-radius:var(--r2);background:var(--surface);box-shadow:0 12px 32px -12px rgba(0,0,0,.4)}
+.menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:4px 8px;border-radius:var(--r1);font-size:var(--t12)}
+.menu button:hover,.menu button:focus-visible{background:var(--sunken)}
+.menu button:disabled{color:var(--ink-3);cursor:not-allowed}
+.pop{position:fixed;z-index:9;width:220px;padding:8px;border:1px solid var(--line-strong);border-radius:var(--r2);background:var(--surface);box-shadow:0 12px 32px -12px rgba(0,0,0,.4)}
+.pop h2{font-size:var(--t12);font-weight:400;color:var(--ink-3);padding:0 8px 4px}
+.pop p{font-size:var(--t12);color:var(--ink-2);padding:4px 8px}
+.pop-row{display:flex;align-items:center;gap:4px}
+.pop-row .open{flex:1;display:flex;align-items:center;gap:8px;min-width:0;height:32px;padding:0 8px;border:0;border-radius:var(--r1);background:none;text-align:left}
+.pop-row .open:hover{background:var(--sunken)}
+.pop-row .open svg{color:var(--ink-2)}
+.pop-row .icon-btn[aria-pressed="true"]{color:var(--mark-line)}
+.pop-row .icon-btn[aria-pressed="true"] svg{fill:currentColor}
+
+@media (max-width:760px){
+  body{padding:0}
+  .preview{padding:8px 12px}
+  .win{border-radius:0;border-width:1px 0 0;max-height:none}
+  .win{grid-template-columns:44px minmax(0,1fr)}
+  .rail{padding:8px 0}
+  .rail button{width:32px;height:32px}
+  .lights{display:none}
+  .hist{margin-left:0}
+  .bar{gap:8px;padding:0 8px}
+  .addr .host{display:none}
+  .split,.split.wide{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  .xd{padding:20px 16px}
+  .xd-body{grid-template-columns:minmax(0,1fr);gap:20px}
+  .side{border-right:0;border-bottom:1px solid var(--line);max-height:132px}
+  .side-foot{display:none}
+  .ov,.doc{padding:20px 16px}
+  .ov-head{flex-wrap:wrap}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tile+.tile{border-left:0}
+  .tile{border-top:1px solid var(--line)}
+  .usage-body{grid-template-columns:minmax(0,1fr)}
+  .legend{border-left:0;border-top:1px solid var(--line)}
+  .ov-cols{grid-template-columns:minmax(0,1fr)}
+  .panes{grid-template-columns:minmax(0,1fr);overflow:auto}
+  .pane+.pane{border-left:0;border-top:1px solid var(--line)}
+  .pane{min-height:180px}
+  .list .opt{display:none}
+  .row{grid-template-columns:minmax(0,1fr)}
+  .row .ctl{justify-content:flex-start}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="preview">
+  <strong>aicat 重新设计稿</strong><span>演示数据</span>
+  <span class="grow"></span>
+  <div class="seg" role="group" aria-label="概览状态">
+    <button type="button" data-act="demo" data-v="connected">已接入</button>
+    <button type="button" data-act="demo" data-v="first">首次接入</button>
+  </div>
+</div>
+<div class="win">
+  <header class="bar">
+    <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="hist">
+      <button type="button" class="icon-btn" data-act="hist" data-v="-1" id="hist-back" aria-label="后退" title="后退"></button>
+      <button type="button" class="icon-btn" data-act="hist" data-v="1" id="hist-fwd" aria-label="前进" title="前进"></button>
+    </span>
+    <div class="crumb" id="crumb" aria-label="当前位置"></div>
+    <span class="grow"></span>
+    <button type="button" class="addr" data-act="copy-proxy" id="addr"></button>
+    <button type="button" class="icon-btn" data-act="theme" id="theme"></button>
+  </header>
+  <nav class="rail" id="rail" aria-label="模块"></nav>
+  <main class="page" id="page"></main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+<div id="menu"></div>
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ICON={
+  copy:'<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
+  search:'<circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/>',
+  chev:'<path d="m6 3.5 4.5 4.5L6 12.5"/>',
+  back:'<path d="M10 3.5 5.5 8l4.5 4.5"/>',
+  sun:'<circle cx="8" cy="8" r="3"/><path d="M8 1.5V3M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/>',
+  moon:'<path d="M13.5 9.5a6 6 0 0 1-7-7 6 6 0 1 0 7 7Z"/>',
+  pause:'<path d="M5.5 3.5v9M10.5 3.5v9"/>',
+  play:'<path d="M5 3.5v9l7.5-4.5Z"/>',
+  down:'<path d="M8 2.5v8M4.5 7.5 8 11l3.5-3.5M3 13.5h10"/>',
+  plus:'<path d="M8 3v10M3 8h10"/>',
+  x:'<path d="m4 4 8 8M12 4l-8 8"/>',
+  home:'<path d="M2.5 7.5 8 3l5.5 4.5v5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1Z"/><path d="M6.5 13.5v-4h3v4"/>',
+  traffic:'<path d="M2.5 5.5h10M10 3l2.5 2.5L10 8M13.5 10.5h-10M6 8l-2.5 2.5L6 13"/>',
+  ext:'<rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/><path d="M11.25 2.5V7M9 4.75h4.5"/>',
+  more:'<circle cx="3.5" cy="8" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="12.5" cy="8" r=".6"/>',
+  settings:'<path d="M2.5 4.5h6M12.5 4.5h1M2.5 11.5h1M7.5 11.5h6"/><circle cx="10.5" cy="4.5" r="1.75"/><circle cx="5.5" cy="11.5" r="1.75"/>',
+  pin:'<path d="M6 2.5h4l-.5 4 2 2.5h-7l2-2.5Z"/><path d="M8 9v4.5"/>',
+  gear:'<g transform="scale(.6667)" stroke-width="2.2"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></g>',
+  info:'<circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.5M8 5.2v.1"/>'
+};
+const icon=n=>`<svg class="i" viewBox="0 0 16 16" aria-hidden="true">${ICON[n]}</svg>`;
+
+/* ---------- 状态与演示数据 ---------- */
+const dark=matchMedia('(prefers-color-scheme: dark)');
+const S={page:'overview',connect:false,connected:true,range:'today',metric:'token',dim:'model',prov:'anthropic',provSaved:new Set(),waiting:false,client:'claude',restart:true,drawn:false,
+  themePref:'system',lang:'system',host:'127.0.0.1',port:'9981',
+  trafficOn:true,paused:false,q:'',sq:'',quick:'all',filter:null,sel:2231,reqTab:'header',resTab:'header',
+  open:new Set(),pinned:['api.anthropic.com'],navPins:['traffic'],
+  ext:'traffic',xq:'',xtab:'detail',xopen:{installed:true,rec:true},set:'general',sysProxy:false,cert:'trusted',hosts:['api.anthropic.com','api.openai.com','api.github.com','*.githubusercontent.com']};
+// 解密域名的匹配：精确相等，或 *.example.com 匹配任意层级的子域名（不含 example.com 本身）。
+const hostRule=h=>S.hosts.find(p=>p===h||(p.startsWith('*.')&&h.endsWith(p.slice(1))));
+const base=()=>`http://${S.host==='0.0.0.0'?'127.0.0.1':S.host}:${S.port}`;
+
+const A='api.anthropic.com',O='api.openai.com';
+const msgReq={model:'claude-sonnet-4-5',max_tokens:8192,stream:true,system:'You are Claude Code, Anthropic\'s official CLI for Claude.',messages:[{role:'user',content:'把流量侧栏的分组顺序改成 固定 → 域名 → 应用'}],tools:[{name:'Read',description:'Reads a file from the local filesystem.',input_schema:{type:'object',required:['file_path']}}]};
+const EV=[
+  ['message_start','{"type":"message_start","message":{"id":"msg_01XkQ9","model":"claude-sonnet-4-5","usage":{"input_tokens":4127,"output_tokens":1}}}'],
+  ['content_block_start','{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}'],
+  ['content_block_delta','{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"我先看一下侧栏"}}'],
+  ['content_block_delta','{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"现在的分组实现。"}}'],
+  ['content_block_stop','{"type":"content_block_stop","index":0}'],
+  ['content_block_start','{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01Hc","name":"Read","input":{}}}'],
+  ['content_block_delta','{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"file_path\\":\\"ui/src/state/sidebar.ts\\"}"}}'],
+  ['content_block_stop','{"type":"content_block_stop","index":1}'],
+  ['message_delta','{"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":212}}'],
+  ['message_stop','{"type":"message_stop"}']
+];
+let R=[
+  {id:2231,m:'POST',host:A,path:'/v1/messages',st:200,type:'SSE',ms:2410,size:'18.2 KB',app:'Claude Code',req:msgReq,events:EV},
+  {id:2232,m:'POST',host:A,path:'/v1/messages/count_tokens',st:200,type:'JSON',ms:182,size:'312 B',app:'Claude Code',req:{model:'claude-sonnet-4-5',messages:[{role:'user',content:'…'}]},res:{input_tokens:4127}},
+  {id:2233,m:'CONNECT',host:'statsig.anthropic.com:443',path:'',st:'tunnel',type:'',ms:30120,size:'4.1 KB',app:'Claude Code'},
+  {id:2234,m:'POST',host:O,path:'/v1/responses',st:401,type:'JSON',ms:96,size:'268 B',app:'Codex',req:{model:'gpt-5-codex',input:'run the e2e for the traffic sidebar',stream:true},res:{error:{message:'Incorrect API key provided: sk-proj-****Q3xA.',type:'invalid_request_error',param:null,code:'invalid_api_key'}}},
+  {id:2235,m:'GET',host:'registry.npmjs.org',path:'/@anthropic-ai%2fclaude-code',st:304,type:'',ms:41,size:'0 B',app:'node'},
+  {id:2236,m:'GET',host:'api.github.com',path:'/repos/fish/aicat/pulls',query:'state=open&per_page=20',st:200,type:'JSON',ms:310,size:'6.4 KB',app:'gh',res:[{number:12,title:'feat: 支持应用下的域名与路径树筛选',state:'open',draft:false,user:{login:'fish'}}]},
+  {id:2237,m:'GET',host:'raw.githubusercontent.com',path:'/fish/aicat/main/docs/design/aicat-shell.html',st:200,type:'文本',ms:540,size:'273.5 KB',app:'curl',text:'<div class="ac-shell" data-theme="light">\n  <style>\n    .ac-shell{--ac-brand:#00bba7;--ac-text:#18181b;…',trunc:{kept:'64 KB',total:'273.5 KB'}},
+  {id:2238,m:'POST',host:O,path:'/v1/responses',st:'failed',type:'',ms:30000,size:'',app:'Codex',req:{model:'gpt-5-codex',input:'retry',stream:true},err:'连接上游超时（30 s）'},
+  {id:2239,m:'CONNECT',host:'telemetry.openai.com:443',path:'',st:'tunnel',type:'',ms:1200,size:'1.2 KB',app:'Codex'},
+  {id:2240,m:'POST',host:A,path:'/v1/messages',st:'pending',type:'SSE',ms:null,size:'',app:'Claude Code',req:msgReq,events:EV.slice(0,4)}
+];
+const url=r=>r.m==='CONNECT'?r.host:`https://${r.host}${r.path}${r.query?'?'+r.query:''}`;
+const dur=ms=>ms==null?'':ms<1000?ms+' ms':(ms/1000).toFixed(2)+' s';
+const isBad=r=>r.st==='failed'||+r.st>=400;
+const UA={'Claude Code':'claude-cli/2.1.4 (external, cli)',Codex:'codex_cli_rs/0.58.0',node:'npm/10.9.2 node/v22.12.0 darwin arm64',gh:'GitHub CLI 2.63.0',curl:'curl/8.7.1'};
+function reqH(r){
+  const h=[['Host',r.host],['User-Agent',UA[r.app]||'-']];
+  if(r.m==='CONNECT')return h.concat([['Proxy-Connection','Keep-Alive']]);
+  h.push(['Accept',r.type==='SSE'?'text/event-stream':'*/*']);
+  if(r.host===A)h.push(['anthropic-version','2023-06-01'],['x-api-key','sk-ant-••••••••k2Qw']);
+  if(r.host===O)h.push(['Authorization','Bearer sk-proj-••••••••Q3xA']);
+  if(r.req)h.push(['Content-Type','application/json'],['Content-Length',String(new Blob([JSON.stringify(r.req)]).size)]);
+  return h;
+}
+function resH(r){
+  if(typeof r.st!=='number'&&r.st!=='pending')return [];
+  const h=[['Date','Wed, 11 Nov 2026 10:1'+r.id%10+':07 GMT']];
+  const ct={SSE:'text/event-stream; charset=utf-8',JSON:'application/json','文本':'text/plain; charset=utf-8'}[r.type];
+  if(ct)h.push(['Content-Type',ct]);
+  if(r.type==='SSE')h.push(['Cache-Control','no-cache'],['Transfer-Encoding','chunked']);
+  if(r.host===A)h.push(['request-id','req_011C'+r.id],['anthropic-ratelimit-requests-remaining','3998']);
+  if(r.st===304)h.push(['ETag','W/"5f2c-9a1"']);
+  if(r.st===401)h.push(['WWW-Authenticate','Bearer']);
+  if(r.trunc)h.push(['Content-Length','280058']);
+  return h;
+}
+const STATUS_TEXT={200:'OK',304:'Not Modified',401:'Unauthorized'};
+
+/* ---------- 通用 ---------- */
+function applyTheme(){
+  const t=S.themePref==='system'?(dark.matches?'dark':'light'):S.themePref;
+  document.documentElement.dataset.theme=t;
+  $('#theme').innerHTML=icon(t==='dark'?'sun':'moon');
+  $('#theme').setAttribute('aria-label',t==='dark'?'切换到浅色':'切换到深色');
+}
+dark.addEventListener('change',applyTheme);
+let toastTimer,toastFn;
+function toast(msg,label,fn){
+  clearTimeout(toastTimer);toastFn=fn;
+  $('#toast').innerHTML=esc(msg)+(label?`<button type="button" data-act="toast-do">${esc(label)}</button>`:'');
+  toastTimer=setTimeout(()=>{$('#toast').innerHTML='';},label?7000:2600);
+}
+function copy(text,what){
+  try{navigator.clipboard&&navigator.clipboard.writeText(text).catch(()=>{});}catch(e){}
+  toast('已复制'+(what||''));
+}
+const copyline=(text,what)=>`<div class="copyline"><code>${esc(text)}</code><button type="button" class="icon-btn" data-act="copy" data-text="${esc(text)}" aria-label="复制${esc(what)}">${icon('copy')}</button></div>`;
+const seg=(act,cur,opts,label)=>`<div class="seg" role="radiogroup" aria-label="${label}">${opts.map(([v,t])=>`<button type="button" role="radio" aria-checked="${v===cur}" data-act="${act}" data-v="${v}">${t}</button>`).join('')}</div>`;
+
+const MODS={overview:['概览','home'],traffic:['流量','traffic'],ext:['扩展','ext'],settings:['设置','settings']};
+// 前进后退只记录位置：模块、子页面和流量侧栏筛选。
+const H={list:[],at:-1};
+const loc=()=>JSON.stringify({page:S.page,connect:S.connect,set:S.set,ext:S.ext,filter:S.filter});
+function track(){
+  const l=loc();
+  if(H.list[H.at]===l)return;
+  H.list.length=H.at+1;H.list.push(l);H.at++;
+}
+function crumbs(){
+  const c=[MODS[S.page][0]];
+  if(S.page==='overview'&&S.connect)c.push(S.connect==='provider'?'接入供应商':'接入 Agent');
+  if(S.page==='traffic'){const f=S.filter;c.push(f?[f.app,f.host,f.path].filter(Boolean).join(' / '):'全部请求');}
+  if(S.page==='ext')c.push(EXTS.find(x=>x.id===S.ext).name);
+  if(S.page==='settings')c.push(S.set==='general'?'通用':'代理');
+  return c;
+}
+function drawBar(){
+  const pinned=S.trafficOn&&S.navPins.includes('traffic');
+  const item=p=>`<button type="button" data-act="go" data-v="${p}" title="${MODS[p][0]}" aria-label="${MODS[p][0]}" ${S.page===p?'aria-current="page"':''}>${icon(MODS[p][1])}</button>`;
+  $('#rail').innerHTML=item('overview')+(pinned?item('traffic'):'')+item('ext')
+    +`<button type="button" data-act="more" title="更多" aria-label="更多" aria-haspopup="dialog" aria-expanded="${!!$('#menu .pop')}" ${S.page==='traffic'&&!pinned?'aria-current="page"':''}>${icon('more')}</button>`
+    +'<span class="grow"></span>'+item('settings');
+  $('#crumb').innerHTML=crumbs().map(t=>`<span>${esc(t)}</span>`).join(icon('chev'));
+  $('#hist-back').innerHTML=icon('back');$('#hist-back').disabled=H.at<=0;
+  $('#hist-fwd').innerHTML=icon('chev');$('#hist-fwd').disabled=H.at>=H.list.length-1;
+  $('#addr').innerHTML=`<i class="dot" aria-hidden="true"></i><span class="num"><span class="host">${esc(S.host)}</span>:${esc(S.port)}</span>${icon('copy')}`;
+  $('#addr').setAttribute('aria-label',`网关正在监听 ${S.host}:${S.port}，点击复制代理地址`);
+  document.querySelectorAll('[data-act="demo"]').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.v==='connected')===S.connected)));
+}
+function draw(){
+  const a=document.activeElement,key=a&&a.dataset&&a.dataset.act?`[data-act="${a.dataset.act}"]`+(a.dataset.v?`[data-v="${a.dataset.v}"]`:''):null;
+  applyTheme();track();drawBar();
+  const p=$('#page');
+  if(S.page==='overview')p.innerHTML=S.connect==='provider'?providerPage():S.connect?connectPage():overview();
+  else if(S.page==='traffic'){p.innerHTML=trafficShell();drawSide();drawList();drawInsp();}
+  else if(S.page==='ext'){p.innerHTML=extPage();drawExtSide();}
+  else p.innerHTML=settingsPage();
+  if(key){const el=document.querySelector(key);if(el)el.focus();}
+}
+
+/* ---------- 概览：用量总览 ---------- */
+// 演示数据。实际数字来自经过网关的模型请求；费用按公开价目估算。
+const rnd=(a,b)=>{const x=Math.sin(a*127.1+b*311.7)*43758.5453;return x-Math.floor(x);};
+const USE=[
+  {agent:'Claude Code',prov:'Anthropic',model:'claude-sonnet-4-5',w:.66,tok:21000,price:.42},
+  {agent:'Codex',prov:'OpenAI',model:'gpt-5-codex',w:.22,tok:16000,price:.36},
+  {agent:'Claude Code',prov:'Anthropic',model:'claude-haiku-4-5',w:.12,tok:9000,price:.11}
+];
+// 颜色跟随实体，不跟随排名：切换时间范围或拆分维度时，同一个实体保持同一个颜色。
+const SLOT={'claude-sonnet-4-5':1,'gpt-5-codex':2,'claude-haiku-4-5':3,Anthropic:1,OpenAI:2,'Claude Code':1,Codex:2};
+const HOURS=[.9,.7,.1,0,0,0,0,.15,.2,.3,.55,.7,.6,.8,.2,.12,.1,.14,.08];
+const dayAt=i=>new Date(2026,10,11-(29-i));
+const RANGES={
+  today:{name:'今天',n:24,every:4,scale:2.4e6,shape:i=>HOURS[i]||0,label:i=>String(i).padStart(2,'0')+':00',fail:1,hit:97.4,speed:41,first:'1.8'},
+  d7:{name:'7 天',n:7,every:1,scale:1.6e7,shape:i=>[.5,.8,.2,.1,.9,1,.6][i],label:i=>'周'+'四五六日一二三'[i],fail:3,hit:96.8,speed:39,first:'1.9'},
+  d30:{name:'30 天',n:30,every:5,scale:1.6e7,shape:i=>{const d=dayAt(i).getDay();return (d===0||d===6?.15:.45)+.55*rnd(i+3,7);},label:i=>(dayAt(i).getMonth()+1)+'/'+dayAt(i).getDate(),fail:9,hit:96.1,speed:40,first:'1.9'}
+};
+const big=v=>v>=1e6?(v/1e6).toFixed(v<1e7?1:0)+'M':v>=1e3?(v/1e3).toFixed(v<1e4?1:0)+'K':String(Math.round(v));
+const FMT={token:big,cost:v=>'$'+(v>=100?v.toFixed(0):v.toFixed(2)),req:big};
+function usage(range,dim,metric){
+  const R=RANGES[range],keyOf=c=>dim==='model'?c.model:dim==='prov'?c.prov:c.agent,map=new Map();
+  USE.forEach((c,ci)=>{
+    const k=keyOf(c);
+    if(!map.has(k))map.set(k,{name:k,slot:SLOT[k],v:Array(R.n).fill(0)});
+    for(let i=0;i<R.n;i++){
+      const tk=R.scale*R.shape(i)*c.w*(.8+.4*rnd(i+1,ci+1));
+      map.get(k).v[i]+=metric==='token'?tk:metric==='cost'?tk/1e6*c.price:tk/c.tok;
+    }
+  });
+  const series=[...map.values()].sort((a,b)=>a.slot-b.slot);
+  series.forEach(s=>s.total=s.v.reduce((a,b)=>a+b,0));
+  const tot=Array.from({length:R.n},(_,i)=>series.reduce((a,s)=>a+s.v[i],0));
+  return {R,series,tot,sum:tot.reduce((a,b)=>a+b,0)};
+}
+const niceStep=x=>{const p=10**Math.floor(Math.log10(x)),f=x/p;return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p;};
+let CH=null;
+function chart(u,fmt){
+  const step=niceStep(Math.max(...u.tot)/4),top=step*4,n=u.R.n;
+  CH={u,fmt};
+  const first=u.tot.findIndex(v=>v>0);
+  return `<div class="chart" role="group" aria-label="用量柱状图，左右方向键切换时段">
+    <div class="yaxis" aria-hidden="true">${[0,1,2,3,4].map(k=>`<span class="num" style="bottom:${k*25}%">${fmt(k*step)}</span>`).join('')}</div>
+    <div class="plot">${[0,1,2,3,4].map(k=>`<i class="grid" style="bottom:${k*25}%"></i>`).join('')}
+      <div class="cols">${u.tot.map((t,i)=>`<div class="col" tabindex="${i===first?0:-1}" data-i="${i}" aria-label="${u.R.label(i)}，合计 ${fmt(t)}"><div class="stack">${u.series.filter(s=>s.v[i]>0).map(s=>`<i style="height:${s.v[i]/top*100}%;background:var(--s${s.slot})"></i>`).join('')}</div></div>`).join('')}</div>
+      <div class="tip" id="tip" hidden></div></div>
+    <span></span><div class="xaxis" aria-hidden="true">${u.tot.map((_,i)=>`<span class="num">${i%u.R.every===0?u.R.label(i):''}</span>`).join('')}</div>
+  </div>
+  <table class="sr"><caption>各时段用量</caption><thead><tr><th>时段</th>${u.series.map(s=>`<th>${esc(s.name)}</th>`).join('')}</tr></thead>
+    <tbody>${u.tot.map((_,i)=>`<tr><th>${u.R.label(i)}</th>${u.series.map(s=>`<td>${fmt(s.v[i])}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+function tipShow(col){
+  const tip=$('#tip');if(!tip||!CH)return;
+  const i=+col.dataset.i,{u,fmt}=CH,rows=u.series.filter(s=>s.v[i]>0);
+  tip.innerHTML=`<strong>${u.R.label(i)}</strong>`+(rows.length
+    ?rows.map(s=>`<div><i style="background:var(--s${s.slot})"></i><span>${esc(s.name)}</span><b class="num">${fmt(s.v[i])}</b></div>`).join('')+(rows.length>1?`<div class="sum"><i></i><span>合计</span><b class="num">${fmt(u.tot[i])}</b></div>`:'')
+    :'<div><span>没有请求</span></div>');
+  tip.hidden=false;
+  const left=i<u.R.n/2,w=col.parentElement.offsetWidth;
+  tip.style.left=left?(col.offsetLeft+col.offsetWidth+4)+'px':'auto';
+  tip.style.right=left?'auto':(w-col.offsetLeft+4)+'px';
+}
+const PROVS={
+  anthropic:{name:'Anthropic',host:'api.anthropic.com',url:'https://api.anthropic.com',env:'ANTHROPIC_BASE_URL',path:'/anthropic',ph:'sk-ant-…'},
+  openai:{name:'OpenAI',host:'api.openai.com',url:'https://api.openai.com/v1',env:'OPENAI_BASE_URL',path:'/openai/v1',ph:'sk-…'},
+  compat:{name:'兼容 OpenAI 的服务',host:'',url:'',env:'OPENAI_BASE_URL',path:'/compat/v1',ph:'API Key'}
+};
+const CLIENTS={
+  claude:{name:'Claude Code',where:'在终端运行',code:()=>`claude mcp add --transport http aicat ${base()}/mcp \\\n  --header "Authorization: Bearer $(cat ~/.aicat/mcp-token)"`},
+  codex:{name:'Codex',where:'加入 ~/.codex/config.toml',code:()=>`[mcp_servers.aicat]\nurl = "${base()}/mcp"\nbearer_token_env_var = "AICAT_MCP_TOKEN"`},
+  cursor:{name:'Cursor',where:'加入 ~/.cursor/mcp.json',code:()=>JSON.stringify({mcpServers:{aicat:{url:base()+'/mcp',headers:{Authorization:'Bearer <~/.aicat/mcp-token 的内容>'}}}},null,2)},
+  other:{name:'其他',where:'Streamable HTTP',code:()=>`地址  ${base()}/mcp\n请求头  Authorization: Bearer <~/.aicat/mcp-token 的内容>`}
+};
+const endpoints=()=>`<section><h2>接入地址</h2><p class="sub">MCP 和 HTTP API 只接受本机请求</p><div class="endpoints">
+  <div><label>MCP</label>${copyline(base()+'/mcp',' MCP 地址')}</div>
+  <div><label>HTTP API</label>${copyline(base()+'/api',' API 地址')}</div>
+  <div><label>HTTP 代理</label>${copyline(base(),'代理地址')}</div></div></section>`;
+function firstRun(){
+  return `<div class="main" style="height:100%"><div class="ov">
+  <div class="ov-head"><div><h1>网关运行中，还没有调用经过</h1><p>aicat 已在后台监听 <span class="num">${esc(S.host)}:${esc(S.port)}</span>。完成下面两步后，这里会显示用量。</p></div></div>
+  <section class="card start"><ol class="steps">
+    <li class="step now"><span class="n num">1</span><div><h2>接入 Agent</h2>
+      <p>${S.waiting?`<span class="waiting"><i class="spin"></i>等待 ${CLIENTS[S.client].name} 首次连接…在 Agent 里发一条消息即可。</span>`:'让 Agent 通过 MCP 查询网关记录、编写改写规则。'}</p>
+      <button type="button" class="btn primary" data-act="connect">${icon('plus')}接入 Agent</button></div></li>
+    <li class="step"><span class="n num">2</span><div><h2>接入供应商</h2>
+      <p>让模型请求经过网关，这里才会有 Token、费用和速度的统计。</p>
+      <button type="button" class="btn" data-act="connect-prov">接入供应商</button></div></li>
+  </ol></section>
+  <div class="ov-cols">${endpoints()}</div></div></div>`;
+}
+function overview(){
+  if(!S.connected)return firstRun();
+  const r=S.range,R=RANGES[r],u=usage(r,S.dim,S.metric),fmt=FMT[S.metric];
+  const tok=usage(r,'model','token').sum,req=usage(r,'model','req').sum,cost=usage(r,'model','cost').sum;
+  const reqBy=d=>Object.fromEntries(usage(r,d,'req').series.map(s=>[s.name,s.total])),reqDim=reqBy(S.dim),reqAgent=reqBy('agent'),reqProv=reqBy('prov');
+  const todo=[];
+  todo.push(`<li><div><strong>Codex 调用 api.openai.com 失败</strong><span class="who bad">401 Unauthorized，API Key 无效</span></div>${S.trafficOn?'<button type="button" class="btn" data-act="see-fail">查看请求</button>':''}</li>`);
+  if(S.restart)todo.push(`<li><div><strong>改写规则有新版本</strong><span class="who warn">重启后生效</span></div><button type="button" class="btn" data-act="restart">重启 aicat</button></li>`);
+  return `<div class="main" style="height:100%"><div class="ov">
+  <div class="ov-head"><div>
+    <h1>网关运行中</h1>
+    <p><span class="num">2</span> 个 Agent、<span class="num">2</span> 个供应商已接入。统计来自实际经过网关的模型请求。</p>
+  </div><span class="grow"></span>
+  <button type="button" class="btn" data-act="connect-prov">${icon('plus')}接入供应商</button>
+  <button type="button" class="btn" data-act="connect">${icon('plus')}接入 Agent</button></div>
+  <div class="ov-bar">${seg('range',r,Object.entries(RANGES).map(([k,v])=>[k,v.name]),'时间范围')}</div>
+  <section class="card tiles" aria-label="用量摘要">
+    <div class="tile"><h2>Token</h2><div class="v num">${big(tok)}</div><div class="s">输入 <span class="num">${big(tok*.02)}</span> · 输出 <span class="num">${big(tok*.004)}</span> · 缓存 <span class="num">${big(tok*.976)}</span></div></div>
+    <div class="tile"><h2>请求</h2><div class="v num">${big(req)}</div><div class="s"><b><span class="num">${R.fail}</span> 次失败</b> · 成功 <span class="num">${(Math.floor((1-R.fail/req)*1000)/10).toFixed(1)}%</span></div></div>
+    <div class="tile"><h2>费用</h2><div class="v num">≈${FMT.cost(cost)}</div><div class="s">按公开价目估算</div></div>
+    <div class="tile"><h2>缓存命中率</h2><div class="v num">${R.hit}%</div><div class="meter" aria-hidden="true"><i style="width:${R.hit}%"></i></div></div>
+    <div class="tile"><h2>输出速度</h2><div class="v num">${R.speed}<small>token/秒</small></div><div class="s">首字平均 <span class="num">${R.first}</span> 秒</div></div>
+  </section>
+  <section class="card usage" aria-label="用量趋势">
+    <div class="usage-head">${seg('metric',S.metric,[['token','Token'],['cost','费用'],['req','请求']],'指标')}<span class="grow"></span>
+      <span class="lbl">拆分</span>${seg('dim',S.dim,[['model','模型'],['prov','供应商'],['agent','Agent']],'拆分维度')}</div>
+    <div class="usage-body">${chart(u,fmt)}
+      <ul class="legend">${u.series.map(s=>`<li><i style="background:var(--s${s.slot})"></i><span class="name" title="${esc(s.name)}">${esc(s.name)}</span><b class="num">${fmt(s.total)}</b>
+        <span class="sub"><span class="num">${big(reqDim[s.name])}</span> 次请求 · 占 <span class="num">${Math.round(s.total/u.sum*100)}%</span></span></li>`).join('')}</ul></div>
+  </section>
+  <div class="ov-cols">
+    <section><h2>已接入</h2><p class="sub">Agent 和它们调用的供应商</p>
+      <ul class="conn">
+        <li><div><strong>Claude Code</strong><span class="who">Agent · <span class="num">${big(reqAgent['Claude Code'])}</span> 次请求 · 2 分钟前</span></div></li>
+        <li><div><strong>Codex</strong><span class="who">Agent · <span class="num">${big(reqAgent.Codex)}</span> 次请求 · <b class="bad"><span class="num">${R.fail}</span> 次失败</b> · 18 分钟前</span></div></li>
+        ${['anthropic','openai'].map(id=>`<li><div><strong>${PROVS[id].name}</strong><span class="who">供应商 · ${PROVS[id].host} · <span class="num">${big(reqProv[PROVS[id].name])}</span> 次请求 · ${S.provSaved.has(id)?'密钥由 aicat 保管':'密钥由 Agent 自带'}</span></div></li>`).join('')}
+      </ul></section>
+    <div><section><h2>需要处理</h2><p class="sub">连接异常和等待你确认的事项</p><ul class="conn">${todo.join('')}</ul></section>
+      <div style="margin-top:24px">${endpoints()}</div></div>
+  </div></div></div>`;
+}
+function connectPage(){
+  const c=CLIENTS[S.client],code=c.code();
+  return `<div class="main" style="height:100%"><div class="ov">
+  <button type="button" class="btn back" data-act="back">${icon('back')}返回概览</button>
+  <div class="ov-head"><div><h1>接入 Agent</h1><p>aicat 的 MCP 和网关共用同一个监听地址，只接受本机请求。</p></div></div>
+  <ol class="steps">
+    <li class="step ${S.waiting?'done':'now'}"><span class="n num">1</span><div>
+      <h2>把 aicat 加入 Agent</h2>
+      ${seg('client',S.client,Object.entries(CLIENTS).map(([k,v])=>[k,v.name]),'Agent 客户端')}
+      <div class="snippet"><header><span>${c.where}</span><button type="button" class="btn" data-act="copy-snippet">${icon('copy')}复制配置</button></header><pre id="snippet">${esc(code)}</pre></div>
+      <p>令牌保存在 ~/.aicat/mcp-token，只用于本机访问，不要提交到代码仓库。</p>
+    </div></li>
+    <li class="step ${S.waiting?'now':''}"><span class="n num">2</span><div>
+      <h2>在 Agent 里发一条消息</h2>
+      <p>aicat 收到第一次 MCP 请求后，会自动回到概览。</p>
+      ${S.waiting?`<div class="waiting" role="status"><i class="spin"></i>等待 ${c.name} 首次连接…<button type="button" class="link" data-act="sim">模拟首次连接（设计预览）</button></div>`:''}
+    </div></li>
+  </ol></div></div>`;
+}
+
+function providerPage(){
+  const p=PROVS[S.prov],saved=S.provSaved.has(S.prov);
+  return `<div class="main" style="height:100%"><div class="ov">
+  <button type="button" class="btn back" data-act="back">${icon('back')}返回概览</button>
+  <div class="ov-head"><div><h1>接入供应商</h1><p>把供应商的密钥交给 aicat 保管，Agent 只需要指向 aicat，不用各自保存密钥。</p></div></div>
+  <div class="note plain" style="max-width:720px">上游模型路由还没有实现，这一页是方向稿，地址和路径以最终实现为准。</div>
+  <ol class="steps">
+    <li class="step ${saved?'done':'now'}"><span class="n num">1</span><div>
+      <h2>填写供应商</h2>
+      ${seg('prov',S.prov,Object.entries(PROVS).map(([k,v])=>[k,v.name]),'供应商')}
+      <div class="form">
+        <label for="prov-url">接口地址</label><input class="field code" id="prov-url" value="${esc(p.url)}" placeholder="https://" autocomplete="off" spellcheck="false">
+        <label for="prov-key">API Key</label><input class="field code" id="prov-key" type="password" placeholder="${esc(p.ph)}" autocomplete="off">
+      </div>
+      <p>密钥只保存在这台 Mac 上，不会出现在流量记录里。</p>
+      <button type="button" class="btn${saved?'':' primary'}" data-act="prov-save">${saved?'已保存，重新保存':'保存'}</button>
+    </div></li>
+    <li class="step ${saved?'now':''}"><span class="n num">2</span><div>
+      <h2>让 Agent 经 aicat 调用模型</h2>
+      <p>把 Agent 的模型地址指向 aicat，请求会带上保管的密钥转发给 ${esc(p.name)}。</p>
+      <div class="snippet"><header><span>在 Agent 的环境变量里设置</span><button type="button" class="btn" data-act="copy-snippet">${icon('copy')}复制</button></header><pre id="snippet">${esc(`export ${p.env}=${base()}${p.path}`)}</pre></div>
+    </div></li>
+  </ol></div></div>`;
+}
+
+/* ---------- 流量 ---------- */
+const fuzzy=(text,q)=>q.toLowerCase().split(/\s+/).filter(Boolean).every(w=>{let i=0;for(const ch of text.toLowerCase()){if(ch===w[i])i++;if(i===w.length)return true;}return false;});
+const hit=(r,f)=>!f||((!f.host||r.host===f.host)&&(!f.app||r.app===f.app)&&(f.path==null||r.path===f.path));
+const visible=()=>R.filter(r=>hit(r,S.filter)&&(S.quick==='all'||(S.quick==='bad'?isBad(r):r.st==='pending'))&&(!S.q||fuzzy(url(r),S.q)));
+const fkey=f=>f?[f.app||'',f.host||'',f.path==null?'':f.path].join('|'):'';
+function trafficShell(){
+  return `<div class="split"><aside class="side" id="tside" aria-label="筛选"></aside>
+  <section class="main" style="overflow:hidden"><div class="tr" id="tr">
+    <div class="tools">
+      <label class="search"><span class="sr">搜索 URL</span>${icon('search')}<input class="field" id="q" data-in="q" placeholder="搜索 URL" value="${esc(S.q)}" autocomplete="off" spellcheck="false"><kbd>⌘K</kbd></label>
+      ${seg('quick',S.quick,[['all','全部'],['bad','出错'],['run','进行中']],'按状态筛选')}
+      <button type="button" class="btn" data-act="pause">${icon(S.paused?'play':'pause')}${S.paused?'继续采集':'暂停采集'}</button>
+      <button type="button" class="btn" data-act="clear">清空</button>
+      <button type="button" class="icon-btn" data-act="export" aria-label="导出为 JSON" title="导出为 JSON">${icon('down')}</button>
+    </div>
+    <div class="listwrap" id="list"></div><div id="insp"></div><div class="foot" id="foot"></div>
+  </div></section></div>`;
+}
+function tree(){
+  const uniq=a=>[...new Set(a)],cnt=f=>R.filter(r=>hit(r,f)).length;
+  const hostNode=(h,app,pre)=>({id:pre+h,label:h,f:app?{app,host:h}:{host:h},host:h,
+    kids:uniq(R.filter(r=>r.host===h&&r.path&&(!app||r.app===app)).map(r=>r.path)).map(p=>({id:pre+h+p,label:p,f:app?{app,host:h,path:p}:{host:h,path:p}}))});
+  return [
+    ['固定',S.pinned.map(h=>hostNode(h,null,'pin:'))],
+    ['域名',uniq(R.map(r=>r.host)).map(h=>hostNode(h,null,'host:'))],
+    ['应用',uniq(R.map(r=>r.app)).map(a=>({id:'app:'+a,label:a,f:{app:a},kids:uniq(R.filter(r=>r.app===a).map(r=>r.host)).map(h=>hostNode(h,a,'app:'+a+':'))}))]
+  ].map(([t,nodes])=>[t,nodes,cnt]);
+}
+function drawSide(){
+  const sq=S.sq.trim().toLowerCase();
+  const match=n=>!sq||n.label.toLowerCase().includes(sq)||(n.kids||[]).some(match);
+  const node=(n,d,cnt)=>{
+    if(!match(n))return '';
+    const kids=n.kids&&n.kids.length,open=kids&&(S.open.has(n.id)||!!sq),cur=fkey(n.f)===fkey(S.filter)&&!!S.filter;
+    return `<li><div class="trow" style="padding-left:${d*14}px">
+      ${kids?`<button type="button" class="twist" data-act="twist" data-v="${esc(n.id)}" aria-expanded="${!!open}" aria-label="${open?'收起':'展开'} ${esc(n.label)}">${icon('chev')}</button>`:'<span class="twist none"></span>'}
+      <button type="button" class="side-item" data-act="filter" data-v="${esc(JSON.stringify(n.f))}" ${n.host?`data-host="${esc(n.host)}"`:''} ${cur?'aria-current="true"':''} title="${esc(n.label)}"><span class="label">${esc(n.label)}</span><span class="count num">${cnt(n.f)}</span></button>
+    </div>${open?`<ul>${n.kids.map(k=>node(k,d+1,cnt)).join('')}</ul>`:''}</li>`;
+  };
+  $('#tside').innerHTML=`<label class="search" style="margin-bottom:4px"><span class="sr">查找应用或域名</span>${icon('search')}<input class="field" data-in="sq" placeholder="查找应用或域名" value="${esc(S.sq)}" autocomplete="off" spellcheck="false" style="padding-right:8px"></label>
+    <button type="button" class="side-item" data-act="filter" data-v="null" ${S.filter?'':'aria-current="true"'}><span class="label">全部请求</span><span class="count num">${R.length}</span></button>
+    ${tree().map(([t,nodes,cnt])=>`<div class="side-title"><span>${t}</span><span class="num">${nodes.length}</span></div><ul>${nodes.map(n=>node(n,0,cnt)).join('')}</ul>`).join('')}
+    <div class="side-foot">在域名上点右键可以固定</div>`;
+}
+// 行首的状态点（参考 Proxyman、Rockxy）：绿 = 2xx，红 = 4xx / 5xx / 失败，灰 = 3xx，空心 = 未解密的隧道，转圈 = 进行中。
+function stDot(r){
+  if(r.st==='pending')return '<i class="spin sd-run"></i>';
+  return `<i class="sd ${r.st==='tunnel'?'ring':isBad(r)?'bad':r.st>=300?'mute':'ok'}"></i>`;
+}
+function stCell(r){
+  if(r.st==='tunnel')return '<span class="dim">隧道</span>';
+  if(r.st==='pending')return '<span class="dim">进行中</span>';
+  if(r.st==='failed')return '<span class="st-bad">失败</span>';
+  return `<span class="num ${r.st>=400?'st-bad':r.st>=300?'dim':''}">${r.st}</span>`;
+}
+function drawList(focus){
+  const box=$('#list'),top=box.scrollTop,rows=visible();
+  if(S.sel!=null&&!rows.some(r=>r.id===S.sel))S.sel=null;
+  if(!R.length)box.innerHTML=`<div class="empty"><h2>${S.paused?'采集已暂停':'还没有请求经过网关'}</h2>
+    <p>${S.paused?'代理仍在转发请求，只是不再记录。':'让客户端使用 aicat 的代理地址，请求就会出现在这里。可以先用下面这条命令试一下。'}</p>
+    ${S.paused?`<button type="button" class="btn primary" data-act="pause">${icon('play')}继续采集</button>`:copyline(`curl --proxy ${base()} https://example.com`,'命令')+`<button type="button" class="link" data-act="connect">接入 Agent</button>`}</div>`;
+  else if(!rows.length)box.innerHTML=`<div class="empty"><h2>没有符合条件的请求</h2><p>共 ${R.length} 个请求，都被当前的搜索或筛选排除了。</p><button type="button" class="btn" data-act="reset">清除筛选</button></div>`;
+  else box.innerHTML=`<table class="list"><colgroup><col style="width:32px"><col style="width:48px"><col><col class="opt" style="width:104px"><col style="width:84px"><col style="width:64px"><col class="opt" style="width:56px"><col class="opt" style="width:72px"><col class="opt" style="width:84px"></colgroup>
+    <thead><tr><th><span class="sr">结果</span></th><th>#</th><th>URL</th><th class="opt">应用</th><th>方法</th><th>状态</th><th class="opt">类型</th><th class="opt r">耗时</th><th class="opt r">大小</th></tr></thead>
+    <tbody>${rows.map((r,i)=>`<tr data-id="${r.id}" tabindex="${(S.sel==null?i===0:r.id===S.sel)?0:-1}" aria-selected="${r.id===S.sel}" title="${esc(url(r))}">
+      <td class="dotc" aria-hidden="true">${stDot(r)}</td><td class="num dim">${r.id}</td>
+      <td>${esc(r.host)}<span class="path">${esc(r.path+(r.query?'?'+r.query:''))}</span></td>
+      <td class="opt">${esc(r.app)}</td><td>${r.m}</td><td>${stCell(r)}</td>
+      <td class="opt dim">${r.type}</td><td class="opt r num">${dur(r.ms)}</td><td class="opt r num">${r.size}</td></tr>`).join('')}</tbody></table>`;
+  box.scrollTop=top;
+  $('#tr').classList.toggle('open',S.sel!=null);
+  $('#foot').innerHTML=`<span class="state ${S.paused?'idle':'ok'}">${S.paused?'已暂停，代理继续转发':'正在采集'}</span>
+    <span><span class="num">${R.length}</span> 个请求${rows.length!==R.length?`，显示 <span class="num">${rows.length}</span> 个`:''}</span>
+    <span class="grow"></span><span>${S.sel!=null?'Esc 取消选择':rows.length?'↑ ↓ 选择请求':''}</span>`;
+  if(focus){const el=box.querySelector('tr[tabindex="0"]');if(el){el.focus({preventScroll:true});el.scrollIntoView({block:'nearest'});}}
+}
+function hl(o){
+  const s=JSON.stringify(o,null,2),re=/("(?:[^"\\]|\\.)*")(\s*:)?|-?\b\d+(?:\.\d+)?\b|\b(?:true|false|null)\b/g;
+  let out='',last=0,m;
+  while((m=re.exec(s))){out+=esc(s.slice(last,m.index))+(m[1]?`<span class="${m[2]?'k':'s'}">${esc(m[1])}</span>${m[2]||''}`:`<span class="n">${m[0]}</span>`);last=re.lastIndex;}
+  return out+esc(s.slice(last));
+}
+const kv=rows=>rows.length?`<table class="kv"><tbody>${rows.map(([k,v])=>`<tr><th scope="row">${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody></table>`:'';
+function tabsOf(r,side){
+  const t=[['header','Header']];
+  if(side==='req'){if(r.query)t.push(['query','Query']);if(r.req)t.push(['body','Body']);}
+  else{if(r.res||r.text)t.push(['body','Body']);if(r.events)t.push(['events','事件']);}
+  return t.concat([['raw','Raw']]);
+}
+function paneBody(r,side,tab){
+  let pre='';
+  if(side==='res'){
+    if(r.st==='failed')return `<div class="note bad">没有收到响应：${esc(r.err)}</div>`;
+    if(r.st==='pending')pre=`<div class="note plain">仍在接收，已收到 ${r.events?r.events.length:0} 个事件。</div>`;
+    if(r.trunc)pre+=`<div class="note">正文过大，只保留了前 ${r.trunc.kept}（共 ${r.trunc.total}）。实际转发不受影响。</div>`;
+  }
+  const heads=side==='req'?reqH(r):resH(r);
+  const start=side==='req'?`${r.m} ${r.path}${r.query?'?'+r.query:''} HTTP/1.1`:typeof r.st==='number'?`HTTP/1.1 ${r.st} ${STATUS_TEXT[r.st]||''}`:'HTTP/1.1 200 OK';
+  if(tab==='header')return pre+kv(heads);
+  if(tab==='query')return kv([...new URLSearchParams(r.query)]);
+  if(tab==='body')return pre+`<pre class="body">${side==='req'?hl(r.req):r.res?hl(r.res):esc(r.text)}</pre>`;
+  if(tab==='events')return pre+`<ol class="events">${r.events.map(([e,d],i)=>`<li><span class="ix">${i+1}</span><span class="ev">${e}</span><span class="d" title="${esc(d)}">${esc(d)}</span></li>`).join('')}</ol>`;
+  const body=side==='req'?(r.req?JSON.stringify(r.req):''):r.events?r.events.map(([e,d])=>`event: ${e}\ndata: ${d}\n`).join('\n'):r.res?JSON.stringify(r.res):r.text||'';
+  return pre+`<pre class="body">${esc(start+'\n'+heads.map(h=>h.join(': ')).join('\n')+'\n\n'+body)}</pre>`;
+}
+function drawInsp(){
+  const r=R.find(x=>x.id===S.sel),box=$('#insp');
+  if(!r){box.innerHTML='';box.className='';return;}
+  box.className='insp';
+  const sum=`<div class="sum"><span class="m">${r.m}</span><span class="st">${stDot(r)}${stCell(r)}</span><span class="url">${esc(url(r))}</span><span class="meta">${[r.app,r.type,dur(r.ms),r.size].filter(Boolean).join('　')}</span></div>`;
+  if(r.st==='tunnel'){
+    const host=r.host.replace(/:\d+$/,''),rule=hostRule(host),on=!!rule;
+    box.innerHTML=sum+`<div class="tunnel"><h3>这是一条加密隧道</h3>
+      <p>aicat 只转发了 ${esc(r.host)} 的加密数据，没有解密内容。</p>
+      ${on?`<div class="note plain">${esc(host)} ${rule===host?'已在解密域名里':'匹配解密域名 '+esc(rule)}。这条隧道建立得更早，保持未解密；新连接会被解密。</div>`
+          :`<p>解密后可以看到这个域名的请求和响应。只对之后新建的连接生效。</p><button type="button" class="btn primary" data-act="decrypt" data-v="${esc(host)}">解密此域名</button>`}
+      ${kv(reqH(r))}</div>`;
+    return;
+  }
+  const pane=(side,name)=>{
+    const tabs=tabsOf(r,side),want=S[side+'Tab'],cur=tabs.some(t=>t[0]===want)?want:'header';
+    return `<section class="pane" aria-label="${name}"><div class="pane-head"><h3>${name}</h3>
+      <div class="ptabs" role="tablist" aria-label="${name}视图">${tabs.map(([v,t])=>`<button type="button" role="tab" aria-selected="${v===cur}" tabindex="${v===cur?0:-1}" data-act="ptab" data-side="${side}" data-v="${v}">${t}</button>`).join('')}</div>
+      <button type="button" class="icon-btn" data-act="copy-pane" data-side="${side}" aria-label="复制${name}的当前视图">${icon('copy')}</button></div>
+      <div class="pane-body" id="pb-${side}" role="tabpanel" tabindex="0">${paneBody(r,side,cur)}</div></section>`;
+  };
+  box.innerHTML=sum+`<div class="panes">${pane('req','请求')}${pane('res','响应')}</div>`;
+}
+function curl(r){
+  return `curl '${url(r)}' -X ${r.m}`+reqH(r).filter(h=>h[0]!=='Host'&&h[0]!=='Content-Length').map(h=>` \\\n  -H '${h[0]}: ${h[1]}'`).join('')+(r.req?` \\\n  --data '${JSON.stringify(r.req).replace(/'/g,"'\\''")}'`:'');
+}
+function togglePin(h){
+  const i=S.pinned.indexOf(h);
+  if(i<0){S.pinned.push(h);toast('已固定 '+h);}else{S.pinned.splice(i,1);toast('已取消固定 '+h);}
+  drawSide();
+}
+
+/* ---------- 扩展 ---------- */
+const EXTS=[{id:'traffic',name:'流量',icon:'traffic',by:'aicat',group:'installed',builtin:true,desc:'检查经过网关的 HTTP 和 HTTPS 请求与响应'}];
+const XSEC=[['installed','已安装','还没有安装扩展。'],['rec','推荐','社区扩展的发现和安装尚未提供。']];
+function drawExtSide(){
+  const q=S.xq.trim().toLowerCase();
+  const item=x=>`<li><button type="button" class="xitem${S.trafficOn?'':' off'}" data-act="ext" data-v="${x.id}" ${S.ext===x.id?'aria-current="true"':''}>
+    <span class="xicon">${icon(x.icon)}</span><span class="top"><strong>${x.name}${x.builtin?' <span class="tag">内置</span>':''}</strong><span class="st">${S.trafficOn?'已启用':'已停用'}</span></span>
+    <span class="desc" title="${x.desc}">${x.desc}</span></button></li>`;
+  $('#xside').innerHTML=`<label class="search" style="margin-bottom:4px"><span class="sr">在扩展中搜索</span>${icon('search')}<input class="field" data-in="xq" placeholder="在扩展中搜索" value="${esc(S.xq)}" autocomplete="off" spellcheck="false" style="padding-right:8px"></label>`
+    +XSEC.map(([id,title,empty])=>{
+      const all=EXTS.filter(x=>x.group===id),list=all.filter(x=>!q||(x.name+x.desc+x.by).toLowerCase().includes(q)),open=S.xopen[id];
+      return `<section><button type="button" class="xsec" data-act="xsec" data-v="${id}" aria-expanded="${open}">${icon('chev')}<span class="label">${title}</span><span class="badge num">${list.length}</span></button>
+        ${open?(list.length?`<ul>${list.map(item).join('')}</ul>`:`<p class="xnote">${all.length?'没有匹配的扩展。':empty}</p>`):''}</section>`;
+    }).join('');
+}
+function extPage(){
+  const x=EXTS.find(e=>e.id===S.ext),on=S.trafficOn;
+  const tabs=[['detail','详情'],['feat','功能']];
+  return `<div class="split wide"><aside class="side" id="xside" aria-label="扩展列表"></aside><section class="main"><div class="xd">
+    <header class="xd-head"><span class="xicon">${icon(x.icon)}</span>
+      <h1>${x.name}${x.builtin?'<span class="tag">内置</span>':''}</h1>
+      <p class="xd-meta"><span>${x.by}</span><span>随 aicat 发布</span></p>
+      <p class="lede">${x.desc}。</p>
+      <div class="xd-acts">
+        <button type="button" class="xbtn${on?'':' primary'}" data-act="traffic-toggle">${on?'停用':'启用'}</button>
+        <button type="button" class="icon-btn" data-act="ext-menu" aria-haspopup="menu" aria-label="更多操作" title="更多操作">${icon('gear')}</button></div>
+      ${on?'':`<p class="xd-status">${icon('info')}这个扩展已停用，不采集新请求，导航栏里不显示“流量”。</p>`}
+    </header>
+    <div class="ptabs xtabs" role="tablist" aria-label="扩展信息">${tabs.map(([v,t])=>`<button type="button" role="tab" aria-selected="${v===S.xtab}" tabindex="${v===S.xtab?0:-1}" data-act="xtab" data-v="${v}">${t}</button>`).join('')}</div>
+    <div class="xd-body"><div role="tabpanel">${S.xtab==='detail'?`
+      <h2>这个扩展做什么</h2>
+      <p>记录经过 aicat 代理的 HTTP 和 HTTPS 请求。可以按域名、应用和路径筛选，查看请求与响应的 Header、Body 和 SSE 事件。</p>
+      <p>HTTPS 只解密“解密域名”里列出的域名，其余保持加密隧道。</p>
+      <h2>停用之后</h2>
+      <p>停止采集新请求，并从导航栏移除“流量”。代理继续转发，已有记录按容量上限保留。重新启用后，“流量”回到导航栏原来的位置。</p>`:`
+      <table class="feat"><tbody>
+        <tr><th scope="row">导航栏</th><td>“流量”入口，可以在“更多”里固定或取消固定</td></tr>
+        <tr><th scope="row">托盘菜单</th><td>暂停采集、继续采集</td></tr>
+        <tr><th scope="row">设置</th><td>监听地址、根证书、系统代理、解密域名，都在 <button type="button" class="link" data-act="go-proxy">代理设置</button> 里</td></tr>
+      </tbody></table>`}</div>
+      <aside class="xd-side" aria-label="扩展信息">
+        <h2>信息</h2>
+        <dl><dt>标识符</dt><dd><code>${x.id}</code></dd><dt>发布者</dt><dd>${x.by}</dd><dt>来源</dt><dd>${x.builtin?'内置':'社区'}</dd></dl>
+        <h2>分类</h2>
+        <div class="tags"><span class="tag">网络</span><span class="tag">调试</span></div>
+      </aside></div>
+  </div></section></div>`;
+}
+
+/* ---------- 设置 ---------- */
+function settingsPage(){
+  const g=S.set==='general',trusted=S.cert==='trusted';
+  return `<div class="split"><aside class="side" aria-label="设置分类">
+    <button type="button" class="side-item" data-act="set" data-v="general" ${g?'aria-current="true"':''}><span class="label">通用</span></button>
+    <button type="button" class="side-item" data-act="set" data-v="proxy" ${g?'':'aria-current="true"'}><span class="label">代理</span></button>
+    <div class="side-foot">私云未接入</div>
+  </aside><section class="main"><div class="doc">${g?`
+    <h1>通用</h1>
+    <div class="rows">
+      <div class="row"><div><h2>界面语言</h2><p>选择后立即生效，重启后保留。</p></div><div class="ctl">${seg('lang',S.lang,[['system','跟随系统'],['zh-Hans','简体中文'],['en','English']],'界面语言')}</div></div>
+      <div class="row"><div><h2>主题</h2><p>标题栏右侧的按钮也可以切换。</p></div><div class="ctl">${seg('theme-pref',S.themePref,[['system','跟随系统'],['light','浅色'],['dark','深色']],'主题')}</div></div>
+    </div>`:`
+    <h1>代理</h1><p class="lede">只有明确配置了代理的客户端，流量才会经过 aicat。</p>
+    <div class="rows">
+      <div class="row"><div><h2>监听地址</h2><p>代理、API 和 MCP 共用这个地址。API 和 MCP 始终只接受本机请求。</p></div>
+        <div class="ctl"><select class="field" id="host" aria-label="监听 IP">${['127.0.0.1','0.0.0.0','192.168.1.23'].map(h=>`<option ${h===S.host?'selected':''}>${h}</option>`).join('')}</select>
+        <input class="field num" id="port" aria-label="端口" inputmode="numeric" value="${esc(S.port)}" style="width:72px"><button type="button" class="btn" data-act="apply-listen">应用</button></div></div>
+      <div class="row"><div><h2>根证书</h2><p>解密 HTTPS 需要系统信任 aicat 的根证书。私钥只保存在这台 Mac 上。</p></div>
+        <div class="ctl">${trusted?'<span class="state ok">已信任</span>':S.cert==='auth'?'<span class="waiting" role="status"><i class="spin"></i>等待 macOS 授权…</span>':'<button type="button" class="btn primary" data-act="cert-install">安装证书</button>'}</div>
+        ${trusted?`<div class="wide"><dl class="cert"><dt>名称</dt><dd>aicat</dd><dt>有效期</dt><dd class="num">2026-11-09 至 2036-11-06</dd><dt>SHA-256</dt><dd><code>7C:1E:9A:42:D0:5B:38:F1:6A:0C:E4:93:2B:77:A8:15:4D:F2:61:B9:0E:C3:58:AD:26:9F:B4:70:13:E8:5C:D7</code></dd></dl></div>
+        <div class="wide"><button type="button" class="btn" data-act="say" data-v="已导出 aicat-root-ca.pem（演示）">导出公开证书</button><button type="button" class="btn" data-act="say" data-v="已打开钥匙串访问（演示）">打开钥匙串</button><button type="button" class="btn danger" data-act="cert-delete">删除证书</button></div>`:''}</div>
+      <div class="row"><div><h2 id="spw">系统代理</h2><p>开启后，这台 Mac 上遵循系统代理的应用都会经过 aicat。退出 aicat 时恢复原来的设置。${trusted?'':'需要先安装并信任根证书。'}</p></div>
+        <div class="ctl"><span>${S.sysProxy?'已接管':'未接管'}</span><button type="button" class="switch" role="switch" aria-checked="${S.sysProxy}" aria-labelledby="spw" data-act="sysproxy" ${trusted?'':'disabled'}></button></div></div>
+      <div class="row"><div><h2>解密域名</h2><p>只解密列出的域名，其余 HTTPS 保持直通。可以用 <code>*.example.com</code> 匹配它的所有子域名，不含 example.com 本身。改动只对新建的连接生效。</p></div>
+        <div class="wide"><input class="field" id="newhost" aria-label="要解密的域名" placeholder="例如 api.example.com 或 *.example.com" style="flex:1;min-width:160px" autocomplete="off" spellcheck="false"><button type="button" class="btn" data-act="host-add">添加域名</button></div>
+        <ul class="hosts" style="grid-column:1/-1">${S.hosts.map(h=>`<li><code>${esc(h)}</code><button type="button" class="icon-btn" data-act="host-del" data-v="${esc(h)}" aria-label="移除 ${esc(h)}">${icon('x')}</button></li>`).join('')}</ul></div>
+    </div>`}
+  </div></section></div>`;
+}
+
+/* ---------- 交互 ---------- */
+const go=(p)=>{S.page=p;S.connect=false;draw();};
+function openMore(){
+  const b=$('#rail [data-act="more"]'),r=b.getBoundingClientRect(),mods=[S.trafficOn&&'traffic'].filter(Boolean);
+  $('#menu').innerHTML=`<div class="pop" role="dialog" aria-label="更多模块" style="left:${r.right+8}px;top:${r.top}px"><h2>模块</h2>${mods.length?mods.map(p=>{
+    const on=S.navPins.includes(p),tip=on?'取消固定':'固定到导航栏';
+    return `<div class="pop-row"><button type="button" class="open" data-act="go" data-v="${p}">${icon(MODS[p][1])}${MODS[p][0]}</button><button type="button" class="icon-btn" data-act="pin-nav" data-v="${p}" aria-pressed="${on}" aria-label="${tip}" title="${tip}">${icon('pin')}</button></div>`;
+  }).join('')+'<p>固定的显示在导航栏，不常用的取消固定后收在这里。</p>':'<p>还没有可以收在这里的模块，可以在扩展里启用。</p>'}</div>`;
+  b.setAttribute('aria-expanded','true');
+  const f=$('#menu .pop button');f&&f.focus();
+}
+const ACT={
+  go:t=>go(t.dataset.v),
+  hist:t=>{const d=+t.dataset.v;let to=H.at+d;
+    while(H.list[to]&&!S.trafficOn&&JSON.parse(H.list[to]).page==='traffic')to+=d;
+    if(!H.list[to])return;
+    H.at=to;Object.assign(S,JSON.parse(H.list[to]));draw();},
+  more:(t,wasOpen)=>{if(!wasOpen)openMore();},
+  'pin-nav':t=>{const p=t.dataset.v,i=S.navPins.indexOf(p);
+    if(i<0)S.navPins.push(p);else S.navPins.splice(i,1);
+    drawBar();openMore();const el=$('#menu .pop [data-act="pin-nav"]');el&&el.focus();},
+  'go-ext':()=>{S.ext='traffic';go('ext');},
+  'go-proxy':()=>{S.set='proxy';go('settings');},
+  demo:t=>{S.connected=t.dataset.v==='connected';S.waiting=false;S.drawn=false;go('overview');},
+  theme:()=>{S.themePref=document.documentElement.dataset.theme==='dark'?'light':'dark';draw();},
+  'theme-pref':t=>{S.themePref=t.dataset.v;draw();},
+  lang:t=>{S.lang=t.dataset.v;draw();toast('这份设计稿只做了简体中文');},
+  copy:t=>copy(t.dataset.text),
+  'copy-proxy':()=>copy(base(),'代理地址 '+base()),
+  'toast-do':()=>{const f=toastFn;$('#toast').innerHTML='';f&&f();},
+  say:t=>toast(t.dataset.v),
+  connect:()=>{S.page='overview';S.connect='agent';draw();},
+  'connect-prov':()=>{S.page='overview';S.connect='provider';draw();},
+  range:t=>{S.range=t.dataset.v;draw();},
+  metric:t=>{S.metric=t.dataset.v;draw();},
+  dim:t=>{S.dim=t.dataset.v;draw();},
+  prov:t=>{S.prov=t.dataset.v;draw();},
+  'prov-save':()=>{if(!$('#prov-url').value.trim()||!$('#prov-key').value.trim()){toast('接口地址和 API Key 都要填');return;}
+    S.provSaved.add(S.prov);draw();toast('已保存 '+PROVS[S.prov].name+' 的密钥（演示）');},
+  'see-fail':()=>{S.filter=null;S.q='';S.quick='all';S.sel=2234;go('traffic');},
+  back:()=>{S.connect=false;draw();},
+  client:t=>{S.client=t.dataset.v;draw();},
+  'copy-snippet':()=>{copy($('#snippet').textContent,'配置');if(S.connect==='agent'&&!S.connected){S.waiting=true;draw();}},
+  sim:()=>{S.connected=true;S.waiting=false;S.connect=false;S.drawn=false;draw();toast('已连接 '+CLIENTS[S.client].name);},
+  restart:()=>{S.restart=false;draw();toast('已重启 aicat，新规则已生效');},
+  quick:t=>{S.quick=t.dataset.v;draw();},
+  pause:()=>{S.paused=!S.paused;draw();},
+  clear:()=>{if(!R.length)return;const keep=R,sel=S.sel,n=R.length;R=[];S.sel=null;S.filter=null;S.q='';S.quick='all';draw();
+    toast(`已清空 ${n} 个请求`,'撤销',()=>{R=keep;S.sel=sel;draw();});},
+  reset:()=>{S.filter=null;S.q='';S.sq='';S.quick='all';draw();},
+  export:()=>toast('已导出 aicat-traffic.json（演示）'),
+  filter:t=>{S.filter=JSON.parse(t.dataset.v);track();drawBar();drawSide();drawList();drawInsp();const el=document.querySelector('#tside [aria-current="true"]');el&&el.focus();},
+  twist:t=>{const id=t.dataset.v;S.open.has(id)?S.open.delete(id):S.open.add(id);drawSide();const el=[...document.querySelectorAll('#tside .twist')].find(b=>b.dataset.v===id);el&&el.focus();},
+  ptab:t=>{S[t.dataset.side+'Tab']=t.dataset.v;drawInsp();const el=document.querySelector(`.ptabs [data-side="${t.dataset.side}"][aria-selected="true"]`);el&&el.focus();},
+  'copy-pane':t=>copy($('#pb-'+t.dataset.side).innerText,t.dataset.side==='req'?'请求':'响应'),
+  decrypt:t=>{S.hosts.push(t.dataset.v);drawInsp();toast(`已开始解密 ${t.dataset.v}，新连接生效`);},
+  ext:t=>{S.ext=t.dataset.v;draw();},
+  'traffic-toggle':()=>{S.trafficOn=!S.trafficOn;draw();toast(S.trafficOn?'已启用流量':'已停用流量');},
+  xtab:t=>{S.xtab=t.dataset.v;draw();},
+  'ext-menu':t=>{const r=t.getBoundingClientRect();
+    openMenu(r.left,r.bottom+4,[['打开流量',()=>go('traffic'),!S.trafficOn],['代理设置',()=>ACT['go-proxy']()],['复制扩展标识符',()=>copy(S.ext,'扩展标识符')]]);},
+  xsec:t=>{const id=t.dataset.v;S.xopen[id]=!S.xopen[id];drawExtSide();const el=$(`#xside [data-act="xsec"][data-v="${id}"]`);el&&el.focus();},
+  set:t=>{S.set=t.dataset.v;draw();},
+  'apply-listen':()=>{const p=$('#port').value.trim();if(!/^\d{1,5}$/.test(p)||+p<1||+p>65535){toast('端口需要是 1 到 65535 之间的数字');$('#port').focus();return;}
+    S.host=$('#host').value;S.port=p;draw();toast(`已切换到 ${S.host}:${S.port}`);},
+  'cert-install':()=>{S.cert='auth';draw();setTimeout(()=>{if(S.cert==='auth'){S.cert='trusted';if(S.page==='settings')draw();toast('证书已安装并被系统信任');}},1400);},
+  'cert-delete':()=>{S.cert='none';S.sysProxy=false;draw();toast('已删除证书，HTTPS 恢复直通');},
+  sysproxy:()=>{S.sysProxy=!S.sysProxy;draw();toast(S.sysProxy?'系统代理已接管':'已恢复原来的系统代理设置');},
+  'host-add':()=>{const el=$('#newhost'),h=el.value.trim().toLowerCase();
+    if(!/^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)*$/.test(h)){toast(h.includes('*')?'通配符只能写在最前面，例如 *.example.com':'请输入一个域名或 IP，不带协议和路径');el.focus();return;}
+    if(S.hosts.includes(h)){toast(h+' 已在列表里');return;}
+    S.hosts.push(h);draw();$('#newhost').focus();toast('已添加 '+h);},
+  'host-del':t=>{const h=t.dataset.v,i=S.hosts.indexOf(h);S.hosts.splice(i,1);draw();toast('已移除 '+h,'撤销',()=>{S.hosts.splice(i,0,h);draw();});}
+};
+function select(id,focus){S.sel=id;drawList(focus);drawInsp();}
+function closeMenu(){$('#menu').innerHTML='';const b=$('#rail [data-act="more"]');b&&b.setAttribute('aria-expanded','false');}
+function openMenu(x,y,items){
+  $('#menu').innerHTML=`<div class="menu" role="menu" style="left:${Math.min(x,innerWidth-190)}px;top:${Math.min(y,innerHeight-items.length*30-16)}px">${items.map((it,i)=>`<button type="button" role="menuitem" data-i="${i}" ${it[2]?'disabled':''}>${it[0]}</button>`).join('')}</div>`;
+  const m=$('#menu .menu');m.items=items;
+  const first=m.querySelector('button:not(:disabled)');first&&first.focus();
+}
+document.addEventListener('click',e=>{
+  const mi=e.target.closest('.menu button');
+  if(mi){const f=$('#menu .menu').items[+mi.dataset.i][1];closeMenu();f();return;}
+  const wasPop=!!$('#menu .pop');
+  closeMenu();
+  const t=e.target.closest('[data-act]');
+  if(t){if(!t.disabled)ACT[t.dataset.act](t,wasPop);return;}
+  const row=e.target.closest('#list tr[data-id]');
+  if(row)select(+row.dataset.id,true);
+});
+document.addEventListener('contextmenu',e=>{
+  const row=e.target.closest('#list tr[data-id]'),dom=e.target.closest('[data-host]');
+  if(!row&&!dom)return;
+  e.preventDefault();
+  const rect=(row||dom).getBoundingClientRect(),x=e.clientX||rect.left+24,y=e.clientY||rect.bottom;
+  if(row){
+    const r=R.find(v=>v.id===+row.dataset.id),h=r.host,full=r.m!=='CONNECT'&&typeof r.st==='number'&&!r.trunc;
+    select(r.id,false);
+    openMenu(x,y,[['复制 URL',()=>copy(url(r),' URL')],['复制 cURL',()=>copy(curl(r),' cURL'),!full],[S.pinned.includes(h)?'取消固定域名':'固定域名',()=>togglePin(h)]]);
+  }else{
+    const h=dom.dataset.host;
+    openMenu(x,y,[[S.pinned.includes(h)?'取消固定':'固定',()=>togglePin(h)]]);
+  }
+});
+document.addEventListener('mouseover',e=>{const c=e.target.closest('.col'),t=$('#tip');if(c)tipShow(c);else if(t)t.hidden=true;});
+document.addEventListener('focusin',e=>{const c=e.target.closest('.col'),t=$('#tip');if(c)tipShow(c);else if(t)t.hidden=true;});
+document.addEventListener('input',e=>{
+  const k=e.target.dataset.in;
+  if(k==='q'){S.q=e.target.value;drawList();drawInsp();}
+  if(k==='xq'){S.xq=e.target.value;const pos=e.target.selectionStart;drawExtSide();const el=$('#xside input');el.focus();el.setSelectionRange(pos,pos);}
+  if(k==='sq'){S.sq=e.target.value;const pos=e.target.selectionStart;drawSide();const el=$('#tside input');el.focus();el.setSelectionRange(pos,pos);}
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&$('#menu .pop')){e.preventDefault();closeMenu();const b=$('#rail [data-act="more"]');b&&b.focus();return;}
+  const menu=$('#menu .menu');
+  if(menu){
+    const bs=[...menu.querySelectorAll('button:not(:disabled)')],i=bs.indexOf(document.activeElement);
+    if(e.key==='Escape'){closeMenu();e.preventDefault();}
+    else if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();bs[(i+(e.key==='ArrowDown'?1:-1)+bs.length)%bs.length].focus();}
+    else if(e.key==='Tab')closeMenu();
+    return;
+  }
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'&&S.page==='traffic'){e.preventDefault();$('#q').focus();$('#q').select();return;}
+  if(e.target.id==='newhost'&&e.key==='Enter'){ACT['host-add']();return;}
+  if(e.target.id==='port'&&e.key==='Enter'){ACT['apply-listen']();return;}
+  const col=e.target.closest('.col');
+  if(col&&(e.key==='ArrowRight'||e.key==='ArrowLeft')){const n=e.key==='ArrowRight'?col.nextElementSibling:col.previousElementSibling;if(n){e.preventDefault();n.focus();}return;}
+  const tab=e.target.closest('.ptabs button,.seg [role="radio"]');
+  if(tab&&(e.key==='ArrowRight'||e.key==='ArrowLeft')){
+    const all=[...tab.parentElement.children],n=all[(all.indexOf(tab)+(e.key==='ArrowRight'?1:-1)+all.length)%all.length];
+    e.preventDefault();n.focus();n.click();return;
+  }
+  const row=e.target.closest('#list tr[data-id]');
+  if(S.page==='traffic'&&e.key==='Escape'&&S.sel!=null&&!e.target.closest('input')){select(null,!!row);return;}
+  if(!row)return;
+  const rows=visible(),i=rows.findIndex(r=>r.id===+row.dataset.id);
+  const to={ArrowDown:Math.min(i+1,rows.length-1),ArrowUp:Math.max(i-1,0),Home:0,End:rows.length-1}[e.key];
+  if(to!=null){e.preventDefault();select(rows[to].id,true);}
+  else if(e.key==='Enter'||e.key===' '){e.preventDefault();select(rows[i].id,true);}
+});
+// 截图入口：aicat-redesign.html#page=traffic&theme=dark&state=first&set=proxy&sel=2234&reqTab=body&resTab=events&connect=1
+const init=Object.assign({},window.AICAT_PREVIEW,Object.fromEntries(new URLSearchParams(location.hash.slice(1))));
+if(init.page)S.page=init.page;
+if(init.theme)S.themePref=init.theme;
+if(init.state==='first')S.connected=false;
+if(init.set)S.set=init.set;
+if(init.sel!=null)S.sel=init.sel===''?null:+init.sel;
+if(init.reqTab)S.reqTab=init.reqTab;
+if(init.resTab)S.resTab=init.resTab;
+if(init.xtab)S.xtab=init.xtab;
+if(init.connect)S.connect=init.connect==='provider'?'provider':'agent';
+for(const k of ['range','metric','dim'])if(init[k])S[k]=init[k];
+draw();
+})();
+</script>
+</body>
+</html>

@@ -49,6 +49,7 @@ export interface DesktopState {
   certificateError: string;
   proxy: SystemproxyStatus;
   domains: string[];
+  providers: Provider[];
   production: boolean;
   revision: number;
 }
@@ -76,6 +77,17 @@ export type ID = number;
 export interface Preferences {
   language: string;
   theme: string;
+}
+
+/**
+ * Provider is what the UI may know about a saved provider. The key stays behind;
+ * KeyHint is its last four characters, enough to tell two keys apart.
+ */
+export interface Provider {
+  id: string;
+  baseUrl: string;
+  mount: string;
+  keyHint: string;
 }
 
 export interface Request {
@@ -119,6 +131,8 @@ export interface Summary {
   error?: string;
   tunnel?: boolean;
   clientApp?: ClientApp;
+  /** ContentType is the media type of the latest observed response, without parameters. */
+  contentType?: string;
 }
 
 /** Status distinguishes an active session from a recovery record awaiting repair. */
@@ -152,6 +166,8 @@ export interface TrafficRecord {
   error?: string;
   tunnel?: boolean;
   clientApp?: ClientApp;
+  /** ContentType is the media type of the latest observed response, without parameters. */
+  contentType?: string;
   ruleRevision?: string;
   synthetic?: boolean;
   executions?: Execution[];
@@ -179,6 +195,9 @@ export const Desktop = {
   },
   deleteCertificate(): Promise<void> {
     return call("Desktop.DeleteCertificate");
+  },
+  deleteProvider(id: string): Promise<void> {
+    return call("Desktop.DeleteProvider", id);
   },
   exportCertificate(): Promise<void> {
     return call("Desktop.ExportCertificate");
@@ -216,6 +235,13 @@ export const Desktop = {
   /** SetPreferences persists language and theme before applying either. */
   setPreferences(p: Preferences): Promise<void> {
     return call("Desktop.SetPreferences", p);
+  },
+  /**
+   * SetProvider saves a model vendor's endpoint and API key. An empty key keeps
+   * the saved one; keys are never returned to the page.
+   */
+  setProvider(id: string, baseURL: string, key: string): Promise<void> {
+    return call("Desktop.SetProvider", id, baseURL, key);
   },
   setRecording(enabled: boolean): Promise<void> {
     return call("Desktop.SetRecording", enabled);

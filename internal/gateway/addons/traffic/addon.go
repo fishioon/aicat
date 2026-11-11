@@ -49,6 +49,9 @@ func New(r *store.Recorder, rewriters ...*rewrite.Service) *Addon {
 	return a
 }
 func (a *Addon) Wait() { a.wg.Wait() }
+
+// Recording reports whether new requests are being captured.
+func (a *Addon) Recording() bool { return a.recording.Load() }
 func (a *Addon) state(f *proxy.Flow) *flowState {
 	v, ok := a.flows.Load(f)
 	if !ok {

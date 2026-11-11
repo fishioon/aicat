@@ -3,9 +3,7 @@ import App from "./App.vue";
 import { initializeHost } from "./host";
 import { metrics, remember } from "./state/traffic";
 import { startDesktop, problem } from "./state/desktop";
-import "./design.css";
-import "./style.css";
-import "./layout.css";
+import "./app.css";
 
 async function main() {
   await initializeHost();

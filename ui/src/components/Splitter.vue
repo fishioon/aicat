@@ -21,7 +21,7 @@ function move(event: PointerEvent) {
   update(
     props.axis === "x"
       ? ((event.clientX - rect.left) / rect.width) * 100
-      : ((event.clientY - rect.top - 44) / rect.height) * 100,
+      : ((event.clientY - rect.top) / rect.height) * 100,
   );
 }
 function up(event: PointerEvent) {
@@ -40,6 +40,7 @@ function key(event: KeyboardEvent) {
 <template>
   <div
     :id="id"
+    class="splitter"
     role="separator"
     tabindex="0"
     :aria-label="label"

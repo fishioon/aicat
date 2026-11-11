@@ -4,7 +4,13 @@ import { host } from "../host";
 import { language, t } from "../i18n";
 
 export type Route =
-  "traffic" | "proxy" | "general" | "extensions" | "community";
+  | "overview"
+  | "connect"
+  | "provider"
+  | "traffic"
+  | "proxy"
+  | "general"
+  | "extensions";
 export interface Location {
   route: Route;
   host: string;
@@ -16,7 +22,7 @@ export interface Location {
 }
 export const state = shallowRef<DesktopState | null>(null);
 export const shell = reactive({
-  route: "traffic" as Route,
+  route: "overview" as Route,
   host: "",
   path: "",
   app: null as string | null,
@@ -27,17 +33,52 @@ export const shell = reactive({
   sidebarHidden: false,
   historyAt: -1,
   history: [] as Location[],
-  navigationVersion: 0,
 });
+// The model vendors aicat can hold a key for. Mounts and defaults mirror
+// internal/provider; env is what an agent sets to reach the mount.
+export const providerKinds = {
+  anthropic: {
+    name: "Anthropic",
+    url: "https://api.anthropic.com",
+    env: "ANTHROPIC_BASE_URL",
+    mount: "/anthropic",
+    placeholder: "sk-ant-…",
+  },
+  openai: {
+    name: "OpenAI",
+    url: "https://api.openai.com/v1",
+    env: "OPENAI_BASE_URL",
+    mount: "/openai/v1",
+    placeholder: "sk-…",
+  },
+  compat: {
+    name: "兼容 OpenAI 的服务",
+    url: "",
+    env: "OPENAI_BASE_URL",
+    mount: "/compat/v1",
+    placeholder: "API Key",
+  },
+} as const;
+export type ProviderKind = keyof typeof providerKinds;
+export const providerChoice = shallowRef<ProviderKind>("anthropic");
 export const busy = shallowRef(false);
 export const notice = shallowRef("");
+export const noticeKind = shallowRef<"bad" | "">("");
 let noticeTimer: ReturnType<typeof setTimeout>;
-export function problem(error: unknown) {
-  notice.value = error instanceof Error ? error.message : String(error);
+function show(text: string, kind: "bad" | "", ms: number) {
+  notice.value = text;
+  noticeKind.value = kind;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {
     notice.value = "";
-  }, 5000);
+  }, ms);
+}
+export function problem(error: unknown) {
+  show(error instanceof Error ? error.message : String(error), "bad", 5000);
+}
+// say shows a short confirmation; text is already translated.
+export function say(text: string) {
+  show(text, "", 2600);
 }
 function snapshot(): Location {
   const { route, host, path, app, query, sideQuery, selected } = shell;
@@ -58,7 +99,7 @@ export function navigate(
       host: "",
       path: "",
       app: null,
-      query: "",
+      query: shell.query,
       sideQuery: shell.sideQuery,
       selected: shell.selected,
       ...filter,
@@ -68,7 +109,6 @@ export function navigate(
   Object.assign(shell, record ? shell.history[shell.historyAt] : filter, {
     route,
   });
-  shell.navigationVersion++;
 }
 export function travel(delta: number) {
   let next = shell.historyAt + delta;
@@ -125,10 +165,14 @@ export async function run(operation: () => Promise<unknown>): Promise<boolean> {
   }
 }
 const dark = matchMedia("(prefers-color-scheme: dark)");
+export const theme = shallowRef<"light" | "dark">("light");
 function applyTheme() {
-  const theme = state.value?.preferences.theme ?? "system";
-  document.documentElement.dataset.theme =
-    theme === "system" ? (dark.matches ? "dark" : "light") : theme;
+  const preference = state.value?.preferences.theme ?? "system";
+  theme.value =
+    preference === "dark" || (preference === "system" && dark.matches)
+      ? "dark"
+      : "light";
+  document.documentElement.dataset.theme = theme.value;
 }
 watch(state, applyTheme);
 dark.addEventListener("change", applyTheme);
@@ -139,7 +183,7 @@ export async function startDesktop() {
   });
   window.addEventListener("pagehide", off, { once: true });
   await refresh();
-  navigate(state.value?.trafficEnabled ? "traffic" : "extensions");
+  navigate("overview");
 }
 
 export interface MenuEntry {
@@ -147,8 +191,6 @@ export interface MenuEntry {
   id?: string;
   disabled?: boolean;
   run?: () => unknown;
-  pinned?: boolean;
-  pin?: () => unknown;
 }
 export const menu = shallowRef<{
   x: number;
@@ -159,13 +201,15 @@ export function popup(
   anchor: Element | { x: number; y: number },
   entries: MenuEntry[],
 ) {
-  const box =
+  const point =
     anchor instanceof Element
-      ? anchor.getBoundingClientRect()
-      : { right: anchor.x, top: anchor.y };
+      ? (({ left, bottom }) => ({ x: left, y: bottom + 4 }))(
+          anchor.getBoundingClientRect(),
+        )
+      : anchor;
   menu.value = {
-    x: Math.min(box.right + 8, innerWidth - 260),
-    y: Math.min(box.top, innerHeight - entries.length * 42 - 20),
+    x: Math.min(point.x, innerWidth - 190),
+    y: Math.min(point.y, innerHeight - entries.length * 30 - 16),
     entries,
   };
 }
@@ -178,8 +222,24 @@ export const modal = shallowRef<{
   message?: string;
   input?: string;
   inputId?: string;
+  placeholder?: string;
   actions: DialogAction[];
 } | null>(null);
+// proxyAddress is the address clients use to reach the gateway; a wildcard
+// listener is reached through loopback.
+export function proxyAddress(addr = state.value?.gateway.addr ?? "") {
+  return addr.replace(/^(0\.0\.0\.0|\[::\])(?=:)/, "127.0.0.1");
+}
+// 返回覆盖该域名的解密条目：精确条目，或 *.example.com 这类通配条目。
+// 通配条目匹配任意层级的子域名，不含 example.com 本身。
+export function decryptionRule(domain: string) {
+  const name = domain.toLowerCase().replace(/\.$/, "");
+  return state.value?.domains.find((entry) =>
+    entry.startsWith("*.")
+      ? name.endsWith(entry.slice(1)) && name.length > entry.length - 1
+      : entry === name,
+  );
+}
 export function closeDialog() {
   modal.value = null;
 }

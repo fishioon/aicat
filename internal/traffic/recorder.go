@@ -2,6 +2,7 @@ package traffic
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -87,6 +88,8 @@ func (r *Recorder) Update(id ID, o Observation) error {
 		}
 		rec.ResponseBytes = v.Body.Observed
 		rec.StatusCode = v.StatusCode
+		rec.ContentType, _, _ = strings.Cut(v.Header.Get("Content-Type"), ";")
+		rec.ContentType = strings.ToLower(strings.TrimSpace(rec.ContentType))
 		rec.State = Responding
 	default:
 		return fmt.Errorf("traffic: unknown observation point")

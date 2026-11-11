@@ -15,12 +15,22 @@ func EnableIntercept(home, host string) error {
 	return SetInterceptEnabled(home, host, true)
 }
 
+// InterceptHost canonicalizes one decryption entry: an exact hostname or IP, or
+// a leading wildcard such as *.example.com, which covers every subdomain of
+// example.com at any depth but not example.com itself.
 func InterceptHost(host string) (string, error) {
 	host = strings.TrimSpace(host)
 	if ip := net.ParseIP(strings.Trim(host, "[]")); ip != nil {
 		return ip.String(), nil
 	}
-	if strings.ContainsAny(host, ":/\\*?#@ \t\n") {
+	prefix := ""
+	if strings.HasPrefix(host, "*.") {
+		prefix, host = "*.", host[2:]
+	}
+	if strings.Contains(host, "*") || prefix != "" && (strings.Trim(host, ".") == "" || net.ParseIP(host) != nil) {
+		return "", fmt.Errorf("通配符只支持 *.example.com 这一种写法，匹配所有子域名")
+	}
+	if strings.ContainsAny(host, ":/\\?#@ \t\n") {
 		return "", fmt.Errorf("只填写域名或 IP，不含协议、端口或路径")
 	}
 	host, err := idna.Lookup.ToASCII(strings.ToLower(strings.TrimSuffix(host, ".")))
@@ -37,7 +47,7 @@ func InterceptHost(host string) (string, error) {
 			}
 		}
 	}
-	return host, nil
+	return prefix + host, nil
 }
 
 func SetInterceptEnabled(home, host string, enabled bool) error {

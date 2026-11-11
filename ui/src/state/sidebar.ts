@@ -1,12 +1,14 @@
 import { computed, reactive } from "vue";
-import { records, appKey } from "./traffic";
+import { records, appKey, failed } from "./traffic";
 import { shell, state } from "./desktop";
 import { t } from "../i18n";
 import type { Summary } from "../generated/mygo";
 export interface TreeNode {
   key: string;
   label: string;
-  count: string | number;
+  count: number;
+  // Requests under this node that failed or returned 4xx/5xx.
+  errors: number;
   host?: string;
   path?: string;
   app?: string;
@@ -16,6 +18,7 @@ export const expanded = reactive(new Set(["apps", "pins", "domains"]));
 interface Branch {
   path: string;
   count: number;
+  errors: number;
   children: Map<string, Branch>;
 }
 function tree(
@@ -24,16 +27,29 @@ function tree(
   source: string,
   app?: string,
 ): TreeNode {
-  const root: Branch = { path: "", count: rows.length, children: new Map() };
+  const root: Branch = {
+    path: "",
+    count: rows.length,
+    errors: 0,
+    children: new Map(),
+  };
   for (const row of rows) {
+    const bad = failed(row) ? 1 : 0;
+    root.errors += bad;
     let current = root,
       path = "";
     for (const part of new URL(row.url).pathname.split("/").filter(Boolean)) {
       path += "/" + part;
       if (!current.children.has(part))
-        current.children.set(part, { path, count: 0, children: new Map() });
+        current.children.set(part, {
+          path,
+          count: 0,
+          errors: 0,
+          children: new Map(),
+        });
       current = current.children.get(part)!;
       current.count++;
+      current.errors += bad;
     }
   }
   const children = (branch: Branch): TreeNode[] =>
@@ -43,6 +59,7 @@ function tree(
         key: source + domain + node.path,
         label: part,
         count: node.count,
+        errors: node.errors,
         host: domain,
         path: node.path,
         app,
@@ -52,6 +69,7 @@ function tree(
     key: source + domain,
     label: domain,
     count: rows.length,
+    errors: root.errors,
     host: domain,
     path: "",
     app,
@@ -64,8 +82,8 @@ export const groups = computed(() => {
     string,
     {
       name: string;
-      requests: number;
-      tunnels: number;
+      count: number;
+      errors: number;
       hosts: Map<string, Summary[]>;
     }
   >();
@@ -77,12 +95,13 @@ export const groups = computed(() => {
     if (!apps.has(key))
       apps.set(key, {
         name: row.clientApp?.name ?? t("未知应用"),
-        requests: 0,
-        tunnels: 0,
+        count: 0,
+        errors: 0,
         hosts: new Map(),
       });
     const app = apps.get(key)!;
-    app[row.tunnel ? "tunnels" : "requests"]++;
+    app.count++;
+    if (failed(row)) app.errors++;
     if (!app.hosts.has(host)) app.hosts.set(host, []);
     app.hosts.get(host)!.push(row);
   }
@@ -133,9 +152,8 @@ export const groups = computed(() => {
           key: "app:" + key,
           app: key,
           label: app.name,
-          count:
-            app.requests +
-            (app.tunnels ? " · " + app.tunnels + " " + t("隧道") : ""),
+          count: app.count,
+          errors: app.errors,
           children: [...app.hosts]
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([host, rows]) =>

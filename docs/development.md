@@ -14,10 +14,11 @@
 | `ui/src/host.ts` | 桌面通信适配，视图经此调用生成的服务客户端 |
 | `ui/src/generated/` | MyGo 从 Go 服务及语言目录生成的代码，不手改 |
 | `internal/app/` | 服务装配、typed Desktop 服务、MyGo 窗口/托盘/剪贴板/系统对话框 |
+| `internal/provider/` | 供应商密钥存储（Home 下 0600 的 `providers.json`）与带密钥的转发路由 |
 | `internal/traffic/` 等业务包 | 业务模型与规则，不依赖 MyGo、Vue 或页面状态 |
-| `docs/design/aicat-shell.html` | HTML 设计稿快照，含尚未交付的产品方向；不代表稿内全部功能已实现 |
+| `docs/design/aicat-redesign.html` | 当前 HTML 设计稿，含尚未交付的产品方向（用量图表、接入供应商）；不代表稿内全部功能已实现。`aicat-shell.html` 是旧稿 |
 
-`ui/src/design.css` 提取设计稿样式；`layout.css` 承载桌面尺寸和真实数据适配，`style.css` 提供动态列表等基础布局。Vue 模板沿用相同结构和 class，不引入改变视觉规范的组件库。纯图标按钮统一使用 `icon-button` 居中，SVG 通过 `Icon.vue` 避免参与文字基线排版。页面不加载 CDN。变更设计稿时同步组件并复核浅深色截图。
+`ui/src/app.css` 是唯一样式表，色板、字号、圆角和组件 class 取自设计稿（`--ink`、`--mark`、`--ok` 等变量与稿子同名），另含虚拟列表、对话框和分隔条。Vue 模板沿用稿子的 class，不引入改变视觉规范的组件库。纯图标按钮统一使用 `icon-btn` 居中，SVG 通过 `Icon.vue` 避免参与文字基线排版。页面不加载 CDN。变更设计稿时同步组件并复核浅深色截图。
 
 需要 Go 1.27.3+、Node.js 22.12+（本轮以 Node.js 26 验证）及 npm。MyGo Go 模块和 CLI tool 固定为同一提交；UI 依赖由 `ui/package-lock.json` 锁定。TypeScript 使用与当前 vue-tsc 兼容的 5.9 系列。
 
@@ -32,6 +33,7 @@
 | `make verify` | 格式、类型检查、vet、已有 Go 检查、release 构建、app 打包、CLI smoke 及构建验收 |
 | `make e2e-build` | 生成独立验收前端，构建带 race 的桌面与 CLI 验收入口 |
 | `make e2e` | 构建后运行 WebView/浏览器、HTTP/TLS、规则/插件/MCP 完整验收 |
+| `make design-shots` | 渲染 `aicat-redesign.html` 各场景的浅深色截图到 `build/design-shots/`，`SCENES="overview traffic"` 只渲染指定场景；用于标注评审 |
 
 开发时可在一个终端运行 `npm --prefix ui run dev`，另一个终端运行 `MYGO_DEV_URL=http://127.0.0.1:5173 go run ./cmd/aicat --home <隔离目录>`，在 WebView 中使用 Vite 热更新。首次先执行 `make bindings`。开发 URL 仅对开发二进制生效；生产链接标记优先于 `MYGO_ENV` 和 `MYGO_DEV_URL`。MyGo 配置也保留官方 CLI 的 dev/build 字段，CLI 打包会进行签名，应在明确准备分发时使用。
 
@@ -70,6 +72,12 @@ python3 e2e/prototype.py --only rules
 node e2e/desktop.cjs bin/aicat-e2e build/sidebar-e2e sidebar
 # 仅验证 App → 域名 → 路径树及跨应用隔离、搜索、折叠与历史
 node e2e/desktop.cjs bin/aicat-e2e build/app-tree-e2e app-tree
+# 仅验证滚动后首次选中、右键、历史及筛选重置滚动
+node e2e/desktop.cjs bin/aicat-e2e build/list-selection-e2e list-selection
+# 仅验证新外壳：概览、流量列表状态/类型、详情视图、键盘、隧道、更多、扩展启停、解密域名通配符、历史，截图在 build/redesign-e2e/
+node e2e/redesign.cjs bin/aicat-e2e build/redesign-e2e
+# 仅验证接入供应商：密钥只进 0600 的 providers.json、带密钥转发与流式、流量记录不含凭据、移除后失效
+node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
 # 仅验证图标在 WebView/浏览器、浅深色和不同宽度下的居中与边界
 node e2e/desktop.cjs bin/aicat-e2e build/icons-e2e icons
 ```
@@ -79,7 +87,7 @@ node e2e/desktop.cjs bin/aicat-e2e build/icons-e2e icons
 | 组 | 实际验证 |
 | --- | --- |
 | desktop | 真实 MyGo WKWebView/Channel 与原生生命周期；同一前端在 Chromium 中的键盘/点击/滚轮；有界列表、搜索、Header/Raw/复制、cURL、域名树、历史、扩展/更多/固定、偏好、监听与配置失败、证书与系统代理、隐藏/恢复/退出/重启 |
-| design（desktop 内） | 与 HTML 稿比较标题栏、导航、侧栏、工具栏、表格、详情、复制和 Raw 行号尺寸；比较浅深色强调色，保存稿件和实际截图 |
+| design（desktop 内） | 与 `aicat-redesign.html` 比较标题栏、导航栏、侧栏、表格行、详情摘要、窗格标题、复制按钮和状态栏尺寸；比较浅深色色板变量与导航当前项颜色，保存稿件和实际截图 |
 | transport | loopback、通配、IPv6 HTTP/TLS MITM 与 CA 跨进程重启保留 |
 | rules | 规则/插件、MCP 认证与 schema、四阶段 HTTP/HTTPS 改写、前后快照、失败回滚、时限/内存/并发、大 body/SSE、自定义响应、重启生效与采集独立性 |
 

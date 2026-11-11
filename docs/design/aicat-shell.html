@@ -1,17 +1,18 @@
+<meta charset="utf-8">
 <div id="aicat-shell-draft" aria-label="AICat 桌面设计稿" data-theme="system">
   <style>
-    #aicat-shell-draft { color-scheme:light dark; --ac-brand:#00bba7; --ac-on-brand:#111827; --ac-bg:light-dark(#f6f6f7,#252527); --ac-surface:light-dark(#ffffff,#202022); --ac-soft:light-dark(#ededf0,#303033); --ac-border:light-dark(#e1e1e5,#37373b); --ac-text:light-dark(#242428,#e9e9ed); --ac-muted:light-dark(#707079,#a6a6b0); --ac-brand-text:light-dark(#087e73,#00bba7); --ac-brand-soft:light-dark(#e5f5f1,#123b38); --ac-danger:light-dark(#b42318,#ff8a7a); --ac-danger-soft:light-dark(#fff0ee,#2c1918); --ac-success:light-dark(#18794e,#79cba5); --ac-warning:light-dark(#926117,#f2bd5c); --ac-info:light-dark(#375bb5,#9eb9ef); --ac-shadow:light-dark(#15192712,#00000040); --ac-side-width:216px; --ac-row-height:30px; --ac-stripe:light-dark(#f6f7f7,#272729); font:13px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Segoe UI",sans-serif; color:var(--ac-text); width:100%; }
+    #aicat-shell-draft { color-scheme:light dark; --ac-brand:#00bba7; --ac-on-brand:#111827; --ac-bg:light-dark(#f6f6f7,#252527); --ac-surface:light-dark(#ffffff,#202022); --ac-soft:light-dark(#ededf0,#303033); --ac-border:light-dark(#e1e1e5,#37373b); --ac-text:light-dark(#242428,#e9e9ed); --ac-muted:light-dark(#66666f,#a6a6b0); --ac-brand-text:light-dark(#077a6f,#00bba7); --ac-brand-soft:light-dark(#e5f5f1,#123b38); --ac-danger:light-dark(#b42318,#ff8a7a); --ac-danger-soft:light-dark(#fff0ee,#2c1918); --ac-success:light-dark(#18794e,#79cba5); --ac-warning:light-dark(#926117,#f2bd5c); --ac-info:light-dark(#375bb5,#9eb9ef); --ac-shadow:light-dark(#15192712,#00000040); --ac-side-width:216px; --ac-row-height:30px; --ac-stripe:light-dark(#f2f2f5,#272729); --ac-code-string:light-dark(#7b3fb0,#c8a6f5); --ac-content-inset:14px; --ac-font-xs:11px; --ac-font-sm:12px; --ac-font-md:13px; --ac-font-lg:14px; --ac-font-xl:17px; --ac-font-2xl:20px; --ac-radius-sm:4px; --ac-radius-md:6px; --ac-radius-lg:8px; --ac-radius-xl:12px; --ac-radius-pill:999px; font:var(--ac-font-md)/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Segoe UI",sans-serif; color:var(--ac-text); width:100%; }
     #aicat-shell-draft[data-theme="light"] { color-scheme:light; }
     #aicat-shell-draft[data-theme="dark"] { color-scheme:dark; }
     #aicat-shell-draft * { box-sizing:border-box; }
     #aicat-shell-draft button,#aicat-shell-draft input,#aicat-shell-draft select,#aicat-shell-draft textarea { font:inherit; color:inherit; }
     #aicat-shell-draft button { border:0; background:transparent; margin:0; padding:0; cursor:default; }
     #aicat-shell-draft input { min-width:0; }
-    #aicat-shell-draft button:focus-visible,#aicat-shell-draft input:focus-visible,#aicat-shell-draft textarea:focus-visible { outline:2px solid var(--ac-brand); outline-offset:2px; }
+    #aicat-shell-draft button:focus-visible,#aicat-shell-draft input:focus-visible,#aicat-shell-draft textarea:focus-visible { outline:2px solid var(--ac-brand-text); outline-offset:2px; }
     #aicat-shell-draft [hidden] { display:none!important; }
     #aicat-shell-draft svg { flex:none; width:17px; height:17px; stroke-width:1.65; }
-    #aicat-shell-draft .ac-window { position:relative; width:100%; background:var(--ac-surface); border:1px solid var(--ac-border); border-radius:12px; overflow:hidden; box-shadow:0 14px 50px -26px var(--ac-shadow); }
-    #aicat-shell-draft .ac-window { --ac-rail-width:53px; --ac-visible-side-width:var(--ac-side-width); --ac-content-inset:21px; --ac-titlebar-height:48px; --ac-controls-width:204px; --ac-main-offset:calc(var(--ac-rail-width) + var(--ac-visible-side-width)); }
+    #aicat-shell-draft .ac-window { position:relative; width:100%; background:var(--ac-surface); border:1px solid var(--ac-border); border-radius:var(--ac-radius-xl); overflow:hidden; box-shadow:0 14px 50px -26px var(--ac-shadow); }
+    #aicat-shell-draft .ac-window { --ac-rail-width:53px; --ac-visible-side-width:var(--ac-side-width); --ac-titlebar-height:48px; --ac-controls-width:204px; --ac-main-offset:calc(var(--ac-rail-width) + var(--ac-visible-side-width)); }
     #aicat-shell-draft .ac-titlebar { height:var(--ac-titlebar-height); display:grid; grid-template-columns:var(--ac-main-offset) minmax(0,1fr); grid-template-rows:minmax(0,1fr); background:var(--ac-bg); border-bottom:1px solid var(--ac-border); position:relative; }
     #aicat-shell-draft .ac-title-left { display:flex; align-items:center; gap:15px; width:var(--ac-controls-width); height:100%; padding:0 15px; min-width:0; position:relative; z-index:1; }
     #aicat-shell-draft .ac-history-controls { display:flex; align-items:center; gap:4px; }
@@ -23,218 +24,196 @@
     #aicat-shell-draft .ac-lights span { width:11px; height:11px; border-radius:50%; background:#ff5f57; }
     #aicat-shell-draft .ac-lights span:nth-child(2) { background:#febc2e; }
     #aicat-shell-draft .ac-lights span:nth-child(3) { background:#28c840; }
-    #aicat-shell-draft .ac-icon { display:inline-flex; align-items:center; justify-content:center; width:29px; height:29px; border-radius:6px; color:var(--ac-muted); flex:none; }
+    #aicat-shell-draft .ac-icon { display:inline-flex; align-items:center; justify-content:center; width:29px; height:29px; border-radius:var(--ac-radius-md); color:var(--ac-muted); flex:none; }
     #aicat-shell-draft .ac-icon:hover { background:var(--ac-soft); color:var(--ac-text); }
-    #aicat-shell-draft .ac-crumb { display:flex; align-items:center; gap:8px; flex:1; min-width:0; font-size:12px; }
-    #aicat-shell-draft .ac-crumb>span:first-child { white-space:nowrap; }
-    #aicat-shell-draft .ac-crumb>span:first-child { color:var(--ac-muted); }
+    #aicat-shell-draft .ac-crumb { display:flex; align-items:center; gap:8px; flex:1; min-width:0; font-size:var(--ac-font-sm); }
+    #aicat-shell-draft .ac-crumb>span:first-child { white-space:nowrap; color:var(--ac-muted); }
     #aicat-shell-draft .ac-crumb svg { width:12px; color:var(--ac-muted); }
     #aicat-shell-draft .ac-crumb strong { font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     #aicat-shell-draft .ac-grow { flex:1; min-width:0; }
     #aicat-shell-draft .ac-title-actions { display:flex; align-items:center; gap:8px; flex:none; }
     #aicat-shell-draft .ac-record-icon { display:none; }
-    #aicat-shell-draft .ac-record { display:flex; align-items:center; gap:6px; padding:5px 7px; border-radius:6px; font-size:11px; color:var(--ac-muted); white-space:nowrap; }
+    #aicat-shell-draft .ac-record { display:flex; align-items:center; gap:6px; padding:5px 7px; border-radius:var(--ac-radius-md); font-size:var(--ac-font-xs); color:var(--ac-muted); white-space:nowrap; }
     #aicat-shell-draft .ac-record:hover { background:var(--ac-soft); color:var(--ac-text); }
-    #aicat-shell-draft .ac-dot { display:inline-block; width:6px; height:6px; background:var(--ac-brand); border-radius:50%; flex:none; }
+    #aicat-shell-draft .ac-dot { display:inline-block; width:6px; height:6px; background:var(--ac-success); border-radius:50%; flex:none; }
     #aicat-shell-draft .ac-body { display:grid; grid-template-columns:var(--ac-rail-width) var(--ac-visible-side-width) minmax(0,1fr); min-height:735px; }
     #aicat-shell-draft.ac-no-sidebar .ac-window { --ac-visible-side-width:0px; }
     #aicat-shell-draft.ac-no-sidebar .ac-body { grid-template-columns:var(--ac-rail-width) minmax(0,1fr); }
     #aicat-shell-draft.ac-no-sidebar .ac-sidebar { display:none; }
     #aicat-shell-draft.ac-no-sidebar .ac-title-main::before { display:none; }
     #aicat-shell-draft .ac-rail { display:flex; flex-direction:column; gap:8px; align-items:center; background:var(--ac-bg); padding:14px 0 11px; border-right:1px solid var(--ac-border); position:relative; }
-    #aicat-shell-draft .ac-nav { width:35px; height:35px; display:flex; align-items:center; justify-content:center; border-radius:8px; color:var(--ac-muted); }
+    #aicat-shell-draft .ac-nav { width:35px; height:35px; display:flex; align-items:center; justify-content:center; border-radius:var(--ac-radius-lg); color:var(--ac-muted); }
     #aicat-shell-draft .ac-nav svg { width:19px; height:19px; }
     #aicat-shell-draft .ac-nav:hover { background:var(--ac-soft); color:var(--ac-text); }
     #aicat-shell-draft .ac-nav[aria-pressed="true"] { color:var(--ac-brand-text); background:var(--ac-brand-soft); }
-    #aicat-shell-draft .ac-profile-button { display:grid; place-items:center; width:35px; height:35px; border-radius:8px; }
+    #aicat-shell-draft .ac-profile-button { display:grid; place-items:center; width:35px; height:35px; border-radius:var(--ac-radius-lg); }
     #aicat-shell-draft .ac-profile-button:hover,#aicat-shell-draft .ac-profile-button[aria-expanded="true"],#aicat-shell-draft .ac-profile-button[data-active="true"] { background:var(--ac-soft); }
-    #aicat-shell-draft .ac-avatar { width:27px; height:27px; border-radius:50%; background:var(--ac-brand); color:var(--ac-on-brand); display:grid; place-items:center; font-size:10px; }
-    #aicat-shell-draft .ac-profile-menu { position:absolute; left:calc(var(--ac-rail-width) + 8px); bottom:11px; width:238px; max-width:calc(100% - var(--ac-rail-width) - 19px); z-index:45; padding:6px; border:1px solid var(--ac-border); border-radius:12px; background:var(--ac-surface); box-shadow:0 8px 28px var(--ac-shadow); }
+    #aicat-shell-draft .ac-avatar { width:27px; height:27px; border-radius:50%; background:var(--ac-brand); color:var(--ac-on-brand); display:grid; place-items:center; font-size:var(--ac-font-xs); }
+    #aicat-shell-draft .ac-profile-menu { position:absolute; left:calc(var(--ac-rail-width) + 8px); bottom:11px; width:238px; max-width:calc(100% - var(--ac-rail-width) - 19px); z-index:45; padding:6px; border:1px solid var(--ac-border); border-radius:var(--ac-radius-xl); background:var(--ac-surface); box-shadow:0 8px 28px var(--ac-shadow); }
     #aicat-shell-draft .ac-profile-heading { display:flex; align-items:center; gap:10px; padding:10px 9px 13px; margin-bottom:5px; border-bottom:1px solid var(--ac-border); }
-    #aicat-shell-draft .ac-profile-name { font-size:13px; font-weight:500; }
-    #aicat-shell-draft .ac-profile-sub { color:var(--ac-muted); font-size:11px; margin-top:1px; }
-    #aicat-shell-draft .ac-profile-menu button { display:flex; align-items:center; gap:10px; width:100%; padding:9px; border-radius:6px; text-align:left; font-size:12px; }
+    #aicat-shell-draft .ac-profile-name { font-size:var(--ac-font-md); font-weight:500; }
+    #aicat-shell-draft .ac-profile-sub { color:var(--ac-muted); font-size:var(--ac-font-xs); margin-top:1px; }
+    #aicat-shell-draft .ac-profile-menu button { display:flex; align-items:center; gap:10px; width:100%; padding:9px; border-radius:var(--ac-radius-md); text-align:left; font-size:var(--ac-font-sm); }
     #aicat-shell-draft .ac-profile-menu button:hover,#aicat-shell-draft .ac-profile-menu button:focus-visible { background:var(--ac-soft); }
-    #aicat-shell-draft .ac-profile-note { padding:9px; color:var(--ac-muted); font-size:12px; }
-    #aicat-shell-draft .ac-profile-shortcut { margin-left:auto; color:var(--ac-muted); font-size:11px; }
+    #aicat-shell-draft .ac-profile-note { padding:9px; color:var(--ac-muted); font-size:var(--ac-font-sm); }
+    #aicat-shell-draft .ac-profile-shortcut { margin-left:auto; color:var(--ac-muted); font-size:var(--ac-font-xs); }
     #aicat-shell-draft .ac-sidebar { background:var(--ac-bg); padding:10px 10px 12px; border-right:1px solid var(--ac-border); display:flex; flex-direction:column; min-width:0; position:relative; }
-    #aicat-shell-draft .ac-side-heading { display:flex; align-items:center; padding:0 6px 14px; }
-    #aicat-shell-draft .ac-side-heading strong { font-size:14px; font-weight:500; flex:1; }
-    #aicat-shell-draft .ac-search { display:flex; align-items:center; gap:7px; border:1px solid var(--ac-border); background:var(--ac-surface); border-radius:7px; padding:6px 8px; min-width:0; }
+    #aicat-shell-draft .ac-search { display:flex; align-items:center; gap:7px; border:1px solid var(--ac-border); background:var(--ac-surface); border-radius:var(--ac-radius-md); padding:6px 8px; min-width:0; }
     #aicat-shell-draft .ac-search svg { color:var(--ac-muted); width:14px; height:14px; }
-    #aicat-shell-draft .ac-search input { width:100%; background:transparent; border:0; padding:0; font-size:12px; }
+    #aicat-shell-draft .ac-search input { width:100%; background:transparent; border:0; padding:0; font-size:var(--ac-font-sm); }
     #aicat-shell-draft .ac-search input:focus-visible { outline:none; }
     #aicat-shell-draft .ac-search:focus-within { border-color:color-mix(in srgb,var(--ac-brand) 45%,var(--ac-border)); box-shadow:0 0 0 2px color-mix(in srgb,var(--ac-brand) 9%,transparent); }
-    #aicat-shell-draft input::placeholder { color:var(--ac-muted); opacity:.85; }
+    #aicat-shell-draft input::placeholder { color:var(--ac-muted); opacity:1; }
     #aicat-shell-draft .ac-group { padding-top:17px; }
-    #aicat-shell-draft .ac-group-label { display:flex; align-items:center; gap:5px; color:var(--ac-muted); font-size:11px; padding:0 9px 7px; }
+    #aicat-shell-draft .ac-group-label { display:flex; align-items:center; gap:5px; color:var(--ac-muted); font-size:var(--ac-font-xs); padding:0 9px 7px; }
     #aicat-shell-draft .ac-group-label svg { width:12px; height:12px; }
-    #aicat-shell-draft .ac-side-item { display:flex; align-items:center; gap:8px; width:100%; min-height:30px; padding:5px 9px; text-align:left; border-radius:5px; font-size:12px; }
+    #aicat-shell-draft .ac-side-item { display:flex; align-items:center; gap:8px; width:100%; min-height:30px; padding:5px 9px; text-align:left; border-radius:var(--ac-radius-md); font-size:var(--ac-font-sm); }
     #aicat-shell-draft .ac-side-item svg { width:15px; height:15px; color:var(--ac-muted); }
     #aicat-shell-draft .ac-side-item:hover { background:var(--ac-soft); }
     #aicat-shell-draft .ac-side-item[aria-current="true"] { background:var(--ac-brand-soft); color:var(--ac-brand-text); }
     #aicat-shell-draft .ac-side-item[aria-current="true"] svg { color:var(--ac-brand-text); }
     #aicat-shell-draft .ac-side-item>span:not(.ac-dot) { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    #aicat-shell-draft .ac-domain-parent { display:flex; align-items:center; border-radius:6px; }
+    #aicat-shell-draft .ac-domain-parent { display:flex; align-items:center; border-radius:var(--ac-radius-md); }
     #aicat-shell-draft .ac-domain-parent:hover { background:var(--ac-soft); }
     #aicat-shell-draft .ac-domain-parent[data-selected="true"] { background:var(--ac-brand-soft); color:var(--ac-brand-text); }
-    #aicat-shell-draft .ac-domain-toggle { width:21px; min-height:30px; display:grid; place-items:center; border-radius:5px; color:var(--ac-muted); flex:none; }
+    #aicat-shell-draft .ac-domain-toggle { width:21px; min-height:30px; display:grid; place-items:center; border-radius:var(--ac-radius-md); color:var(--ac-muted); flex:none; }
     #aicat-shell-draft .ac-domain-toggle svg { width:12px; height:12px; }
     #aicat-shell-draft .ac-domain-parent .ac-side-item { min-width:0; padding-left:2px; }
     #aicat-shell-draft .ac-domain-parent .ac-side-item:hover { background:transparent; }
     #aicat-shell-draft .ac-domain-children .ac-side-item { padding-left:30px; }
-    #aicat-shell-draft .ac-domain-row { display:flex; align-items:center; border-radius:6px; min-width:0; }
+    #aicat-shell-draft .ac-domain-row { display:flex; align-items:center; border-radius:var(--ac-radius-md); min-width:0; }
     #aicat-shell-draft .ac-domain-row[data-selected="true"] { background:var(--ac-brand-soft); color:var(--ac-brand-text); }
-    #aicat-shell-draft .ac-tree-row { display:flex; align-items:center; padding-left:calc(9px + var(--ac-depth) * 13px); border-radius:5px; min-width:0; }
+    #aicat-shell-draft .ac-tree-row { display:flex; align-items:center; padding-left:calc(9px + var(--ac-depth) * 13px); border-radius:var(--ac-radius-md); min-width:0; }
     #aicat-shell-draft .ac-tree-row:hover { background:var(--ac-soft); }
     #aicat-shell-draft .ac-tree-row[data-selected="true"] { background:var(--ac-brand-soft); color:var(--ac-brand-text); }
     #aicat-shell-draft .ac-tree-row .ac-side-item { min-width:0; padding:5px 7px 5px 2px; background:transparent; gap:6px; }
     #aicat-shell-draft .ac-tree-toggle,#aicat-shell-draft .ac-tree-spacer { width:17px; height:30px; display:grid; place-items:center; flex:none; color:var(--ac-muted); }
     #aicat-shell-draft .ac-tree-toggle svg { width:12px; height:12px; }
     #aicat-shell-draft .ac-tree-toggle:hover { color:var(--ac-text); }
-    #aicat-shell-draft .ac-path-row .ac-side-item { min-height:28px; font-size:12px; }
+    #aicat-shell-draft .ac-path-row .ac-side-item { min-height:28px; font-size:var(--ac-font-sm); }
     #aicat-shell-draft .ac-path-row .ac-tree-toggle,#aicat-shell-draft .ac-path-row .ac-tree-spacer { height:28px; }
     #aicat-shell-draft .ac-tree-children { min-width:0; }
     #aicat-shell-draft .ac-domain-row .ac-side-item { flex:1; min-width:0; }
-    #aicat-shell-draft .ac-pin-group-title { flex:1; display:flex; align-items:center; gap:8px; min-height:30px; font-size:12px; padding-left:2px; padding-right:9px; text-align:left; }
+    #aicat-shell-draft .ac-pin-group-title { flex:1; display:flex; align-items:center; gap:8px; min-height:30px; font-size:var(--ac-font-sm); padding-left:2px; padding-right:9px; text-align:left; }
     #aicat-shell-draft .ac-pin-group-title>svg { width:15px; height:15px; color:var(--ac-muted); }
     #aicat-shell-draft .ac-pin-group-title>span { flex:1; }
-    #aicat-shell-draft .ac-context-menu { position:absolute; z-index:40; min-width:145px; padding:4px; border:1px solid var(--ac-border); border-radius:8px; background:var(--ac-surface); box-shadow:0 5px 18px var(--ac-shadow); }
-    #aicat-shell-draft .ac-context-menu button { display:flex; align-items:center; gap:8px; padding:8px; width:100%; border-radius:5px; font-size:12px; text-align:left; }
+    #aicat-shell-draft .ac-context-menu { position:absolute; z-index:40; min-width:145px; padding:4px; border:1px solid var(--ac-border); border-radius:var(--ac-radius-lg); background:var(--ac-surface); box-shadow:0 5px 18px var(--ac-shadow); }
+    #aicat-shell-draft .ac-context-menu button { display:flex; align-items:center; gap:8px; padding:8px; width:100%; border-radius:var(--ac-radius-md); font-size:var(--ac-font-sm); text-align:left; }
     #aicat-shell-draft .ac-context-menu button:hover { background:var(--ac-soft); }
     #aicat-shell-draft .ac-context-menu button:disabled { color:var(--ac-muted); opacity:.55; }
     #aicat-shell-draft .ac-context-menu button:disabled:hover { background:transparent; }
     #aicat-shell-draft .ac-context-menu [role="separator"] { height:1px; margin:4px; background:var(--ac-border); }
-    #aicat-shell-draft .ac-select { max-width:100%; min-width:160px; padding:7px 10px; border:1px solid var(--ac-border); border-radius:6px; background:var(--ac-surface); font-size:12px; }
-    #aicat-shell-draft .ac-count { color:var(--ac-muted); font-size:11px; font-style:normal; font-variant-numeric:tabular-nums; }
+    #aicat-shell-draft .ac-select { max-width:100%; min-width:160px; padding:7px 10px; border:1px solid var(--ac-border); border-radius:var(--ac-radius-md); background:var(--ac-surface); font-size:var(--ac-font-sm); }
+    #aicat-shell-draft .ac-count { color:var(--ac-muted); font-size:var(--ac-font-xs); font-style:normal; font-variant-numeric:tabular-nums; }
     #aicat-shell-draft .ac-side-footer { margin-top:auto; padding:14px 8px 0; }
-    #aicat-shell-draft .ac-proxy-status { display:flex; gap:7px; align-items:center; font-size:11px; }
-    #aicat-shell-draft .ac-proxy-sub { color:var(--ac-muted); font-size:11px; margin:4px 0 0 13px; }
+    #aicat-shell-draft .ac-proxy-status { display:flex; gap:7px; align-items:center; font-size:var(--ac-font-xs); }
+    #aicat-shell-draft .ac-proxy-sub { color:var(--ac-muted); font-size:var(--ac-font-xs); margin:4px 0 0 13px; }
     #aicat-shell-draft .ac-main { min-width:0; background:var(--ac-surface); display:flex; flex-direction:column; position:relative; }
     #aicat-shell-draft .ac-main-head { display:flex; align-items:center; gap:10px; padding:17px 21px 13px; min-height:67px; }
-    #aicat-shell-draft .ac-main-head h2 { font-size:17px; font-weight:500; margin:0; }
-    #aicat-shell-draft .ac-sub { font-size:11px; color:var(--ac-muted); margin-top:3px; }
-    #aicat-shell-draft .ac-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:5px 10px; min-height:29px; border:1px solid var(--ac-border); border-radius:6px; font-size:12px; background:var(--ac-surface); white-space:nowrap; }
+    #aicat-shell-draft .ac-main-head h2 { font-size:var(--ac-font-xl); font-weight:500; margin:0; }
+    #aicat-shell-draft .ac-sub { font-size:var(--ac-font-xs); color:var(--ac-muted); margin-top:3px; }
+    #aicat-shell-draft .ac-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:5px 10px; min-height:29px; border:1px solid var(--ac-border); border-radius:var(--ac-radius-md); font-size:var(--ac-font-sm); background:var(--ac-surface); white-space:nowrap; }
     #aicat-shell-draft .ac-button svg { width:14px; height:14px; }
     #aicat-shell-draft .ac-button:hover { background:var(--ac-soft); }
     #aicat-shell-draft .ac-button.ac-primary { background:var(--ac-brand); border-color:var(--ac-brand); color:var(--ac-on-brand); font-weight:500; }
     #aicat-shell-draft .ac-button.ac-primary:hover { background:color-mix(in srgb,var(--ac-brand) 90%,white); }
-    #aicat-shell-draft .ac-toolbar { display:flex; align-items:center; gap:8px; padding:7px 14px; min-height:44px; }
-    #aicat-shell-draft .ac-toolbar .ac-search { flex:1; }
-    #aicat-shell-draft .ac-toolbar .ac-search { padding:4px 8px; min-height:28px; border-radius:5px; background:var(--ac-bg); }
-    #aicat-shell-draft .ac-toolbar .ac-button { min-height:28px; font-size:11px; }
+    #aicat-shell-draft .ac-toolbar { display:flex; align-items:center; gap:8px; padding:7px var(--ac-content-inset); min-height:44px; }
+    #aicat-shell-draft .ac-toolbar .ac-search { flex:1; padding:4px 8px; min-height:28px; border-radius:var(--ac-radius-md); background:var(--ac-bg); }
+    #aicat-shell-draft .ac-toolbar .ac-button { min-height:28px; font-size:var(--ac-font-xs); }
     #aicat-shell-draft .ac-workspace { display:flex; flex-direction:column; min-width:0; flex:1; }
     #aicat-shell-draft .ac-request-list { min-width:0; background:var(--ac-surface); }
-    #aicat-shell-draft .ac-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:12px; }
-    #aicat-shell-draft .ac-table th { height:27px; text-align:left; font-size:11px; font-weight:400; color:var(--ac-muted); background:var(--ac-surface); border-top:1px solid var(--ac-border); border-bottom:1px solid var(--ac-border); }
+    #aicat-shell-draft .ac-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:var(--ac-font-sm); }
+    #aicat-shell-draft .ac-table th { height:27px; text-align:left; font-size:var(--ac-font-xs); font-weight:400; color:var(--ac-muted); background:var(--ac-surface); border-top:1px solid var(--ac-border); border-bottom:1px solid var(--ac-border); }
     #aicat-shell-draft .ac-table th+th { border-left:1px solid color-mix(in srgb,var(--ac-border) 55%,transparent); padding-left:8px; }
-    #aicat-shell-draft .ac-table th:first-child,#aicat-shell-draft .ac-table td:first-child { padding-left:14px; }
-    #aicat-shell-draft .ac-table th:last-child,#aicat-shell-draft .ac-table td:last-child { padding-right:14px; }
+    #aicat-shell-draft .ac-table th:first-child,#aicat-shell-draft .ac-table td:first-child { padding-left:var(--ac-content-inset); }
+    #aicat-shell-draft .ac-table th:last-child,#aicat-shell-draft .ac-table td:last-child { padding-right:var(--ac-content-inset); }
     #aicat-shell-draft .ac-table td { height:var(--ac-row-height); border:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 8px; }
     #aicat-shell-draft .ac-table tr[data-request]:nth-child(even) { background:var(--ac-stripe); }
     #aicat-shell-draft .ac-table tr[data-request] { cursor:default; }
     #aicat-shell-draft .ac-table tr[data-request]:hover { background:var(--ac-soft); }
     #aicat-shell-draft .ac-table tr[data-request][data-selected="true"] { background:var(--ac-brand-soft); }
     #aicat-shell-draft .ac-table tr[data-selected="true"] td:first-child { box-shadow:inset 2px 0 var(--ac-brand); }
-    #aicat-shell-draft .ac-method { font-family:ui-monospace,"SF Mono",monospace; font-size:11px; color:var(--ac-muted); }
-    #aicat-shell-draft .ac-id { font:11px ui-monospace,"SF Mono",monospace; font-variant-numeric:tabular-nums; color:var(--ac-muted); }
+    #aicat-shell-draft .ac-method { font-family:ui-monospace,"SF Mono",monospace; font-size:var(--ac-font-xs); color:var(--ac-muted); }
+    #aicat-shell-draft .ac-id { font:var(--ac-font-xs) ui-monospace,"SF Mono",monospace; font-variant-numeric:tabular-nums; color:var(--ac-muted); }
     #aicat-shell-draft .ac-url-button { width:100%; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
     #aicat-shell-draft .ac-host { color:var(--ac-text); }
     #aicat-shell-draft .ac-url-path { color:var(--ac-muted); }
-    #aicat-shell-draft .ac-status { font-family:ui-monospace,"SF Mono",monospace; font-size:11px; color:var(--ac-success); }
+    #aicat-shell-draft .ac-status { font-family:ui-monospace,"SF Mono",monospace; font-size:var(--ac-font-xs); color:var(--ac-success); }
     #aicat-shell-draft .ac-status.ac-error { color:var(--ac-danger); }
-    #aicat-shell-draft .ac-number { text-align:right; font-size:11px; font-variant-numeric:tabular-nums; color:var(--ac-muted); }
+    #aicat-shell-draft .ac-status.ac-neutral { color:var(--ac-muted); }
+    #aicat-shell-draft .ac-number { text-align:right; font-size:var(--ac-font-xs); font-variant-numeric:tabular-nums; color:var(--ac-muted); }
     #aicat-shell-draft .ac-empty { padding:38px 21px; color:var(--ac-muted); text-align:center; }
     #aicat-shell-draft .ac-detail { min-width:0; border-top:1px solid var(--ac-border); flex:1; }
-    #aicat-shell-draft .ac-detail-heading { min-height:42px; padding:6px 12px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--ac-border); }
-    #aicat-shell-draft .ac-method-pill,#aicat-shell-draft .ac-status-pill { display:inline-flex; align-items:center; justify-content:center; padding:2px 10px; min-width:62px; border-radius:12px; font:11px/1.5 ui-monospace,"SF Mono",monospace; white-space:nowrap; }
-    #aicat-shell-draft .ac-method-pill { color:var(--ac-brand-text); background:var(--ac-brand-soft); border:1px solid color-mix(in srgb,var(--ac-brand) 35%,transparent); }
+    #aicat-shell-draft .ac-detail-heading { min-height:42px; padding:6px var(--ac-content-inset); display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--ac-border); }
+    #aicat-shell-draft .ac-method-pill,#aicat-shell-draft .ac-status-pill { display:inline-flex; align-items:center; justify-content:center; padding:2px 10px; min-width:62px; border-radius:var(--ac-radius-pill); font:var(--ac-font-xs)/1.5 ui-monospace,"SF Mono",monospace; white-space:nowrap; }
+    #aicat-shell-draft .ac-method-pill { color:var(--ac-text); background:var(--ac-soft); border:1px solid var(--ac-border); }
     #aicat-shell-draft .ac-status-pill { color:var(--ac-success); background:color-mix(in srgb,var(--ac-success) 12%,var(--ac-surface)); border:1px solid color-mix(in srgb,var(--ac-success) 30%,transparent); }
     #aicat-shell-draft .ac-status-pill.ac-error { color:var(--ac-danger); background:var(--ac-danger-soft); border-color:color-mix(in srgb,var(--ac-danger) 30%,transparent); }
+    #aicat-shell-draft .ac-status-pill.ac-neutral { color:var(--ac-muted); background:var(--ac-soft); border-color:var(--ac-border); }
     #aicat-shell-draft .ac-url-scheme { color:var(--ac-muted); }
-    #aicat-shell-draft .ac-url-host { color:var(--ac-brand-text); }
-    #aicat-shell-draft .ac-connection-state { color:var(--ac-muted); font-size:11px; white-space:nowrap; }
-    #aicat-shell-draft .ac-detail-path { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:ui-monospace,"SF Mono",monospace; font-size:12px; }
-    #aicat-shell-draft .ac-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 6px; border-radius:4px; background:var(--ac-brand-soft); color:var(--ac-brand-text); font-size:10px; white-space:nowrap; }
-    #aicat-shell-draft .ac-detail-tabs { display:flex; align-items:center; gap:18px; padding:0 14px; border-bottom:1px solid var(--ac-border); }
-    #aicat-shell-draft .ac-detail-tabs button { font-size:11px; color:var(--ac-muted); padding:7px 0 9px; border-bottom:2px solid transparent; }
-    #aicat-shell-draft .ac-detail-tabs button[aria-selected="true"] { color:var(--ac-text); border-bottom-color:var(--ac-brand); }
-    #aicat-shell-draft .ac-detail-tabs em { font-style:normal; font-size:10px; color:var(--ac-muted); margin-left:3px; }
+    #aicat-shell-draft .ac-url-host { color:var(--ac-text); }
+    #aicat-shell-draft .ac-connection-state { color:var(--ac-muted); font-size:var(--ac-font-xs); white-space:nowrap; }
+    #aicat-shell-draft .ac-detail-path { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:ui-monospace,"SF Mono",monospace; font-size:var(--ac-font-sm); }
+    #aicat-shell-draft .ac-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 6px; border-radius:var(--ac-radius-sm); background:color-mix(in srgb,var(--ac-success) 12%,var(--ac-surface)); color:var(--ac-success); font-size:var(--ac-font-xs); white-space:nowrap; }
     #aicat-shell-draft .ac-payloads { display:grid; grid-template-columns:1fr 1fr; min-height:250px; }
     #aicat-shell-draft .ac-payload { min-width:0; padding:0 0 16px; }
     #aicat-shell-draft .ac-payload+.ac-payload { border-left:1px solid var(--ac-border); }
     #aicat-shell-draft .ac-inspectors { grid-template-columns:minmax(0,1fr) minmax(0,1fr); min-height:370px; }
     #aicat-shell-draft .ac-inspector { padding:0; }
-    #aicat-shell-draft .ac-inspector-bar { display:flex; align-items:center; gap:8px; padding:0 10px; min-height:34px; border-bottom:1px solid var(--ac-border); }
-    #aicat-shell-draft .ac-inspector-bar strong { font-size:13px; font-weight:500; white-space:nowrap; }
+    #aicat-shell-draft .ac-inspector-bar { display:flex; align-items:center; gap:8px; padding:0 var(--ac-content-inset); min-height:34px; border-bottom:1px solid var(--ac-border); }
+    #aicat-shell-draft .ac-inspector-bar strong { font-size:var(--ac-font-md); font-weight:500; white-space:nowrap; }
     #aicat-shell-draft .ac-inspector-tabs { display:flex; align-self:stretch; gap:12px; margin-left:4px; }
-    #aicat-shell-draft .ac-inspector-tab { color:var(--ac-muted); font-size:12px; border-bottom:2px solid transparent; padding:2px 0 0; }
+    #aicat-shell-draft .ac-inspector-tab { color:var(--ac-muted); font-size:var(--ac-font-sm); border-bottom:2px solid transparent; padding:2px 0 0; }
     #aicat-shell-draft .ac-inspector-tab:hover { color:var(--ac-text); }
     #aicat-shell-draft .ac-inspector-tab[aria-selected="true"] { color:var(--ac-brand-text); border-bottom-color:var(--ac-brand); }
-    #aicat-shell-draft .ac-header-table { border-collapse:collapse; table-layout:fixed; width:100%; text-align:left; font:12px/1.65 ui-monospace,"SF Mono",Menlo,Consolas,monospace; }
+    #aicat-shell-draft .ac-header-table { color:var(--ac-text); border-collapse:collapse; table-layout:fixed; width:100%; text-align:left; font:var(--ac-font-sm)/1.65 ui-monospace,"SF Mono",Menlo,Consolas,monospace; }
     #aicat-shell-draft .ac-header-name { width:35%; }
-    #aicat-shell-draft .ac-header-table th { padding:4px 10px; border-bottom:1px solid var(--ac-border); font:500 11px/1.65 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif; color:var(--ac-muted); }
+    #aicat-shell-draft .ac-header-table th { padding:4px var(--ac-content-inset); border-bottom:1px solid var(--ac-border); font:500 var(--ac-font-xs)/1.65 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC",sans-serif; color:var(--ac-muted); }
     #aicat-shell-draft .ac-header-table th+th { border-left:1px solid var(--ac-border); }
-    #aicat-shell-draft .ac-header-table td { vertical-align:top; padding:5px 10px; overflow-wrap:anywhere; white-space:pre-wrap; }
+    #aicat-shell-draft .ac-header-table td { vertical-align:top; padding:5px var(--ac-content-inset); overflow-wrap:anywhere; white-space:pre-wrap; }
     #aicat-shell-draft .ac-inspector-bar .ac-icon { width:26px; height:26px; }
     #aicat-shell-draft .ac-copy-anchor { position:relative; display:inline-flex; flex:none; }
-    #aicat-shell-draft .ac-copy-feedback { position:absolute; right:calc(100% + 6px); top:50%; transform:translateY(-50%); z-index:3; display:flex; align-items:center; gap:5px; padding:4px 8px; border:1px solid var(--ac-border); border-radius:6px; background:var(--ac-surface); box-shadow:0 4px 20px var(--ac-shadow); font-size:12px; white-space:nowrap; pointer-events:none; }
-    #aicat-shell-draft .ac-copy-feedback svg { width:14px; height:14px; color:var(--ac-brand-text); }
+    #aicat-shell-draft .ac-copy-feedback { position:absolute; right:calc(100% + 6px); top:50%; transform:translateY(-50%); z-index:3; display:flex; align-items:center; gap:5px; padding:4px 8px; border:1px solid var(--ac-border); border-radius:var(--ac-radius-md); background:var(--ac-surface); box-shadow:0 4px 20px var(--ac-shadow); font-size:var(--ac-font-sm); white-space:nowrap; pointer-events:none; }
+    #aicat-shell-draft .ac-copy-feedback svg { width:14px; height:14px; color:var(--ac-success); }
     #aicat-shell-draft .ac-copy-feedback.ac-copy-error svg { color:var(--ac-danger); }
     #aicat-shell-draft .ac-inspector-content { min-width:0; }
-    #aicat-shell-draft .ac-raw-code { margin:0; padding:8px 0 16px; font:12px/1.65 ui-monospace,"SF Mono",Menlo,Consolas,monospace; white-space:pre-wrap; overflow-wrap:anywhere; tab-size:2; }
+    #aicat-shell-draft .ac-raw-code { margin:0; padding:8px 0 16px; font:var(--ac-font-sm)/1.65 ui-monospace,"SF Mono",Menlo,Consolas,monospace; white-space:pre-wrap; overflow-wrap:anywhere; tab-size:2; }
     #aicat-shell-draft .ac-raw-line { display:grid; grid-template-columns:34px minmax(0,1fr); min-height:1.65em; }
-    #aicat-shell-draft .ac-line-number { color:var(--ac-muted); opacity:.75; text-align:right; padding-right:10px; font-variant-numeric:tabular-nums; user-select:none; }
+    #aicat-shell-draft .ac-line-number { color:var(--ac-muted); text-align:right; padding-right:10px; font-variant-numeric:tabular-nums; user-select:none; }
     #aicat-shell-draft .ac-raw-line code { padding-right:12px; font:inherit; color:var(--ac-text); white-space:pre-wrap; overflow-wrap:anywhere; min-width:0; }
-    #aicat-shell-draft .ac-wire-start { color:var(--ac-brand-text); }
+    #aicat-shell-draft .ac-wire-start { color:var(--ac-text); font-weight:600; }
     #aicat-shell-draft .ac-wire-key { color:var(--ac-info); }
     #aicat-shell-draft .ac-raw-code .ac-key { color:var(--ac-info); }
-    #aicat-shell-draft .ac-raw-code .ac-string { color:var(--ac-brand-text); }
+    #aicat-shell-draft .ac-raw-code .ac-string { color:var(--ac-code-string); }
     #aicat-shell-draft .ac-raw-code .ac-value { color:var(--ac-warning); }
-    #aicat-shell-draft .ac-payload-heading { display:flex; align-items:center; gap:7px; min-height:34px; padding:2px 14px; margin-bottom:0; border-bottom:1px solid color-mix(in srgb,var(--ac-border) 55%,transparent); font-size:12px; }
-    #aicat-shell-draft .ac-payload-heading>span { color:var(--ac-muted); font-size:11px; }
-    #aicat-shell-draft .ac-payload-heading .ac-icon { width:25px; height:25px; }
-    #aicat-shell-draft .ac-code { margin:0; padding:12px 14px; font:12px/1.65 ui-monospace,"SF Mono",Menlo,Consolas,monospace; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--ac-text); tab-size:2; }
-    #aicat-shell-draft .ac-code .ac-key { color:var(--ac-text); }
-    #aicat-shell-draft .ac-detail-empty { min-height:300px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px; color:var(--ac-muted); font-size:12px; }
+    #aicat-shell-draft .ac-detail-empty { min-height:300px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px; color:var(--ac-muted); font-size:var(--ac-font-sm); }
     #aicat-shell-draft .ac-detail-empty>svg { width:24px; height:24px; opacity:.6; }
     #aicat-shell-draft .ac-encrypted { min-height:250px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; padding:24px; text-align:center; }
     #aicat-shell-draft .ac-encrypted>svg { width:24px; height:24px; color:var(--ac-muted); }
-    #aicat-shell-draft .ac-encrypted p { margin:0; color:var(--ac-muted); font-size:12px; max-width:280px; }
-    #aicat-shell-draft .ac-encrypted small { font-size:11px; color:var(--ac-muted); }
-    #aicat-shell-draft .ac-code .ac-string { color:var(--ac-brand-text); }
-    #aicat-shell-draft .ac-code .ac-value { color:var(--ac-info); }
-    #aicat-shell-draft .ac-footer { margin-top:auto; padding:5px 14px; border-top:1px solid var(--ac-border); color:var(--ac-muted); font-size:11px; display:flex; align-items:center; gap:8px; min-height:27px; }
+    #aicat-shell-draft .ac-encrypted p { margin:0; color:var(--ac-muted); font-size:var(--ac-font-sm); max-width:280px; }
+    #aicat-shell-draft .ac-encrypted small { font-size:var(--ac-font-xs); color:var(--ac-muted); }
+    #aicat-shell-draft .ac-footer { margin-top:auto; padding:5px var(--ac-content-inset); border-top:1px solid var(--ac-border); color:var(--ac-muted); font-size:var(--ac-font-xs); display:flex; align-items:center; gap:8px; min-height:27px; }
     #aicat-shell-draft .ac-footer .ac-separator { color:var(--ac-border); }
-    #aicat-shell-draft .ac-keycap { font:10px ui-monospace,"SF Mono",monospace; border:1px solid var(--ac-border); border-radius:3px; padding:1px 4px; white-space:nowrap; flex:none; }
-    #aicat-shell-draft .ac-property-list { margin:0; display:grid; grid-template-columns:minmax(85px,auto) minmax(0,1fr); gap:9px 18px; font-size:11px; }
-    #aicat-shell-draft .ac-property-list dt { color:var(--ac-muted); }
-    #aicat-shell-draft .ac-property-list dd { margin:0; overflow-wrap:anywhere; }
+    #aicat-shell-draft .ac-keycap { font:var(--ac-font-xs) ui-monospace,"SF Mono",monospace; border:1px solid var(--ac-border); border-radius:var(--ac-radius-sm); padding:1px 4px; white-space:nowrap; flex:none; }
     #aicat-shell-draft .ac-content-pad { padding:10px 24px 26px; }
-    #aicat-shell-draft .ac-section-title { font-size:12px; font-weight:500; margin:17px 0 12px; }
-    #aicat-shell-draft .ac-field { display:block; font-size:11px; color:var(--ac-muted); margin:0 0 14px; }
-    #aicat-shell-draft .ac-field input,#aicat-shell-draft .ac-field textarea { display:block; width:100%; margin-top:7px; padding:8px 10px; border:1px solid var(--ac-border); border-radius:6px; background:var(--ac-surface); color:var(--ac-text); font-family:ui-monospace,"SF Mono",monospace; font-size:12px; resize:vertical; }
-    #aicat-shell-draft .ac-field textarea { min-height:108px; }
-    #aicat-shell-draft .ac-rule-row { display:flex; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--ac-border); }
-    #aicat-shell-draft .ac-rule-row>svg { color:var(--ac-muted); }
-    #aicat-shell-draft .ac-rule-title { font-size:12px; }
-    #aicat-shell-draft .ac-rule-desc { font-size:11px; color:var(--ac-muted); margin-top:4px; }
-    #aicat-shell-draft .ac-switch { width:29px; height:17px; border-radius:20px; background:var(--ac-border); padding:2px; display:flex; align-items:center; flex:none; }
-    #aicat-shell-draft .ac-switch span { width:13px; height:13px; border-radius:50%; background:var(--ac-surface); }
-    #aicat-shell-draft .ac-switch[aria-checked="true"] { background:var(--ac-brand); justify-content:flex-end; }
+    #aicat-shell-draft .ac-rule-title { font-size:var(--ac-font-sm); }
+    #aicat-shell-draft .ac-rule-desc { font-size:var(--ac-font-xs); color:var(--ac-muted); margin-top:4px; }
+    #aicat-shell-draft input.ac-switch { appearance:none; -webkit-appearance:none; position:relative; width:29px; height:17px; margin:0; border-radius:var(--ac-radius-pill); background:var(--ac-muted); flex:none; }
+    #aicat-shell-draft input.ac-switch::before { content:""; position:absolute; top:2px; left:2px; width:13px; height:13px; border-radius:50%; background:var(--ac-surface); }
+    #aicat-shell-draft input.ac-switch:checked { background:var(--ac-brand-text); }
+    #aicat-shell-draft input.ac-switch:checked::before { left:14px; }
     #aicat-shell-draft .ac-setting-row { display:flex; align-items:center; gap:16px; padding:17px 0; border-bottom:1px solid var(--ac-border); }
     #aicat-shell-draft .ac-settings-nav { display:none; align-items:center; flex-wrap:wrap; gap:5px; padding:0 21px 9px; border-bottom:1px solid var(--ac-border); }
-    #aicat-shell-draft .ac-settings-nav button { padding:6px 9px; border-radius:6px; font-size:12px; color:var(--ac-muted); }
+    #aicat-shell-draft .ac-settings-nav button { padding:6px 9px; border-radius:var(--ac-radius-md); font-size:var(--ac-font-sm); color:var(--ac-muted); }
     #aicat-shell-draft .ac-settings-nav button:hover { background:var(--ac-soft); }
     #aicat-shell-draft .ac-settings-nav button[aria-current="true"] { background:var(--ac-brand-soft); color:var(--ac-brand-text); }
     #aicat-shell-draft.ac-no-sidebar .ac-settings-nav { display:flex; }
     #aicat-shell-draft .ac-setting-row>div:first-child { flex:1; }
     #aicat-shell-draft .ac-appearance { display:flex; gap:5px; }
-    #aicat-shell-draft .ac-appearance button { padding:7px 11px; border:1px solid var(--ac-border); border-radius:6px; font-size:11px; }
+    #aicat-shell-draft .ac-appearance button { padding:7px 11px; border:1px solid var(--ac-border); border-radius:var(--ac-radius-md); font-size:var(--ac-font-xs); }
     #aicat-shell-draft .ac-appearance button[aria-pressed="true"] { border-color:var(--ac-brand); color:var(--ac-brand-text); background:var(--ac-brand-soft); }
-    #aicat-shell-draft .ac-toast { position:absolute; bottom:44px; left:50%; transform:translateX(-50%); z-index:10; display:flex; align-items:center; gap:7px; max-width:90%; padding:9px 13px; border:1px solid var(--ac-border); border-radius:8px; background:var(--ac-surface); box-shadow:0 4px 20px var(--ac-shadow); font-size:12px; white-space:nowrap; }
-    #aicat-shell-draft .ac-toast svg { color:var(--ac-brand-text); }
-    #aicat-shell-draft .ac-diff { background:var(--ac-brand-soft); padding:10px 12px; border-left:2px solid var(--ac-brand); font-size:11px; margin:12px 0; }
+    #aicat-shell-draft .ac-toast { position:absolute; bottom:44px; left:50%; transform:translateX(-50%); z-index:10; display:flex; align-items:center; gap:7px; max-width:90%; padding:9px 13px; border:1px solid var(--ac-border); border-radius:var(--ac-radius-lg); background:var(--ac-surface); box-shadow:0 4px 20px var(--ac-shadow); font-size:var(--ac-font-sm); white-space:nowrap; }
+    #aicat-shell-draft .ac-toast svg { color:var(--ac-success); }
     #aicat-shell-draft .ac-layout-right .ac-workspace { display:grid; grid-template-columns:minmax(0,1fr) minmax(250px,1fr); align-items:start; }
     #aicat-shell-draft .ac-layout-right .ac-detail { border-top:0; border-left:1px solid var(--ac-border); min-height:590px; }
     #aicat-shell-draft .ac-layout-right .ac-payloads { grid-template-columns:1fr; }
@@ -242,11 +221,11 @@
     #aicat-shell-draft .ac-layout-right .ac-table .ac-size { display:none; }
     #aicat-shell-draft .ac-layout-right .ac-table .ac-host { display:none; }
     #aicat-shell-draft.ac-regions .ac-region { outline:1px dashed var(--ac-brand); outline-offset:-2px; }
-    #aicat-shell-draft.ac-regions .ac-region::after { content:attr(data-region); position:absolute; top:2px; right:3px; z-index:5; background:var(--ac-brand); color:var(--ac-on-brand); font-size:9px; padding:1px 4px; border-radius:3px; pointer-events:none; }
+    #aicat-shell-draft.ac-regions .ac-region::after { content:attr(data-region); position:absolute; top:2px; right:3px; z-index:5; background:var(--ac-brand); color:var(--ac-on-brand); font-size:var(--ac-font-xs); padding:1px 4px; border-radius:var(--ac-radius-sm); pointer-events:none; }
     @container aicat-shell (max-width:760px) {
       #aicat-shell-draft .ac-window { --ac-rail-width:49px; --ac-side-width:174px; --ac-content-inset:15px; }
       #aicat-shell-draft .ac-table .ac-size { display:none; }
-      #aicat-shell-draft .ac-main-head,#aicat-shell-draft .ac-toolbar,#aicat-shell-draft .ac-detail-heading { padding-left:15px; padding-right:15px; }
+      #aicat-shell-draft .ac-main-head { padding-left:15px; padding-right:15px; }
       #aicat-shell-draft .ac-payloads { grid-template-columns:1fr; }
       #aicat-shell-draft .ac-payload+.ac-payload { border-left:0; border-top:1px solid var(--ac-border); }
       #aicat-shell-draft .ac-layout-right .ac-workspace { display:flex; }
@@ -272,7 +251,6 @@
       #aicat-shell-draft .ac-crumb>span:first-child,#aicat-shell-draft .ac-crumb>svg { display:none; }
       #aicat-shell-draft .ac-table .ac-time,#aicat-shell-draft .ac-table .ac-id { display:none; }
       #aicat-shell-draft .ac-connection-state { display:none; }
-      #aicat-shell-draft .ac-detail-tabs { gap:13px; padding:0 14px; flex-wrap:wrap; }
       #aicat-shell-draft .ac-payload { padding:0 0 16px; }
       #aicat-shell-draft .ac-encrypted { padding:18px 14px; }
       #aicat-shell-draft .ac-encrypted .ac-button { white-space:normal; max-width:100%; }
@@ -281,30 +259,29 @@
       #aicat-shell-draft .ac-settings-nav { display:flex; padding:0 15px 9px; }
       #aicat-shell-draft .ac-setting-row { flex-wrap:wrap; }
       #aicat-shell-draft .ac-setting-row>div:first-child { flex-basis:100%; }
-      #aicat-shell-draft .ac-footer { padding:7px 12px; flex-wrap:wrap; }
+      #aicat-shell-draft .ac-footer { padding:7px var(--ac-content-inset); flex-wrap:wrap; }
       #aicat-shell-draft.ac-mobile-sidebar .ac-sidebar { display:flex; position:absolute; z-index:20; top:var(--ac-titlebar-height); bottom:0; left:var(--ac-rail-width); width:min(var(--ac-side-width),calc(100% - var(--ac-rail-width))); box-shadow:8px 0 20px var(--ac-shadow); }
     }
     #aicat-shell-draft .ac-stage { container-type:inline-size; container-name:aicat-shell; }
     @media (prefers-reduced-motion:no-preference) { #aicat-shell-draft .ac-nav,#aicat-shell-draft .ac-side-item,#aicat-shell-draft .ac-button { transition:background .12s,color .12s; } }
 
     #aicat-shell-draft.ac-settings-open .ac-main-head { padding:28px 28px 20px; min-height:auto; }
-    #aicat-shell-draft.ac-settings-open .ac-main-head h2 { font-size:20px; }
+    #aicat-shell-draft.ac-settings-open .ac-main-head h2 { font-size:var(--ac-font-2xl); }
     #aicat-shell-draft .ac-settings-content { padding:0 28px 28px; max-width:736px; width:100%; }
     #aicat-shell-draft .ac-settings-content .ac-setting-row { padding:18px 0; }
-    #aicat-shell-draft .ac-settings-content .ac-rule-title { font-size:14px; font-weight:500; }
-    #aicat-shell-draft .ac-settings-content .ac-rule-desc { font-size:12px; margin-top:6px; }
-    #aicat-shell-draft .ac-settings-content .ac-select { width:170px; min-width:0; font-size:14px; }
-    #aicat-shell-draft .ac-settings-content .ac-appearance button { font-size:14px; }
+    #aicat-shell-draft .ac-settings-content .ac-rule-title { font-size:var(--ac-font-lg); font-weight:500; }
+    #aicat-shell-draft .ac-settings-content .ac-rule-desc { font-size:var(--ac-font-sm); margin-top:6px; }
+    #aicat-shell-draft .ac-settings-content .ac-select { width:170px; min-width:0; font-size:var(--ac-font-lg); }
+    #aicat-shell-draft .ac-settings-content .ac-appearance button { font-size:var(--ac-font-lg); }
     #aicat-shell-draft .ac-profile-menu button:disabled { opacity:.5; }
-    #aicat-shell-draft .ac-listen-editor { display:flex; align-items:center; gap:8px; width:270px; max-width:100%; flex-wrap:wrap; }
+    #aicat-shell-draft .ac-listen-editor { display:flex; align-items:center; gap:8px; width:248px; max-width:100%; flex-wrap:wrap; }
     #aicat-shell-draft .ac-settings-content .ac-listen-editor .ac-select { width:auto; flex:1; min-width:0; }
     #aicat-shell-draft .ac-listen-colon { color:var(--ac-muted); }
-    #aicat-shell-draft .ac-port-input { width:84px; min-width:0; padding:7px 8px; border:1px solid var(--ac-border); border-radius:6px; background:var(--ac-surface); font-size:14px; }
+    #aicat-shell-draft .ac-port-input { width:84px; min-width:0; padding:7px 8px; border:1px solid var(--ac-border); border-radius:var(--ac-radius-md); background:var(--ac-surface); font-size:var(--ac-font-lg); }
     #aicat-shell-draft .ac-port-input[aria-invalid="true"] { border-color:var(--ac-danger); }
-    #aicat-shell-draft .ac-listen-error { flex-basis:100%; color:var(--ac-danger); font-size:11px; }
-    #aicat-shell-draft .ac-listen-editor { width:248px; }
+    #aicat-shell-draft .ac-listen-error { flex-basis:100%; color:var(--ac-danger); font-size:var(--ac-font-xs); }
     #aicat-shell-draft .ac-settings-content .ac-listen-editor .ac-select,
-    #aicat-shell-draft .ac-port-input { height:32px; font:13px/18px ui-monospace,"SF Mono",Menlo,monospace; background:var(--ac-bg); border-radius:6px; }
+    #aicat-shell-draft .ac-port-input { height:32px; font:var(--ac-font-md)/18px ui-monospace,"SF Mono",Menlo,monospace; background:var(--ac-bg); border-radius:var(--ac-radius-md); }
     #aicat-shell-draft .ac-port-input { width:78px; padding:6px 9px; appearance:textfield; }
     #aicat-shell-draft .ac-port-input::-webkit-inner-spin-button,
     #aicat-shell-draft .ac-port-input::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
@@ -312,143 +289,110 @@
       #aicat-shell-draft .ac-listen-editor select,
       #aicat-shell-draft .ac-listen-editor select::picker(select) { appearance:base-select; }
       #aicat-shell-draft .ac-listen-editor select { padding:6px 9px; gap:12px; }
-      #aicat-shell-draft .ac-listen-editor select::picker-icon { color:var(--ac-muted); font-size:10px; }
+      #aicat-shell-draft .ac-listen-editor select::picker-icon { color:var(--ac-muted); font-size:var(--ac-font-xs); }
       #aicat-shell-draft .ac-listen-editor select:open { border-color:color-mix(in srgb,var(--ac-brand) 45%,var(--ac-border)); }
-      #aicat-shell-draft .ac-listen-editor select::picker(select) { margin-top:5px; padding:4px; border:1px solid var(--ac-border); border-radius:8px; background:var(--ac-surface); color:var(--ac-text); box-shadow:0 6px 20px var(--ac-shadow); }
-      #aicat-shell-draft .ac-listen-editor option { display:flex; align-items:center; gap:12px; min-height:30px; padding:5px 9px; border-radius:4px; background:transparent; color:var(--ac-text); font:13px/18px ui-monospace,"SF Mono",Menlo,monospace; }
+      #aicat-shell-draft .ac-listen-editor select::picker(select) { margin-top:5px; padding:4px; border:1px solid var(--ac-border); border-radius:var(--ac-radius-lg); background:var(--ac-surface); color:var(--ac-text); box-shadow:0 6px 20px var(--ac-shadow); }
+      #aicat-shell-draft .ac-listen-editor option { display:flex; align-items:center; gap:12px; min-height:30px; padding:5px 9px; border-radius:var(--ac-radius-sm); background:transparent; color:var(--ac-text); font:var(--ac-font-md)/18px ui-monospace,"SF Mono",Menlo,monospace; }
       #aicat-shell-draft .ac-listen-editor option:hover { background:var(--ac-soft); }
       #aicat-shell-draft .ac-listen-editor option:checked { background:var(--ac-brand-soft); color:var(--ac-brand-text); }
       #aicat-shell-draft .ac-listen-editor option::checkmark { order:1; margin-left:auto; color:var(--ac-brand-text); }
     }
-    #aicat-shell-draft .ac-gw-preview { display:flex; align-items:center; flex-wrap:wrap; gap:8px 14px; padding:0 0 12px; color:var(--ac-muted); font-size:12px; }
+    #aicat-shell-draft .ac-gw-preview { display:flex; align-items:center; flex-wrap:wrap; gap:8px 14px; padding:0 0 12px; color:var(--ac-muted); font-size:var(--ac-font-sm); }
     #aicat-shell-draft .ac-gw-preview>span { margin-right:auto; }
-    #aicat-shell-draft .ac-gw-preview-switch { display:flex; gap:2px; padding:3px; border-radius:7px; background:var(--ac-soft); }
-    #aicat-shell-draft .ac-gw-preview-switch button { padding:5px 12px; border-radius:5px; }
+    #aicat-shell-draft .ac-gw-preview-switch { display:flex; gap:2px; padding:3px; border-radius:var(--ac-radius-md); background:var(--ac-soft); }
+    #aicat-shell-draft .ac-gw-preview-switch button { padding:5px 12px; border-radius:var(--ac-radius-md); }
     #aicat-shell-draft .ac-gw-preview-switch button[aria-pressed="true"] { color:var(--ac-text); background:var(--ac-surface); }
     #aicat-shell-draft .ac-home { width:100%; max-width:1160px; margin:0 auto; padding:27px clamp(15px,3cqw,32px) 21px; display:grid; align-content:start; gap:20px; }
     #aicat-shell-draft .ac-home :is(h1,h2,h3,p,dl,dd,ul,ol) { margin:0; }
-    #aicat-shell-draft .ac-home h1 { font-size:24px; line-height:1.3; font-weight:600; letter-spacing:-.025em; }
-    #aicat-shell-draft .ac-home h2 { font-size:21px; font-weight:500; line-height:1.4; }
-    #aicat-shell-draft .ac-home h3 { font-size:14px; font-weight:500; line-height:1.5; }
-    #aicat-shell-draft .ac-home p { color:var(--ac-muted); font-size:12px; line-height:1.7; }
-    #aicat-shell-draft .ac-home code { overflow-wrap:anywhere; font:12px/1.6 ui-monospace,"SF Mono",Menlo,monospace; }
+    #aicat-shell-draft .ac-home h1 { font-size:var(--ac-font-2xl); line-height:1.3; font-weight:600; letter-spacing:-.025em; }
+    #aicat-shell-draft .ac-home h2 { font-size:var(--ac-font-xl); font-weight:500; line-height:1.4; }
+    #aicat-shell-draft .ac-home h3 { font-size:var(--ac-font-lg); font-weight:500; line-height:1.5; }
+    #aicat-shell-draft .ac-home p { color:var(--ac-muted); font-size:var(--ac-font-sm); line-height:1.7; }
+    #aicat-shell-draft .ac-home code { overflow-wrap:anywhere; font:var(--ac-font-sm)/1.6 ui-monospace,"SF Mono",Menlo,monospace; }
     #aicat-shell-draft .ac-home-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
-    #aicat-shell-draft .ac-home-status { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; color:var(--ac-muted); font-size:12px; margin-top:5px; }
-    #aicat-shell-draft .ac-home-status>span:first-child { display:inline-flex; align-items:center; gap:6px; color:var(--ac-brand-text); }
+    #aicat-shell-draft .ac-home-status { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; color:var(--ac-muted); font-size:var(--ac-font-sm); margin-top:5px; }
+    #aicat-shell-draft .ac-home-status>span:first-child { display:inline-flex; align-items:center; gap:6px; color:var(--ac-success); }
     #aicat-shell-draft .ac-home-card-heading { display:flex; flex-wrap:wrap; align-items:center; gap:5px 10px; margin-bottom:6px; }
-    #aicat-shell-draft .ac-home-card-heading>span:last-child { margin-left:auto; color:var(--ac-muted); font-size:11px; }
-    #aicat-shell-draft .ac-gw-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border-block:1px solid var(--ac-border); padding:15px 0; gap:12px; }
-    #aicat-shell-draft .ac-gw-summary>div { min-width:0; padding:0 8px; }
-    #aicat-shell-draft .ac-gw-summary dt { color:var(--ac-muted); font-size:12px; }
-    #aicat-shell-draft .ac-gw-summary dd { font-size:29px; font-weight:500; font-variant-numeric:tabular-nums; line-height:1.55; }
-    #aicat-shell-draft .ac-gw-summary dd small { font-size:16px; padding-left:2px; }
-    #aicat-shell-draft .ac-gw-summary>div>small { color:var(--ac-muted); font-size:11px; }
-    #aicat-shell-draft .ac-gw-columns { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); align-items:start; gap:26px; }
-    #aicat-shell-draft .ac-gw-activity { display:flex; align-items:start; gap:10px; padding:16px 2px; width:100%; text-align:left; border-bottom:1px solid var(--ac-border); }
-    #aicat-shell-draft .ac-gw-activity:hover { background:var(--ac-bg); }
-    #aicat-shell-draft .ac-gw-activity-icon { display:grid; place-items:center; width:29px; height:29px; flex:0 0 29px; border-radius:7px; color:var(--ac-muted); background:var(--ac-bg); }
+    #aicat-shell-draft .ac-home-card-heading>span:last-child { margin-left:auto; color:var(--ac-muted); font-size:var(--ac-font-xs); }
+    #aicat-shell-draft .ac-gw-activity { display:flex; align-items:start; gap:10px; padding:11px 2px; width:100%; text-align:left; border-bottom:1px solid var(--ac-border); }
+    #aicat-shell-draft .ac-gw-activity-icon { display:grid; place-items:center; width:29px; height:29px; flex:0 0 29px; border-radius:var(--ac-radius-md); color:var(--ac-muted); background:var(--ac-bg); }
     #aicat-shell-draft .ac-gw-activity-body { display:grid; min-width:0; flex:1; gap:4px; }
-    #aicat-shell-draft .ac-gw-activity-body strong { font-size:13px; line-height:1.6; font-weight:500; overflow-wrap:anywhere; }
-    #aicat-shell-draft .ac-gw-activity-body>span { font-size:11px; color:var(--ac-muted); line-height:1.6; overflow-wrap:anywhere; }
+    #aicat-shell-draft .ac-gw-activity-body strong { font-size:var(--ac-font-md); line-height:1.6; font-weight:500; overflow-wrap:anywhere; }
+    #aicat-shell-draft .ac-gw-activity-body>span { font-size:var(--ac-font-xs); color:var(--ac-muted); line-height:1.6; overflow-wrap:anywhere; }
     #aicat-shell-draft .ac-gw-activity-trailing { display:grid; justify-items:end; flex:0 0 auto; gap:7px; padding-top:1px; }
-    #aicat-shell-draft .ac-gw-activity-trailing small { color:var(--ac-muted); font-size:11px; }
-    #aicat-shell-draft .ac-gw-state { display:inline-flex; align-items:center; font-size:11px; line-height:1.6; color:var(--ac-muted); white-space:normal; }
+    #aicat-shell-draft .ac-gw-activity-trailing small { color:var(--ac-muted); font-size:var(--ac-font-xs); }
+    #aicat-shell-draft .ac-gw-state { display:inline-flex; align-items:center; font-size:var(--ac-font-xs); line-height:1.6; color:var(--ac-muted); white-space:normal; }
     #aicat-shell-draft .ac-gw-state[data-kind="success"] { color:var(--ac-success); }
     #aicat-shell-draft .ac-gw-state[data-kind="active"] { color:var(--ac-brand-text); }
+    #aicat-shell-draft .ac-gw-state[data-kind="warning"] { color:var(--ac-warning); }
+    #aicat-shell-draft .ac-gw-state .ac-dot { background:currentColor; }
     #aicat-shell-draft .ac-gw-state[data-kind="error"] { color:var(--ac-danger); }
-    #aicat-shell-draft .ac-gw-agents { display:flex; flex-wrap:wrap; gap:8px 14px; padding:14px 2px 0; color:var(--ac-muted); font-size:11px; }
-    #aicat-shell-draft .ac-gw-agents span { display:inline-flex; align-items:center; gap:5px; }
-    #aicat-shell-draft .ac-gw-agents svg { width:13px; height:13px; }
-    #aicat-shell-draft .ac-gw-attention { padding:13px 14px; background:var(--ac-bg); border:1px solid var(--ac-border); border-radius:9px; }
-    #aicat-shell-draft .ac-gw-notice { display:flex; align-items:start; gap:9px; width:100%; padding:10px 0; text-align:left; }
-    #aicat-shell-draft .ac-gw-notice>svg { width:13px; height:13px; margin:4px 0 0 auto; color:var(--ac-muted); }
+    #aicat-shell-draft .ac-gw-notice { display:flex; align-items:center; gap:9px; width:100%; padding:10px 0; text-align:left; }
     #aicat-shell-draft .ac-gw-notice-icon { color:var(--ac-warning); padding-top:2px; }
     #aicat-shell-draft .ac-gw-notice-icon[data-kind="error"] { color:var(--ac-danger); }
     #aicat-shell-draft .ac-gw-notice>span:nth-child(2) { min-width:0; }
-    #aicat-shell-draft .ac-gw-notice strong { display:block; font-size:12px; font-weight:500; }
-    #aicat-shell-draft .ac-gw-notice small { display:block; font-size:11px; color:var(--ac-muted); margin-top:3px; }
-    #aicat-shell-draft .ac-gw-capability { display:flex; align-items:center; gap:9px; width:100%; padding:10px 0; text-align:left; }
-    #aicat-shell-draft .ac-gw-capability>span:nth-child(2) { flex:1; min-width:0; }
-    #aicat-shell-draft .ac-gw-capability strong { display:block; font-size:12px; font-weight:500; }
-    #aicat-shell-draft .ac-gw-capability small { display:block; margin-top:2px; font-size:11px; color:var(--ac-muted); overflow-wrap:anywhere; }
-    #aicat-shell-draft .ac-gw-capability>svg { color:var(--ac-muted); width:13px; height:13px; }
-    #aicat-shell-draft .ac-gw-capability:hover strong { color:var(--ac-brand-text); }
-    #aicat-shell-draft .ac-home-address { display:flex; align-items:center; justify-content:space-between; gap:4px; background:var(--ac-bg); border-radius:6px; padding:4px 5px 4px 9px; }
-    #aicat-shell-draft .ac-gw-node-addresses { padding:16px; background:var(--ac-bg); border:1px solid var(--ac-border); border-radius:9px; }
-    #aicat-shell-draft .ac-gw-node-addresses .ac-home-address { background:var(--ac-surface); }
-    #aicat-shell-draft .ac-gw-logs summary { color:var(--ac-text); font-size:12px; }
-    #aicat-shell-draft .ac-gw-logs summary>span { color:var(--ac-muted); margin-left:12px; font-size:11px; }
-    #aicat-shell-draft .ac-gw-logs[open] summary { margin-bottom:8px; }
-    #aicat-shell-draft .ac-gw-attention .ac-gw-notice { margin-top:14px; border-top:1px solid var(--ac-border); padding-top:14px; }
-    #aicat-shell-draft .ac-gw-address-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:12px; }
+    #aicat-shell-draft .ac-gw-notice strong { display:block; font-size:var(--ac-font-sm); font-weight:500; }
+    #aicat-shell-draft .ac-gw-notice small { display:block; font-size:var(--ac-font-xs); color:var(--ac-muted); margin-top:3px; }
+    #aicat-shell-draft .ac-gw-capability strong { display:block; font-size:var(--ac-font-sm); font-weight:500; }
+    #aicat-shell-draft .ac-gw-capability small { display:block; margin-top:2px; font-size:var(--ac-font-xs); color:var(--ac-muted); overflow-wrap:anywhere; }
+    #aicat-shell-draft .ac-home-address { display:flex; align-items:center; justify-content:space-between; gap:4px; background:var(--ac-bg); border-radius:var(--ac-radius-md); padding:4px 5px 4px 9px; }
     #aicat-shell-draft .ac-gw-endpoint { display:grid; align-content:start; gap:6px; min-width:0; }
-    #aicat-shell-draft .ac-gw-endpoint>span { font-size:11px; color:var(--ac-muted); }
-    #aicat-shell-draft .ac-home-footer { display:flex; flex-wrap:wrap; align-items:center; gap:7px; color:var(--ac-muted); font-size:11px; }
-    #aicat-shell-draft .ac-home-footer>span { display:inline-flex; align-items:center; gap:5px; }
+    #aicat-shell-draft .ac-gw-endpoint>span { font-size:var(--ac-font-xs); color:var(--ac-muted); }
+    #aicat-shell-draft .ac-home-footer { display:flex; flex-wrap:wrap; align-items:center; gap:7px; color:var(--ac-muted); font-size:var(--ac-font-xs); }
+    #aicat-shell-draft .ac-home-footer>span { display:inline-flex; align-items:center; gap:7px; }
+    #aicat-shell-draft .ac-home-footer code { color:var(--ac-text); }
     #aicat-shell-draft .ac-home-footer svg { width:13px; height:13px; }
-    #aicat-shell-draft .ac-gw-text-button { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--ac-brand-text); padding:4px 0; }
-    #aicat-shell-draft .ac-gw-onboarding { border:1px solid var(--ac-border); border-radius:12px; overflow:hidden; }
+    #aicat-shell-draft .ac-gw-text-button { display:inline-flex; align-items:center; gap:6px; font-size:var(--ac-font-sm); color:var(--ac-brand-text); padding:4px 0; }
+    #aicat-shell-draft .ac-gw-onboarding { border:1px solid var(--ac-border); border-radius:var(--ac-radius-xl); overflow:hidden; }
     #aicat-shell-draft .ac-gw-welcome { padding:25px 20px; background:var(--ac-bg); }
-    #aicat-shell-draft .ac-gw-welcome-icon { display:grid; place-items:center; color:var(--ac-brand-text); margin-bottom:12px; width:37px; height:37px; background:var(--ac-brand-soft); border-radius:9px; }
+    #aicat-shell-draft .ac-gw-welcome-icon { display:grid; place-items:center; color:var(--ac-brand-text); margin-bottom:12px; width:37px; height:37px; background:var(--ac-brand-soft); border-radius:var(--ac-radius-lg); }
     #aicat-shell-draft .ac-gw-welcome h2 { margin-bottom:4px; }
-    #aicat-shell-draft .ac-gw-setup-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
-    #aicat-shell-draft .ac-gw-setup-grid>section { display:grid; justify-items:start; align-content:start; gap:9px; min-width:0; padding:18px 20px; }
-    #aicat-shell-draft .ac-gw-setup-grid>section+section { border-left:1px solid var(--ac-border); }
-    #aicat-shell-draft .ac-gw-capability-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 18px; }
     #aicat-shell-draft .ac-gw-subheading { display:grid; justify-items:start; gap:10px; }
     #aicat-shell-draft .ac-gw-form { display:grid; gap:18px; width:100%; max-width:560px; padding-top:6px; }
-    #aicat-shell-draft .ac-gw-form label { display:grid; gap:7px; font-size:12px; }
-    #aicat-shell-draft .ac-gw-form :is(input,textarea,select) { width:100%; border:1px solid var(--ac-border); border-radius:6px; padding:9px 10px; background:var(--ac-surface); font:inherit; color:var(--ac-text); }
-    #aicat-shell-draft .ac-gw-form input::placeholder,#aicat-shell-draft .ac-gw-form textarea::placeholder { color:var(--ac-muted); opacity:1; }
-    #aicat-shell-draft .ac-gw-form textarea { resize:vertical; }
-    #aicat-shell-draft .ac-gw-form details { color:var(--ac-muted); font-size:12px; }
-    #aicat-shell-draft .ac-gw-form details label { margin-top:10px; }
-    #aicat-shell-draft .ac-gw-form-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
-    #aicat-shell-draft .ac-gw-form>.ac-button { justify-self:start; white-space:normal; text-align:left; }
-    #aicat-shell-draft .ac-gw-form .ac-gw-demo-note { font-size:11px; }
+    #aicat-shell-draft .ac-gw-form .ac-gw-demo-note { font-size:var(--ac-font-xs); }
     #aicat-shell-draft .ac-gw-connection-fields { display:grid; gap:14px; }
     #aicat-shell-draft .ac-gw-tabs { display:flex; flex-wrap:wrap; gap:4px; border-bottom:1px solid var(--ac-border); padding-bottom:12px; }
-    #aicat-shell-draft .ac-gw-tabs button { padding:6px 12px; border-radius:6px; font-size:12px; }
+    #aicat-shell-draft .ac-gw-tabs button { padding:6px 12px; border-radius:var(--ac-radius-md); font-size:var(--ac-font-sm); }
     #aicat-shell-draft .ac-gw-tabs button[aria-pressed="true"] { background:var(--ac-brand-soft); color:var(--ac-brand-text); }
-    #aicat-shell-draft .ac-gw-capability-content { display:grid; gap:15px; }
-    #aicat-shell-draft .ac-gw-section-action { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; color:var(--ac-muted); font-size:12px; }
-    #aicat-shell-draft .ac-gw-provider { padding:15px 16px; border:1px solid var(--ac-border); border-radius:9px; min-width:0; }
-    #aicat-shell-draft .ac-gw-provider>code { color:var(--ac-muted); display:block; margin-top:3px; }
-    #aicat-shell-draft .ac-gw-model-list { display:grid; gap:10px; border-top:1px solid var(--ac-border); padding-top:14px; margin-top:14px; }
-    #aicat-shell-draft .ac-gw-model-list>span { display:flex; align-items:center; flex-wrap:wrap; gap:8px; font-size:12px; }
-    #aicat-shell-draft .ac-gw-model-list>span>code { flex:1; min-width:90px; }
-    #aicat-shell-draft .ac-gw-model-list svg { color:var(--ac-muted); width:14px; }
-    #aicat-shell-draft .ac-gw-service { padding:15px 0; border-bottom:1px solid var(--ac-border); min-width:0; }
-    #aicat-shell-draft .ac-gw-service h3 { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
-    #aicat-shell-draft .ac-gw-service h3 small { font-size:11px; color:var(--ac-muted); }
-    #aicat-shell-draft .ac-gw-service>:is(p,code) { margin-top:6px; }
-    #aicat-shell-draft .ac-gw-service>.ac-gw-state { float:right; margin-left:8px; }
-    #aicat-shell-draft .ac-gw-service-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:22px; }
-    #aicat-shell-draft .ac-home-empty { padding:30px 0; }
-    #aicat-shell-draft .ac-home-empty strong { font-weight:500; }
-    #aicat-shell-draft .ac-home-empty p { margin-top:6px; }
-    #aicat-shell-draft .ac-gw-result { display:grid; gap:13px; padding:19px; border:1px solid var(--ac-border); border-radius:10px; }
-    #aicat-shell-draft .ac-gw-result ul { padding-left:18px; color:var(--ac-text); font-size:12px; line-height:1.9; }
-    #aicat-shell-draft .ac-gw-result>.ac-button { justify-self:start; }
+    #aicat-shell-draft .ac-gw-attention { padding:4px 14px; background:var(--ac-bg); border:1px solid var(--ac-border); border-radius:var(--ac-radius-lg); }
+    #aicat-shell-draft .ac-gw-notice>.ac-button { margin-left:auto; flex:none; }
+    #aicat-shell-draft .ac-gw-steps { list-style:none; display:grid; padding:6px 20px 10px; }
+    #aicat-shell-draft .ac-gw-steps>li { display:flex; gap:12px; padding:14px 0; }
+    #aicat-shell-draft .ac-gw-steps>li+li { border-top:1px solid var(--ac-border); }
+    #aicat-shell-draft .ac-gw-steps>li>div { display:grid; justify-items:start; gap:6px; min-width:0; }
+    #aicat-shell-draft .ac-gw-step-mark { display:grid; place-items:center; width:22px; height:22px; flex:0 0 22px; border-radius:50%; font-size:var(--ac-font-xs); color:var(--ac-muted); border:1px solid var(--ac-border); }
+    #aicat-shell-draft .ac-gw-step-mark svg { width:12px; height:12px; }
+    #aicat-shell-draft .ac-gw-steps>li[data-state="current"] .ac-gw-step-mark { color:var(--ac-on-brand); background:var(--ac-brand); border-color:var(--ac-brand); }
+    #aicat-shell-draft .ac-gw-steps>li[data-state="done"] .ac-gw-step-mark { color:var(--ac-brand-text); background:var(--ac-brand-soft); border-color:transparent; }
+    #aicat-shell-draft .ac-gw-steps>li[data-state="todo"] h3 { color:var(--ac-muted); }
+    #aicat-shell-draft .ac-gw-snippet { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:8px; padding:10px 10px 10px 12px; background:var(--ac-bg); border:1px solid var(--ac-border); border-radius:var(--ac-radius-lg); }
+    #aicat-shell-draft .ac-gw-snippet pre { margin:0; overflow-x:auto; }
+    #aicat-shell-draft .ac-gw-snippet code { white-space:pre; overflow-wrap:normal; }
+    #aicat-shell-draft .ac-gw-waiting { display:grid; justify-items:start; gap:6px; padding-top:4px; }
+    #aicat-shell-draft .ac-gw-waiting .ac-gw-state { gap:6px; }
+    #aicat-shell-draft .ac-gw-agent-list,#aicat-shell-draft .ac-gw-capability-list,#aicat-shell-draft .ac-gw-activity-list { list-style:none; padding:0; margin:0; }
+    #aicat-shell-draft .ac-gw-agent,#aicat-shell-draft .ac-gw-capability { display:flex; align-items:center; gap:12px; padding:13px 2px; border-bottom:1px solid var(--ac-border); }
+    #aicat-shell-draft .ac-gw-agent-body,#aicat-shell-draft .ac-gw-capability>span:nth-child(2) { display:grid; flex:1; min-width:0; gap:3px; }
+    #aicat-shell-draft .ac-gw-agent strong,#aicat-shell-draft .ac-gw-capability strong { font-size:var(--ac-font-md); font-weight:500; }
+    #aicat-shell-draft .ac-gw-agent-body>span:not(.ac-gw-state),#aicat-shell-draft .ac-gw-capability small { font-size:var(--ac-font-xs); color:var(--ac-muted); overflow-wrap:anywhere; }
+    #aicat-shell-draft .ac-gw-agent>.ac-gw-state,#aicat-shell-draft .ac-gw-capability>.ac-gw-state { flex:none; }
+    #aicat-shell-draft .ac-gw-capability>.ac-gw-text-button { flex:none; gap:2px; }
+    #aicat-shell-draft .ac-gw-capability>.ac-gw-text-button svg { width:13px; height:13px; }
+    #aicat-shell-draft .ac-gw-activity-list>li:last-child { border-bottom:0; }
+    #aicat-shell-draft .ac-home-footer>span+span { margin-left:14px; }
+    #aicat-shell-draft .ac-home-footer .ac-icon { width:22px; height:22px; }
     @container aicat-shell (max-width:800px) {
-      #aicat-shell-draft .ac-gw-columns { grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:18px; }
-      #aicat-shell-draft .ac-gw-address-grid { grid-template-columns:minmax(0,1fr); }
       #aicat-shell-draft .ac-gw-activity { flex-wrap:wrap; }
-      #aicat-shell-draft .ac-gw-activity-trailing { width:100%; grid-auto-flow:column; justify-content:space-between; padding-left:39px; }
+      #aicat-shell-draft .ac-gw-activity-trailing { width:100%; grid-auto-flow:column; justify-content:space-between; }
     }
     @container aicat-shell (max-width:610px) {
-      #aicat-shell-draft .ac-gw-columns,#aicat-shell-draft .ac-gw-setup-grid,#aicat-shell-draft .ac-gw-service-list { grid-template-columns:minmax(0,1fr); }
-      #aicat-shell-draft .ac-gw-summary { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
-      #aicat-shell-draft .ac-gw-setup-grid>section+section { border-left:0; border-top:1px solid var(--ac-border); }
-      #aicat-shell-draft .ac-gw-capability-grid { grid-template-columns:minmax(0,1fr); }
-      #aicat-shell-draft .ac-gw-logs summary>span { display:block; margin:5px 0 0; }
       #aicat-shell-draft .ac-gateway-home .ac-button { white-space:normal; }
     }
   </style>
   <div class="ac-gw-preview" aria-label="设计预览状态">
     <span>Agent Gateway · 设计预览</span>
     <div class="ac-gw-preview-switch" aria-label="页面状态">
-      <button type="button" class="cursor-interaction" data-gateway-preview="active" aria-pressed="true">已配置节点</button>
+      <button type="button" class="cursor-interaction" data-gateway-preview="active" aria-pressed="true">已接入</button>
       <button type="button" class="cursor-interaction" data-gateway-preview="setup" aria-pressed="false">首次接入</button>
     </div>
   </div>
@@ -530,6 +474,8 @@
   Object.assign(messages.en,{listenPort:'Port',invalidPort:'Enter an integer from 1 to 65535'});
   Object.assign(messages['zh-CN'],{copyURL:'复制 URL',copyCurl:'复制 cURL',requestActions:'请求操作',curlUnavailable:'未解密隧道没有完整的 HTTP 请求，无法生成 cURL'});
   Object.assign(messages.en,{copyURL:'Copy URL',copyCurl:'Copy cURL',requestActions:'Request actions',curlUnavailable:'An encrypted tunnel has no complete HTTP request to export as cURL'});
+  Object.assign(messages['zh-CN'],{clearedToast:'已清空 {n} 条请求',undo:'撤销'});
+  Object.assign(messages.en,{clearedToast:'Cleared {n} requests',undo:'Undo'});
   Object.assign(messages['zh-CN'],{
     home:'首页',gatewayOverview:'网关概览',waitingClients:'等待客户端接入',receivingCalls:'正在接收模型请求',
     listening:'监听中',httpProxy:'HTTP 代理',aiGateway:'AI 网关',copyAddress:'复制地址',openAICompatible:'OpenAI 兼容 · 示例',
@@ -552,7 +498,7 @@
     showExample:'Preview activity',showSetup:'Back to first setup',captureOn:'Traffic extension on',captureOff:'Traffic extension off',
     callTrend:'128 calls in the last hour, grouped into five-minute intervals',hourAgo:'1 hour ago',now:'Now'
   });
-  const defaults = {module:'home',selected:'r1',filter:'all',pathFilter:'',expandedNodes:['api.openai.com|','api.openai.com|/v1'],domainsExpanded:true,domainsSelected:false,pinned:['api.openai.com'],pinsExpanded:true,selectionSource:'domain',sideQuery:'',query:'',theme:'system',locale:'system',sidebar:true,recording:true,setting:'general',trafficEnabled:false,listenAddress:'127.0.0.1',listenPort:9981,decryptDomains:[],gatewayPage:'overview',gatewayCapability:'models',gatewayActivity:'model'};
+  const defaults = {module:'home',selected:'r1',filter:'all',pathFilter:'',expandedNodes:['api.openai.com|','api.openai.com|/v1'],domainsExpanded:true,domainsSelected:false,pinned:['api.openai.com'],pinsExpanded:true,selectionSource:'domain',sideQuery:'',query:'',theme:'system',locale:'system',sidebar:true,recording:true,setting:'general',trafficEnabled:false,listenAddress:'127.0.0.1',listenPort:9981,decryptDomains:[],gatewayPage:'overview',gatewayClient:'claude'};
   const saved = window.openai?.widgetState?.privateContent;
   const state = {...defaults,...(saved && typeof saved==='object'?saved:{})};
   state.mobileSidebar=false;
@@ -564,16 +510,14 @@
   // snapshots so delayed echoes cannot replace live inputs or roll typing back.
   const localSnapshots=new Set();
   const design = {layout:'bottom',density:'compact',regions:false};
-  let showGatewayExample=true;
-  const addedProviders=[];
-  const addedAgents=[];
+  let gatewayConnected=true,gatewayWaiting=false,gatewayAttention=true;
   const gatewayText=(chinese,english)=>locale()==='en'?english:chinese;
   const esc = value => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const icon = name => `<i data-lucide="${name}" aria-hidden="true"></i>`;
   const locale = () => state.locale==='system'?((navigator.language||'').toLowerCase().startsWith('zh')?'zh-CN':'en'):state.locale;
   const t = (key,values={}) => (messages[locale()]?.[key]||messages.en[key]||key).replace(/\{(\w+)\}/g,(_,name)=>values[name]??'');
-  let toastTimer;
-  const viewKeys=['module','filter','pathFilter','selected','setting','query','sideQuery','selectionSource','domainsExpanded','pinsExpanded','gatewayPage','gatewayCapability','gatewayActivity'];
+  let toastTimer,clearedBackup=null;
+  const viewKeys=['module','filter','pathFilter','setting','query','sideQuery','selectionSource','domainsExpanded','pinsExpanded','gatewayPage','gatewayClient'];
   let historyEntries=[],historyIndex=-1;
   const viewSnapshot=()=>Object.fromEntries(viewKeys.map(key=>[key,state[key]]));
   function updateHistoryButtons(){
@@ -624,9 +568,12 @@
     if(localSnapshots.size>128)localSnapshots.delete(localSnapshots.values().next().value);
     Promise.resolve(window.openai.setWidgetState({modelContent:{page:t(state.module),selectedRequest:fixtures.find(r=>r.id===state.selected)?.path,domainFilter:state.filter,pathFilter:state.pathFilter,theme:state.theme,language:state.locale,pinnedDomains:[...state.pinned],detailLayout:design.layout},privateContent:{...state}})).catch(()=>{});
   }
-  function toast(message){
-    const el=root.querySelector('.ac-toast');el.querySelector('span').textContent=message;el.hidden=false;
-    clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.hidden=true;},2400);icons();
+  function toast(message,action){
+    const el=root.querySelector('.ac-toast');el.querySelector('span').textContent=message;
+    el.querySelector('[data-toast-action]')?.remove();
+    if(action){const button=document.createElement('button');button.type='button';button.className='ac-gw-text-button cursor-interaction';button.dataset.toastAction='';button.dataset.action=action.action;button.textContent=action.label;el.append(button);}
+    el.hidden=false;
+    clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.hidden=true;action?.expire?.();},action?6000:2400);icons();
   }
   function sideItem(label,ico,attribute,value,current=false,count=''){
     return `<button class="ac-side-item cursor-interaction" ${attribute}="${esc(value)}" aria-current="${current}"><span>${esc(label)}</span>${count!==''?`<em class="ac-count">${count}</em>`:''}</button>`;
@@ -690,119 +637,92 @@
   function gatewayAddress(label,address){
     return `<div class="ac-gw-endpoint"><span>${label}</span><div class="ac-home-address"><code>${esc(address)}</code><button type="button" class="ac-icon cursor-interaction" data-copy-address="${esc(address)}" aria-label="${t('copyAddress')} · ${label}" data-tooltip="${t('copyAddress')}">${icon('copy')}</button></div></div>`;
   }
-  function gatewayCapabilities(){
-    const providerCount=(showGatewayExample?2:0)+addedProviders.length;
-    const modelCount=(showGatewayExample?4:0)+addedProviders.reduce((total,provider)=>total+provider.models.length,0);
-    return [
-      {id:'models',icon:'route',title:gatewayText('模型','Models'),detail:gatewayText(providerCount+' 个上游 · '+modelCount+' 个模型',providerCount+' upstreams · '+modelCount+' models')},
-      {id:'mcp',icon:'plug',title:'MCP',detail:showGatewayExample?gatewayText('3 个服务 · 12 个工具','3 services · 12 tools'):gatewayText('连接工具与外部服务','Connect tools and services')},
-      {id:'skills',icon:'book-open',title:'Skills',detail:showGatewayExample?gatewayText('4 个 Skill · 已分配给 3 个 Agent','4 skills · assigned to 3 agents'):gatewayText('添加工作方法和操作指引','Add workflows and instructions')},
-      {id:'channels',icon:'messages-square',title:gatewayText('消息入口','Channels'),detail:showGatewayExample?gatewayText('企业微信 · 1 个入口','WeCom · 1 channel'):gatewayText('按需连接消息渠道','Connect messaging channels')}
-    ];
+  // v1 只呈现已交付能力：网关监听、aicat 自身的 /mcp 与 /api、流量扩展、改写规则与代理。
+  // 首页以 Agent 为主体：接入了谁、最近是否正常；能力与地址退到后面。
+  const gatewayClients={
+    claude:{name:['Claude Code','Claude Code'],hint:['在终端运行以下命令，Claude Code 会把 aicat 加为 MCP 服务。','Run this in a terminal to add aicat as an MCP server in Claude Code.'],
+      snippet:()=>`claude mcp add --transport http aicat ${gatewayBaseURL()}/mcp \\\n  --header "Authorization: Bearer $(cat ~/.aicat/mcp-token)"`},
+    codex:{name:['Codex','Codex'],hint:['写入 ~/.codex/config.toml，并在启动 Codex 前导出访问令牌。','Add this to ~/.codex/config.toml and export the access token before starting Codex.'],
+      snippet:()=>`# export AICAT_MCP_TOKEN="$(cat ~/.aicat/mcp-token)"\n[mcp_servers.aicat]\nurl = "${gatewayBaseURL()}/mcp"\nbearer_token_env_var = "AICAT_MCP_TOKEN"`},
+    other:{name:['其他 MCP 客户端','Other MCP clients'],hint:['使用 Streamable HTTP 传输，以 Bearer 方式携带 ~/.aicat/mcp-token 中的令牌。','Use the Streamable HTTP transport with the token from ~/.aicat/mcp-token as a Bearer header.'],
+      snippet:()=>`{\n  "type": "http",\n  "url": "${gatewayBaseURL()}/mcp",\n  "headers": { "Authorization": "Bearer <mcp-token>" }\n}`}
+  };
+  // Agent 名称取自 MCP initialize 的 clientInfo；计数与记录来自实际经过 /mcp 的请求。
+  const gatewayAgents=[
+    {name:'Claude Code',calls:38,failed:0,last:['刚刚','Now']},
+    {name:'Codex',calls:4,failed:1,last:['18 分钟前','18 min ago'],issue:['最近一次 plugins_validate 编译失败','Last plugins_validate call failed to compile']}
+  ];
+  const gatewayCalls=[
+    {agent:'Claude Code',tool:'rules_put',kind:'success',status:['成功','Succeeded'],time:['刚刚','Now']},
+    {agent:'Claude Code',tool:'traffic_list',kind:'success',status:['成功','Succeeded'],time:['2 分钟前','2 min ago']},
+    {agent:'Codex',tool:'plugins_validate',kind:'error',status:['编译失败','Compile error'],time:['18 分钟前','18 min ago']}
+  ];
+  const gt=pair=>gatewayText(pair[0],pair[1]);
+  const gatewayHeading=(title,aside)=>`<div class="ac-home-card-heading"><h3>${title}</h3>${aside?`<span>${aside}</span>`:''}</div>`;
+  function gatewayStatus(){
+    return `<div class="ac-home-heading"><div><h1>${gatewayText('节点网关','Node gateway')}</h1><div class="ac-home-status"><span><i class="ac-dot" aria-hidden="true"></i>${gatewayText('本机节点 · 监听中','Local node · Listening')}</span><span>${esc(state.listenAddress+':'+state.listenPort)}</span></div></div>${gatewayConnected?`<button type="button" class="ac-button cursor-interaction" data-gateway-page="connect">${icon('plus')}${gatewayText('接入 Agent','Connect agent')}</button>`:''}</div>`;
   }
-  function gatewayEvents(){
-    return [
-      {id:'model',icon:'route',title:'reasoning → Team API',agent:'Coding Agent',detail:'POST /v1/responses',status:'200',kind:'success',time:gatewayText('刚刚','Now'),result:gatewayText('12.4K Token · 1.8 秒','12.4K tokens · 1.8 seconds')},
-      {id:'tool',icon:'plug',title:'files.read → Project Files',agent:'Coding Agent',detail:'MCP · tools/call',status:gatewayText('成功','Succeeded'),kind:'success',time:gatewayText('1 分钟前','1 min ago'),result:gatewayText('工具返回成功 · 24 毫秒','Tool returned successfully · 24 ms')},
-      {id:'docs',icon:'search',title:'knowledge.search → Knowledge Base',agent:'Research Agent',detail:'MCP · tools/call',status:'401',kind:'error',time:gatewayText('8 分钟前','8 min ago'),result:gatewayText('认证失败，服务返回 401。','Authentication failed; the service returned 401.')},
-      {id:'message',icon:'messages-square',title:gatewayText('企业微信 · 收到 1 条消息','WeCom · Received one message'),agent:'Research Agent',detail:gatewayText('消息入口 · 客户反馈群','Message channel · Customer feedback group'),status:gatewayText('已接收','Received'),kind:'success',time:gatewayText('12 分钟前','12 min ago'),result:gatewayText('消息已接收，来源会话信息已保留。','Message received with its source conversation information.')}
-    ];
+  function gatewayAttentionBlock(){
+    if(!gatewayAttention)return '';
+    return `<section class="ac-gw-attention" aria-label="${gatewayText('需要处理','Needs attention')}"><div class="ac-gw-notice"><span class="ac-gw-notice-icon">${icon('circle-alert')}</span><span><strong>${gatewayText('改写规则已更新，重启后生效','Rewrite rules changed; restart to apply')}</strong><small>${gatewayText('Claude Code 经 MCP 保存了新版本，当前仍运行启动时的规则。','Claude Code saved a new version over MCP. The rules loaded at startup are still running.')}</small></span><button type="button" class="ac-button cursor-interaction" data-action="gateway-restart">${gatewayText('重启 aicat','Restart aicat')}</button></div></section>`;
   }
-  function gatewayActivityRows(){
-    return gatewayEvents().map(item=>`<button type="button" class="ac-gw-activity cursor-interaction" data-gateway-activity="${item.id}">
-      <span class="ac-gw-activity-icon">${icon(item.icon)}</span>
-      <span class="ac-gw-activity-body"><strong>${item.title}</strong><span>${item.agent} · ${item.detail}</span></span>
-      <span class="ac-gw-activity-trailing"><span class="ac-gw-state" data-kind="${item.kind}">${item.status}</span><small>${item.time}</small></span>
-    </button>`).join('');
+  function gatewaySetupSteps(){
+    const client=gatewayClients[state.gatewayClient]||gatewayClients.claude;
+    const step=(n,kind,title,detail,action)=>`<li data-state="${kind}"><span class="ac-gw-step-mark">${kind==='done'?icon('check'):n}</span><div><h3>${title}</h3><p>${detail}</p>${action||''}</div></li>`;
+    return `<div class="ac-gw-welcome"><span class="ac-gw-welcome-icon">${icon('network')}</span><h2>${gatewayText('还没有 Agent 接入','No agent connected yet')}</h2><p>${gatewayText('aicat 已在后台运行。接入后，Agent 可以经 MCP 查询网关记录、编写改写规则，并在你授权后修改配置。','aicat is already running in the background. Once connected, your agent can query gateway records, write rewrite rules and change settings with your approval over MCP.')}</p></div>
+      <ol class="ac-gw-steps">
+        ${step(1,gatewayWaiting?'done':'current',gatewayText('把 aicat 加入 Agent','Add aicat to your agent'),gatewayText('选择你使用的 Agent，复制一段配置。','Choose your agent and copy one snippet.'),gatewayWaiting?'':`<button type="button" class="ac-button ac-primary cursor-interaction" data-gateway-page="connect">${icon('arrow-up-right')}${gatewayText('开始接入','Start setup')}</button>`)}
+        ${step(2,gatewayWaiting?'current':'todo',gatewayText('在 Agent 中发一条消息','Send a message in your agent'),gatewayText('aicat 收到首次 MCP 请求后，这里会列出该 Agent。','The agent appears here after its first MCP request.'),gatewayWaiting?`<span class="ac-gw-state" data-kind="active"><i class="ac-dot" aria-hidden="true"></i>${gatewayText('等待 '+gt(client.name)+' 连接…','Waiting for '+gt(client.name)+'…')}</span>`:'')}
+      </ol>`;
+  }
+  function gatewayAgentsSection(){
+    if(!gatewayConnected)return `<section class="ac-gw-onboarding" aria-label="${gatewayText('接入 Agent','Connect an agent')}">${gatewaySetupSteps()}</section>`;
+    const calls=gatewayAgents.reduce((n,a)=>n+a.calls,0),failed=gatewayAgents.reduce((n,a)=>n+a.failed,0);
+    const rows=gatewayAgents.map(agent=>`<li class="ac-gw-agent"><span class="ac-gw-activity-icon">${icon('bot')}</span><span class="ac-gw-agent-body"><strong>${esc(agent.name)}</strong><span>${gatewayText('今日 '+agent.calls+' 次调用','Today: '+agent.calls+' calls')}${agent.failed?gatewayText(' · '+agent.failed+' 次失败',' · '+agent.failed+' failed'):''} · ${gt(agent.last)}</span>${agent.issue?`<span class="ac-gw-state" data-kind="error">${gt(agent.issue)}</span>`:''}</span><span class="ac-gw-state" data-kind="${agent.issue?'error':'success'}">${agent.issue?gatewayText('有失败','Has failures'):gatewayText('正常','OK')}</span></li>`).join('');
+    return `<section aria-label="${gatewayText('已接入的 Agent','Connected agents')}">${gatewayHeading(gatewayText('已接入的 Agent','Connected agents'),gatewayText('今日 '+calls+' 次调用 · '+failed+' 次失败 · 来源：网关记录','Today: '+calls+' calls · '+failed+' failed · Source: gateway records'))}<ul class="ac-gw-agent-list">${rows}</ul></section>`;
+  }
+  function gatewayCapabilitiesSection(){
+    const proxyDetail=state.trafficEnabled?gatewayText('HTTP 代理 '+gatewayBaseURL()+' · 系统代理未接管 · 证书未安装','HTTP proxy '+gatewayBaseURL()+' · System proxy off · Certificate not installed'):gatewayText('系统代理未接管 · HTTPS 默认直通','System proxy off · HTTPS passes through');
+    const rows=[
+      {icon:'activity',title:gatewayText('流量检查','Traffic inspection'),detail:state.trafficEnabled?gatewayText('扩展已开启 · 正在采集','Extension on · Recording'):gatewayText('扩展已关闭 · 需要查看或改写本机 HTTP 请求时开启','Extension off · Turn on to inspect or rewrite local HTTP requests'),attr:'data-action="traffic-settings"',action:state.trafficEnabled?gatewayText('管理','Manage'):gatewayText('开启','Turn on')},
+      {icon:'file-code',title:gatewayText('改写规则与插件','Rewrite rules and plugins'),detail:gatewayConnected?gatewayText('3 条规则 · 2 个插件 · 由 Agent 经 MCP 管理','3 rules · 2 plugins · Managed by agents over MCP'):gatewayText('暂无规则 · 接入 Agent 后由它经 MCP 编写','No rules yet · Your agent writes them over MCP'),state:gatewayAttention&&gatewayConnected?{kind:'warning',text:gatewayText('待重启','Restart pending')}:null},
+      {icon:'shield-check',title:gatewayText('代理与证书','Proxy and certificate'),detail:proxyDetail,attr:'data-action="proxy-settings"',action:gatewayText('设置','Settings')}
+    ];
+    return `<section aria-label="${gatewayText('能力','Capabilities')}">${gatewayHeading(gatewayText('能力','Capabilities'))}<ul class="ac-gw-capability-list">${rows.map(item=>`<li class="ac-gw-capability"><span class="ac-gw-activity-icon">${icon(item.icon)}</span><span><strong>${item.title}</strong><small>${item.detail}</small></span>${item.state?`<span class="ac-gw-state" data-kind="${item.state.kind}">${item.state.text}</span>`:''}${item.attr?`<button type="button" class="ac-gw-text-button cursor-interaction" ${item.attr}>${item.action}${icon('chevron-right')}</button>`:''}</li>`).join('')}</ul></section>`;
+  }
+  function gatewayRecentSection(){
+    if(!gatewayConnected)return '';
+    const rows=gatewayCalls.map(item=>`<li class="ac-gw-activity"><span class="ac-gw-activity-body"><strong><code>${item.tool}</code></strong><span>${item.agent} · MCP tools/call</span></span><span class="ac-gw-activity-trailing"><span class="ac-gw-state" data-kind="${item.kind}">${gt(item.status)}</span><small>${gt(item.time)}</small></span></li>`).join('');
+    return `<section aria-label="${gatewayText('近期调用','Recent calls')}">${gatewayHeading(gatewayText('近期调用','Recent calls'),gatewayText('经 /mcp 的实际请求 · 最近 3 条','Actual requests through /mcp · Last 3'))}<ul class="ac-gw-activity-list">${rows}</ul></section>`;
+  }
+  function gatewayFooter(){
+    const address=(label,value)=>`<span>${label}<code>${esc(value)}</code><button type="button" class="ac-icon cursor-interaction" data-copy-address="${esc(value)}" aria-label="${t('copyAddress')} · ${label}" data-tooltip="${t('copyAddress')}">${icon('copy')}</button></span>`;
+    return `<div class="ac-home-footer">${address('MCP',gatewayBaseURL()+'/mcp')}${address('HTTP API',gatewayBaseURL()+'/api')}</div>`;
   }
   function gatewayOverview(){
-    const capabilities=gatewayCapabilities();
-    const capabilityRows=capabilities.map(item=>`<button type="button" class="ac-gw-capability cursor-interaction" data-gateway-capability="${item.id}"><span class="ac-gw-activity-icon">${icon(item.icon)}</span><span><strong>${item.title}</strong><small>${item.detail}</small></span>${icon('chevron-right')}</button>`).join('');
-    const emptyOverview=`<section class="ac-gw-onboarding">
-      <div class="ac-gw-welcome"><span class="ac-gw-welcome-icon">${icon('network')}</span><h2>${gatewayText('让 Agent 连接到 AICat','Connect your agents to AICat')}</h2><p>${gatewayText('配置模型来源，再将 Agent 的接入地址指向这里。','Add a model source, then point your agent to this gateway.')}</p></div>
-      <div class="ac-gw-setup-grid">
-        <section><h3>${gatewayText('添加模型上游','Add a model provider')}</h3><p>${gatewayText('填写 API 地址和 Key，读取可用模型。','Enter an API URL and key to discover models.')}</p>${addedProviders.length?`<span class="ac-gw-state" data-kind="success">${gatewayText('已添加 '+addedProviders.length+' 个上游',addedProviders.length+' upstream added')}</span>`:''}<button type="button" class="ac-button ac-primary cursor-interaction" data-gateway-page="provider">${icon('plus')}${gatewayText('添加上游','Add provider')}</button></section>
-        <section><h3>${gatewayText('接入 Agent','Connect an agent')}</h3><p>${gatewayText('获取模型与 MCP 地址，设置 Agent 的身份。','Get model and MCP addresses, with an agent identity.')}</p>${addedAgents.length?`<span class="ac-gw-state" data-kind="active">${gatewayText(addedAgents.length+' 个 Agent 等待首次请求',addedAgents.length+' agent awaiting first request')}</span>`:''}<button type="button" class="ac-button cursor-interaction" data-gateway-page="connect">${icon('arrow-up-right')}${gatewayText('查看接入方式','View connection setup')}</button></section>
-      </div>
-    </section><section class="ac-gw-capabilities"><div class="ac-home-card-heading"><h3>${gatewayText('为 Agent 提供能力','Capabilities for your agents')}</h3></div><div class="ac-gw-capability-grid">${capabilityRows}</div></section>`;
-    const activeOverview=`
-      <dl class="ac-gw-summary">
-        <div><dt>${gatewayText('今日模型调用','Model calls today')}</dt><dd>128</dd><small>${gatewayText('124 成功 · 4 失败','124 succeeded · 4 failed')}</small></div>
-        <div><dt>Token</dt><dd>348<small>K</small></dd><small>${gatewayText('输入 306K · 输出 42K','306K input · 42K output')}</small></div>
-        <div><dt>${gatewayText('工具调用','Tool calls')}</dt><dd>42</dd><small>${gatewayText('来自 3 个 MCP 服务','Across 3 MCP services')}</small></div>
-        <div><dt>${gatewayText('收到消息','Incoming messages')}</dt><dd>16</dd><small>${gatewayText('企业微信 · 今日','WeCom · Today')}</small></div>
-      </dl>
-      <details class="ac-gw-logs"><summary>${gatewayText('近期网关调用','Recent gateway calls')}<span>${gatewayText('查看请求与连接错误','Inspect requests and connection errors')}</span></summary>${gatewayActivityRows()}</details>`;
-    const connections=`<div class="ac-gw-columns">
-      <section class="ac-gw-capabilities"><div class="ac-home-card-heading"><h3>${gatewayText('提供给 Agent 的能力','Capabilities for agents')}</h3></div>${capabilityRows}</section>
-      <section class="ac-gw-attention"><div class="ac-home-card-heading"><h3>${gatewayText('连接状态','Connection status')}</h3></div>
-        <p>${gatewayText('3 个 Agent 今日有调用','3 agents made calls today')}</p>
-        <div class="ac-gw-agents"><span>${icon('bot')}Coding Agent</span><span>${icon('bot')}Research Agent</span><span>${icon('bot')}Work Agent</span></div>
-        <button type="button" class="ac-gw-notice cursor-interaction" data-gateway-capability="mcp"><span class="ac-gw-notice-icon" data-kind="error">${icon('circle-alert')}</span><span><strong>${gatewayText('Knowledge Base 认证失败','Knowledge Base authentication failed')}</strong><small>${gatewayText('最近一次调用返回 401 · 查看连接','Last call returned 401 · Inspect connection')}</small></span>${icon('chevron-right')}</button>
-      </section>
-    </div>`;
-    return `<div class="ac-home-heading"><div><h1>${gatewayText('节点网关','Node gateway')}</h1><div class="ac-home-status"><span><i class="ac-dot" aria-hidden="true"></i>${gatewayText('本机节点 · 监听中','Local node · Listening')}</span><span>${showGatewayExample?gatewayText('示例配置与用量','Sample configuration and usage'):t('waitingClients')}</span></div></div><button type="button" class="ac-button ac-primary cursor-interaction" data-gateway-page="connect">${icon('plus')}${gatewayText('接入 Agent','Connect agent')}</button></div>
-      <section class="ac-gw-node-addresses" aria-label="${gatewayText('接入地址','Connection addresses')}"><div class="ac-home-card-heading"><h3>${gatewayText('接入地址','Connection addresses')}</h3></div><div class="ac-gw-address-grid">${gatewayAddress(t('httpProxy'),gatewayBaseURL())}${gatewayAddress(t('aiGateway'),gatewayBaseURL()+'/v1')}${gatewayAddress('MCP',gatewayBaseURL()+'/mcp')}</div></section>
-      ${showGatewayExample?connections+activeOverview:emptyOverview}
-      <div class="ac-home-footer"><span>${icon('activity')}${t(state.trafficEnabled?'captureOn':'captureOff')}</span><button type="button" class="ac-gw-text-button cursor-interaction" data-action="traffic-settings">${gatewayText('管理','Manage')}</button></div>`;
+    return gatewayStatus()+gatewayAttentionBlock()+gatewayAgentsSection()+gatewayCapabilitiesSection()+gatewayRecentSection()+gatewayFooter();
   }
-  function gatewaySubheading(title,description){
-    return `<div class="ac-gw-subheading"><button type="button" class="ac-gw-text-button cursor-interaction" data-gateway-page="overview">${icon('arrow-left')}${t('home')}</button><h1>${title}</h1>${description?'<p>'+description+'</p>':''}</div>`;
-  }
-  function gatewayProviderForm(){
-    return gatewaySubheading(gatewayText('添加模型上游','Add model provider'),gatewayText('填入你已有的 API 地址和 Key。','Enter the API URL and key you already use.'))+`
-      <form class="ac-gw-form" data-gateway-form="provider">
-        <label>${gatewayText('API 地址','API URL')}<input type="url" name="address" required pattern="https?://.*" placeholder="https://api.example.com/v1" autocomplete="off"></label>
-        <label>API Key<input type="password" name="key" placeholder="${gatewayText('填写示例 Key，本地服务可留空','Enter a sample key; optional for local services')}" autocomplete="off"></label>
-        <details><summary>${gatewayText('协议设置','Protocol settings')}</summary><label>${gatewayText('上游协议','Upstream protocol')}<select name="protocol"><option>OpenAI compatible</option><option>Anthropic Messages</option></select></label></details>
-        <div class="ac-gw-form-actions"><button type="submit" class="ac-button ac-primary cursor-interaction">${gatewayText('连接并读取模型','Connect and discover models')}</button><button type="button" class="ac-button cursor-interaction" data-gateway-capability="models">${gatewayText('查看已配置上游','View providers')}</button></div>
-        <p class="ac-gw-demo-note">${gatewayText('设计预览使用示例模型，填写内容仅用于当前预览。','This preview uses sample models and form entries for this preview only.')}</p>
-      </form>`;
-  }
-  function gatewayConnectForm(){
-    return gatewaySubheading(gatewayText('接入 Agent','Connect an agent'),gatewayText('为 Agent 命名，再将这些地址填入客户端。','Name your agent, then enter these addresses in your client.'))+`
-      <form class="ac-gw-form" data-gateway-form="agent"><label>${gatewayText('Agent 名称','Agent name')}<input name="agent" required maxlength="80" placeholder="Coding Agent" autocomplete="off"></label>
-        <div class="ac-gw-connection-fields">${gatewayAddress(gatewayText('模型 Base URL','Model Base URL'),gatewayBaseURL()+'/v1')}${gatewayAddress(gatewayText('MCP 服务地址','MCP server URL'),gatewayBaseURL()+'/mcp')}${gatewayAddress(gatewayText('本地接入 Key · 示例','Local access key · Sample'),'aicat-demo-agent-key')}</div>
-        <p>${gatewayText('客户端使用 AICat 的接入 Key，上游凭据在模型来源中管理。','Use the AICat access key in your client. Provider credentials are managed with model sources.')}</p>
-        <button type="submit" class="ac-button ac-primary cursor-interaction">${gatewayText('保存接入配置','Save connection')}</button>
-        <p class="ac-gw-demo-note">${gatewayText('地址和 Key 为设计示例。保存后进入等待首次请求的状态。','Addresses and keys are design examples. Saving creates an agent awaiting its first request.')}</p>
-      </form>`;
-  }
-  function gatewayCapabilityPage(){
-    const capability=gatewayCapabilities().find(item=>item.id===state.gatewayCapability)||gatewayCapabilities()[0];
-    const tabs=gatewayCapabilities().map(item=>`<button type="button" class="cursor-interaction" data-gateway-capability="${item.id}" aria-pressed="${item.id===state.gatewayCapability}">${item.title}</button>`).join('');
-    let content;
-    if(state.gatewayCapability==='models'){
-      const providers=[...(showGatewayExample?[{name:'Team API',address:'https://models.team.example/v1',models:['fast-chat','reasoning']},{name:'Local models',address:'http://127.0.0.1:11434/v1',models:['local-chat','local-code']}]:[]),...addedProviders];
-      content=`<div class="ac-gw-section-action"><span>${gatewayText('客户端模型 → 转发目标','Client model → Forwarding destination')}</span><button type="button" class="ac-button ac-primary cursor-interaction" data-gateway-page="provider">${icon('plus')}${gatewayText('添加上游','Add provider')}</button></div>${providers.length?providers.map(provider=>`<section class="ac-gw-provider"><h3>${esc(provider.name)}</h3><code>${esc(provider.address)}</code><div class="ac-gw-model-list">${provider.models.map(model=>`<span><code>${model}</code>${icon('arrow-right')}<span>${esc(provider.name)}</span></span>`).join('')}</div></section>`).join(''):`<div class="ac-home-empty"><strong>${t('routesEmpty')}</strong><p>${t('routesHelp')}</p></div>`}`;
-    }else if(state.gatewayCapability==='mcp'){
-      content=showGatewayExample?`<div class="ac-gw-service"><span class="ac-gw-state" data-kind="success">${gatewayText('已连接','Connected')}</span><h3>Project Files</h3><p>${gatewayText('本地服务 · 5 个工具 · Coding Agent','Local service · 5 tools · Coding Agent')}</p><code>files.read · files.search · files.list …</code></div>
-        <div class="ac-gw-service"><span class="ac-gw-state" data-kind="error">${gatewayText('认证失败','Authentication failed')}</span><h3>Knowledge Base</h3><p>${gatewayText('远程服务 · 4 个工具 · Research Agent','Remote service · 4 tools · Research Agent')}</p><code>https://knowledge.team.example/mcp</code><p>${gatewayText('最近一次检索返回 401，待更新该服务的认证配置。','The last search returned 401. This service needs updated authentication.')}</p></div>
-        <div class="ac-gw-service"><span class="ac-gw-state" data-kind="success">${gatewayText('已连接','Connected')}</span><h3>Web Search</h3><p>${gatewayText('远程服务 · 3 个工具 · Research Agent、Work Agent','Remote service · 3 tools · Research Agent, Work Agent')}</p><code>web.search · web.open · web.extract</code></div>`:`<div class="ac-home-empty"><strong>${gatewayText('连接 Agent 可使用的工具','Connect tools for your agents')}</strong><p>${gatewayText('本地 MCP 填写启动命令，远程 MCP 填写地址和认证信息。','Configure a launch command for local MCP, or an address and authentication for remote MCP.')}</p></div>`;
-    }else if(state.gatewayCapability==='skills'){
-      const skills=[['code-review','v1.3','Coding Agent'],['research-summary','v2.0','Research Agent'],['weekly-report','v1.1','Work Agent'],['customer-feedback','v1.0','Research Agent']];
-      content=showGatewayExample?`<div class="ac-gw-service-list">${skills.map(([name,version,agent])=>`<div class="ac-gw-service"><h3>${name}<small>${version}</small></h3><p>${gatewayText('已同步到','Synced to')} ${agent}</p><code>SKILL.md · scripts/ · references/</code></div>`).join('')}</div><p>${gatewayText('Agent 按需加载 Skill，活动记录中的使用情况由 Agent 回传。','Agents load skills on demand and report their usage in activity records.')}</p>`:`<div class="ac-home-empty"><strong>${gatewayText('为 Agent 添加工作方法','Add workflows for your agents')}</strong><p>${gatewayText('导入 Skill 后，可以选择分配的 Agent 或项目。','Import a skill, then choose the agents or projects that can use it.')}</p></div>`;
-    }else{
-      content=showGatewayExample?`<div class="ac-gw-service"><span class="ac-gw-state" data-kind="success">${gatewayText('已连接','Connected')}</span><h3>${gatewayText('企业微信 · 工作账号','WeCom · Work account')}</h3><p>${gatewayText('客户反馈群 → Research Agent · 独立会话','Customer feedback group → Research Agent · Dedicated session')}</p><p>${gatewayText('群内 @Agent 时触发，结果返回原会话。','Triggered when the agent is mentioned; results return to the originating conversation.')}</p></div>`:`<div class="ac-home-empty"><strong>${gatewayText('按需添加消息入口','Add messaging channels as needed')}</strong><p>${gatewayText('连接渠道后，指定哪些消息交给哪个 Agent。','Connect a channel and choose which messages go to which agent.')}</p></div>`;
-    }
-    return gatewaySubheading(gatewayText('能力与连接','Capabilities and connections'),'')+`<nav class="ac-gw-tabs" aria-label="${gatewayText('能力类型','Capability types')}">${tabs}</nav><section class="ac-gw-capability-content" aria-label="${capability.title}">${content}</section>`;
-  }
-  function gatewayActivityPage(){
-    const event=gatewayEvents().find(item=>item.id===state.gatewayActivity)||gatewayEvents()[0];
-    return gatewaySubheading(event.title,event.agent+' · '+gatewayText('网关记录 · 示例','Gateway recorded · Sample'))+`
-      <section class="ac-gw-result">
-        <h3>${gatewayText('调用结果','Call result')}</h3>
-        <span class="ac-gw-state" data-kind="${event.kind}">${event.status}</span>
-        <p>${event.result}</p>
-        <code>${event.detail}</code>
-        <button type="button" class="ac-button cursor-interaction" data-gateway-capability="${event.id==='model'?'models':event.id==='message'?'channels':'mcp'}">${gatewayText('查看连接配置','View connection settings')}</button>
-      </section>`;
+  function gatewayConnectPage(){
+    const client=gatewayClients[state.gatewayClient]||gatewayClients.claude,snippet=client.snippet();
+    const tabs=Object.entries(gatewayClients).map(([id,item])=>`<button type="button" class="cursor-interaction" data-gateway-client="${id}" aria-pressed="${id===state.gatewayClient}">${gt(item.name)}</button>`).join('');
+    const waiting=gatewayConnected
+      ?''
+      :`<div class="ac-gw-waiting" role="status"><span class="ac-gw-state" data-kind="active"><i class="ac-dot" aria-hidden="true"></i>${gatewayText('等待 '+gt(client.name)+' 首次连接…','Waiting for the first connection from '+gt(client.name)+'…')}</span><p>${gatewayText('配置完成后，在 Agent 中发一条消息即可。连接成功后自动回到首页。','After setup, send any message in your agent. The home page opens once it connects.')}</p><button type="button" class="ac-gw-text-button cursor-interaction" data-action="gateway-simulate-connect">${gatewayText('模拟首次连接（设计预览）','Simulate first connection (preview)')}</button></div>`;
+    return `<div class="ac-gw-subheading"><h1>${gatewayText('接入 Agent','Connect an agent')}</h1><p>${gatewayText('aicat 的 MCP 与网关共用同一监听地址，只接受本机请求。','aicat’s MCP shares the gateway listener and only accepts local requests.')}</p></div>
+      <div class="ac-gw-form">
+        <nav class="ac-gw-tabs" aria-label="${gatewayText('Agent 客户端','Agent client')}">${tabs}</nav>
+        <p>${gt(client.hint)}</p>
+        <div class="ac-gw-snippet"><pre><code>${esc(snippet)}</code></pre><button type="button" class="ac-button cursor-interaction" data-gateway-snippet>${icon('copy')}${t('copy')}</button></div>
+        <div class="ac-gw-connection-fields">${gatewayAddress(gatewayText('MCP 地址','MCP URL'),gatewayBaseURL()+'/mcp')}<div class="ac-gw-endpoint"><span>${gatewayText('访问令牌 · ~/.aicat/mcp-token','Access token · ~/.aicat/mcp-token')}</span><div class="ac-home-address"><code>••••••••••••••••</code><button type="button" class="ac-icon cursor-interaction" data-copy-address="aicat-demo-token" aria-label="${gatewayText('复制访问令牌','Copy access token')}" data-tooltip="${t('copy')}">${icon('copy')}</button></div></div></div>
+        <p class="ac-gw-demo-note">${gatewayText('令牌只用于本机访问，不要提交到代码仓库。','The token is for local access only. Do not commit it to a repository.')}</p>
+        ${waiting}
+      </div>`;
   }
   function renderHome(){
-    const pages={overview:gatewayOverview,provider:gatewayProviderForm,connect:gatewayConnectForm,capability:gatewayCapabilityPage,activity:gatewayActivityPage};
-    main.innerHTML=`<div class="ac-home ac-gateway-home">${(pages[state.gatewayPage]||gatewayOverview)()}</div>`;
-    main.dataset.pageTitle=state.gatewayPage==='overview'?gatewayText('概览','Overview'):state.gatewayPage==='capability'?gatewayText('能力与连接','Capabilities and connections'):state.gatewayPage==='connect'?gatewayText('接入 Agent','Connect agent'):state.gatewayPage==='provider'?gatewayText('添加模型上游','Add model provider'):gatewayText('活动详情','Activity details');
-    root.querySelectorAll('[data-gateway-preview]').forEach(button=>button.setAttribute('aria-pressed',String((button.dataset.gatewayPreview==='active')===showGatewayExample)));
+    const connect=state.gatewayPage==='connect';
+    main.innerHTML=`<div class="ac-home ac-gateway-home">${connect?gatewayConnectPage():gatewayOverview()}</div>`;
+    main.dataset.pageTitle=connect?gatewayText('接入 Agent','Connect agent'):gatewayText('概览','Overview');
+    root.querySelectorAll('[data-gateway-preview]').forEach(button=>button.setAttribute('aria-pressed',String((button.dataset.gatewayPreview==='active')===gatewayConnected)));
   }
   // Same membership contract as native fzf matching; capture order is retained.
   function fuzzyURL(raw,query){
@@ -818,7 +738,7 @@
   function renderRows(){
     const list=visibleRequests(),previous=state.selected;
     if(!list.some(r=>r.id===state.selected))state.selected=null;
-    main.querySelector('[data-request-rows]').innerHTML=list.map(r=>`<tr data-request="${r.id}" data-selected="${state.selected===r.id}"><td class="ac-id">${fixtures.indexOf(r)+1}</td><td><button class="ac-url-button cursor-interaction" data-select="${r.id}" aria-label="${t('view')} ${r.method} ${r.host}${r.path}" data-tooltip="${r.host}${r.path}"><span class="ac-url-scheme">${r.host.startsWith('localhost')?'http':'https'}://</span><span class="ac-host">${r.host}</span><span class="ac-url-path">${r.path}</span></button></td><td class="ac-method">${r.method}</td><td><span class="ac-status ${r.status>=400?'ac-error':''}">${r.status}</span></td><td class="ac-number ac-time">${r.time} ms</td><td class="ac-number ac-size">${r.size}</td></tr>`).join('');
+    main.querySelector('[data-request-rows]').innerHTML=list.map(r=>`<tr data-request="${r.id}" data-selected="${state.selected===r.id}"><td class="ac-id">${fixtures.indexOf(r)+1}</td><td><button class="ac-url-button cursor-interaction" data-select="${r.id}" aria-label="${t('view')} ${r.method} ${r.host}${r.path}" data-tooltip="${r.host}${r.path}"><span class="ac-url-scheme">${r.host.startsWith('localhost')?'http':'https'}://</span><span class="ac-host">${r.host}</span><span class="ac-url-path">${r.path}</span></button></td><td class="ac-method">${r.method}</td><td><span class="ac-status ${statusKind(r)}">${r.status}</span></td><td class="ac-number ac-time">${r.time} ms</td><td class="ac-number ac-size">${r.size}</td></tr>`).join('');
     const empty=main.querySelector('[data-empty]');empty.hidden=!!list.length;
     empty.textContent=fixtures.length?t('noMatches'):t('waitingTraffic')+' · '+t('configureProxy');
     main.querySelector('[data-request-count]').textContent=t('count',{n:list.length});
@@ -842,6 +762,7 @@
     if(r.host==='api.github.com')return {name:'aicat',full_name:'netcat-ai/aicat',private:false};
     return r.status===204||r.status===304?null:{ok:true};
   }
+  const statusKind = r => r.status>=400?'ac-error':r.status>=300||!r.status?'ac-neutral':'';
   const reasonPhrase = r => ({200:'OK',204:'No Content',304:'Not Modified',401:'Unauthorized'}[r.status]||'');
   const requestURL = r => `${r.host.startsWith('localhost')?'http':'https'}://${r.host}${r.path}`;
   const wireBody = body => body===null?'':JSON.stringify(body);
@@ -921,11 +842,12 @@
     }else content=view==='header'?headerView(r,side):rawView(r,side);
     return `<section class="ac-inspector ac-payload" data-inspector="${side}" aria-labelledby="ac-${side}-title"><div class="ac-inspector-bar"><strong id="ac-${side}-title">${t(side)}</strong><div class="ac-inspector-tabs" role="tablist" aria-label="${t(side==='request'?'requestViews':'responseViews')}">${['header','raw'].map(tab=>`<button type="button" class="ac-inspector-tab cursor-interaction" id="ac-${side}-${tab}-tab" role="tab" aria-controls="ac-${side}-panel" aria-selected="${tab===view}" data-inspector-side="${side}" data-inspector-view="${tab}">${t(tab+'Tab')}</button>`).join('')}</div><span class="ac-grow"></span><span class="ac-copy-anchor"><button class="ac-icon cursor-interaction" data-action="copy-inspector" data-copy-side="${side}" aria-label="${t('copy')} ${t(side)}" data-tooltip="${t('copy')} ${t(side)}" ${encrypted?'disabled':''}>${icon('copy')}</button></span></div><div class="ac-inspector-content" id="ac-${side}-panel" role="tabpanel" aria-labelledby="ac-${side}-${view}-tab">${content}</div></section>`;
   }
+  function selectRequest(id){state.selected=id;renderRows();renderDetail();remember();}
   function renderDetail(){
     const r=fixtures.find(r=>r.id===state.selected);
     if(!r){main.querySelector('.ac-detail').innerHTML=`<div class="ac-detail-empty">${icon('mouse-pointer-2')}<span>${t('noSelection')}</span></div>`;icons();return;}
     const scheme=r.host.startsWith('localhost')?'http':'https';
-    main.querySelector('.ac-detail').innerHTML=`<div class="ac-detail-heading"><span class="ac-method-pill">${r.method}</span><span class="ac-status-pill ${r.status>=400?'ac-error':''}">${r.status} ${reasonPhrase(r)}</span><span class="ac-detail-path" data-tooltip="${esc(requestURL(r))}"><span class="ac-url-scheme">${scheme}://</span><span class="ac-url-host">${esc(r.host)}</span><span class="ac-url-path">${esc(r.path)}</span></span>${r.encrypted?`<span class="ac-connection-state">${t('tunnelConnection')}</span>`:''}</div><div class="ac-payloads ac-inspectors">${inspector(r,'request')}${inspector(r,'response')}</div>`;icons();
+    main.querySelector('.ac-detail').innerHTML=`<div class="ac-detail-heading"><span class="ac-method-pill">${r.method}</span><span class="ac-status-pill ${statusKind(r)}">${r.status} ${reasonPhrase(r)}</span><span class="ac-detail-path" data-tooltip="${esc(requestURL(r))}"><span class="ac-url-scheme">${scheme}://</span><span class="ac-url-host">${esc(r.host)}</span><span class="ac-url-path">${esc(r.path)}</span></span>${r.encrypted?`<span class="ac-connection-state">${t('tunnelConnection')}</span>`:''}</div><div class="ac-payloads ac-inspectors">${inspector(r,'request')}${inspector(r,'response')}</div>`;icons();
   }
   function settingRow(title,description,control){return `<div class="ac-setting-row"><div><div class="ac-rule-title">${t(title)}</div>${description?`<div class="ac-rule-desc">${t(description)}</div>`:''}</div>${control}</div>`;}
   // Example interface addresses for the interactive design preview.
@@ -949,7 +871,7 @@
     let content;
     if(state.setting==='general')content=settingRow('language','languageDesc',`<select class="ac-select" data-language aria-label="${t('language')}">${[['system',t('system')],['zh-CN','简体中文'],['en','English']].map(([id,label])=>`<option value="${id}" ${state.locale===id?'selected':''}>${label}</option>`).join('')}</select>`)+settingRow('theme','themeDesc',`<div class="ac-appearance">${[['system','system'],['light','light'],['dark','dark']].map(([id,key])=>`<button data-theme-choice="${id}" aria-pressed="${state.theme===id}" class="cursor-interaction">${t(key)}</button>`).join('')}</div>`);
     else if(state.setting==='proxy')content=settingRow('systemProxy','systemProxyDesc',`<span class="ac-badge">${t('enabled')}</span>`)+settingRow('listen','',listenerControl())+settingRow('ca','caDesc',`<span class="ac-badge">${t('trusted')}</span>`);
-    else if(state.setting==='features')content=settingRow('traffic','featuresDesc',`<label><input type="checkbox" data-feature-traffic ${state.trafficEnabled!==false?'checked':''} aria-label="${t('enableTraffic')}"></label>`);
+    else if(state.setting==='features')content=settingRow('traffic','featuresDesc',`<label><input type="checkbox" class="ac-switch" role="switch" data-feature-traffic ${state.trafficEnabled!==false?'checked':''} aria-label="${t('enableTraffic')}"></label>`);
     else content=`<div style="padding:30px 0 20px;display:flex;align-items:center;gap:14px"><span style="color:var(--ac-brand-text)">${icon('cat')}</span><div><div style="font-size:21px">AICat</div><div class="ac-sub">${t('tagline')}</div></div></div><div class="ac-setting-row"><div class="ac-rule-title">${t('version')}</div><div class="ac-sub">${t('preview')}</div></div>`;
     main.innerHTML=header(t(state.setting))+`<nav class="ac-settings-nav" aria-label="${t('preferences')}">${['general','proxy','features'].map(key=>`<button class="cursor-interaction" data-setting="${key}" aria-current="${state.setting===key}">${t(key)}</button>`).join('')}</nav><div class="ac-content-pad ac-settings-content">${content}</div>`;
     main.dataset.pageTitle=t(state.setting);
@@ -977,7 +899,7 @@
     root.querySelector('[data-module-name]').textContent=t(state.module);
     root.querySelector('[data-record-label]').textContent=t(state.recording?'recording':'resume');
     root.querySelector('[data-record-icon]').innerHTML=icon(state.recording?'pause':'play');
-    root.querySelector('[data-record-dot]').style.background=state.recording?'var(--ac-brand)':'var(--ac-muted)';
+    root.querySelector('[data-record-dot]').style.background=state.recording?'var(--ac-danger)':'var(--ac-muted)';
     const recordButton=root.querySelector('[data-action="record"]');recordButton.setAttribute('aria-pressed',String(state.recording));recordButton.setAttribute('aria-label',t(state.recording?'recordAction':'resume'));recordButton.dataset.tooltip=t(state.recording?'pause':'resume');recordButton.hidden=state.module!=='traffic'||state.trafficEnabled===false;
     root.querySelectorAll('[data-traffic-action]').forEach(el=>{el.hidden=state.module!=='traffic'||state.trafficEnabled===false;});
     [['[data-action="back"]','back'],['[data-action="forward"]','forward'],['.ac-crumb','location'],['[data-action="sidebar"]','toggleSidebar'],['[data-action="export"]','export'],['[data-action="theme"]','themeToggle'],['.ac-rail','nav'],['.ac-sidebar','sidebar'],['.ac-main','main'],['[data-action="profile-menu"]','profileMenu']].forEach(([selector,key])=>labelControl(selector,key));
@@ -998,10 +920,8 @@
   }
   root.addEventListener('click',event=>{
     const requestRow=event.target.closest('tr[data-request]');
-    if(requestRow&&!event.target.closest('button')){visit(()=>{state.selected=requestRow.dataset.request;});return;}
+    if(requestRow&&!event.target.closest('button')){selectRequest(requestRow.dataset.request);return;}
     const b=event.target.closest('button');if(!b)return;
-    const gatewayForm=b.closest('[data-gateway-form]');
-    if(gatewayForm&&b.type==='submit'){event.preventDefault();submitGatewayForm(gatewayForm);return;}
     if(b.dataset.action==='profile-menu'){toggleProfile();return;}
     closeProfile();
     menu.hidden=true;
@@ -1017,18 +937,21 @@
     if(b.dataset.domain){visit(()=>{state.filter=b.dataset.domain;state.pathFilter='';state.selectionSource=b.dataset.source;state.query='';});return;}
     if(b.dataset.pathHost){visit(()=>{state.filter=b.dataset.pathHost;state.pathFilter=b.dataset.path;state.selectionSource=b.dataset.source;state.query='';});return;}
     if(b.dataset.setting){visit(()=>{state.setting=b.dataset.setting;});return;}
-    if(b.dataset.select){visit(()=>{state.selected=b.dataset.select;});return;}
+    if(b.dataset.select){selectRequest(b.dataset.select);return;}
     if(b.dataset.themeChoice){state.theme=b.dataset.themeChoice;render();remember();return;}
     if(b.dataset.copyAddress){copyRaw(b.dataset.copyAddress);return;}
+    if(b.dataset.gatewaySnippet!==undefined){copyRaw(gatewayClients[state.gatewayClient].snippet());if(!gatewayConnected&&!gatewayWaiting){gatewayWaiting=true;render();}return;}
     if(b.dataset.gatewayPreview){
-      showGatewayExample=b.dataset.gatewayPreview==='active';
+      gatewayConnected=b.dataset.gatewayPreview==='active';gatewayWaiting=false;gatewayAttention=gatewayConnected;
       state.module='home';state.gatewayPage='overview';state.mobileSidebar=false;
       render();resetHistory();remember();return;
     }
     if(b.dataset.gatewayPage){visit(()=>{state.module='home';state.gatewayPage=b.dataset.gatewayPage;});main.querySelector('input')?.focus();return;}
-    if(b.dataset.gatewayCapability){visit(()=>{state.module='home';state.gatewayPage='capability';state.gatewayCapability=b.dataset.gatewayCapability;});return;}
-    if(b.dataset.gatewayActivity){visit(()=>{state.module='home';state.gatewayPage='activity';state.gatewayActivity=b.dataset.gatewayActivity;});return;}
+    if(b.dataset.gatewayClient){state.gatewayClient=b.dataset.gatewayClient;syncCurrentView();render();remember();return;}
     const action=b.dataset.action;
+    if(action==='proxy-settings'){visit(()=>{state.module='settings';state.setting='proxy';state.mobileSidebar=false;});return;}
+    if(action==='gateway-simulate-connect'){gatewayConnected=true;gatewayWaiting=false;visit(()=>{state.gatewayPage='overview';});toast(gatewayText('已连接 '+gt(gatewayClients[state.gatewayClient].name),gt(gatewayClients[state.gatewayClient].name)+' connected'));return;}
+    if(action==='gateway-restart'){gatewayAttention=false;render();toast(gatewayText('已重启，新规则已生效（演示）','Restarted; new rules are active (demo)'));return;}
     if(action==='traffic-settings'){visit(()=>{state.module='settings';state.setting='features';state.mobileSidebar=false;});return;}
     if(action==='copy-url'||action==='copy-curl'){const r=fixtures.find(r=>r.id===b.dataset.requestId);if(r&&!(action==='copy-curl'&&r.encrypted))copyRaw(action==='copy-url'?requestURL(r):curlCommand(r));menuOrigin?.focus();return;}
     else if(action==='open-settings'){openSettings();return;}
@@ -1046,34 +969,17 @@
     else if(action==='sidebar'){if(root.querySelector('.ac-stage').getBoundingClientRect().width<=560)state.mobileSidebar=!state.mobileSidebar;else state.sidebar=!state.sidebar;render();}
     else if(action==='theme'){const dark=state.theme==='dark'||(state.theme==='system'&&matchMedia('(prefers-color-scheme:dark)').matches);state.theme=dark?'light':'dark';render();}
     else if(action==='record'){state.recording=!state.recording;render();}
-    else if(action==='clear'){fixtures.splice(0);state.selected=null;state.query='';state.filter='all';state.pathFilter='';state.selectionSource='domain';render();}
+    else if(action==='clear'){
+      if(!fixtures.length)return;
+      const backup=clearedBackup={items:fixtures.splice(0),view:{selected:state.selected,query:state.query,filter:state.filter,pathFilter:state.pathFilter,selectionSource:state.selectionSource}};
+      state.selected=null;state.query='';state.filter='all';state.pathFilter='';state.selectionSource='domain';render();
+      toast(t('clearedToast',{n:backup.items.length}),{label:t('undo'),action:'undo-clear',expire:()=>{if(clearedBackup===backup)clearedBackup=null;}});
+    }
+    else if(action==='undo-clear'){if(clearedBackup){fixtures.push(...clearedBackup.items);Object.assign(state,clearedBackup.view);clearedBackup=null;render();}}
     else if(action==='decrypt-domain'){const r=fixtures.find(r=>r.id===state.selected);if(r&&!state.decryptDomains.includes(r.host))state.decryptDomains.push(r.host);renderDetail();}
     else if(action==='copy-inspector'){const r=fixtures.find(r=>r.id===state.selected),side=b.dataset.copySide;if(r)copyRaw(inspectorViews[side]==='header'?headerPairs(r,side).map(([key,value])=>key+': '+value).join('\n'):rawMessage(r,side),b);}
-    else if(action==='copy'){const p=b.closest('.ac-payload')?.querySelector('pre');if(p){const selection=window.getSelection(),range=document.createRange();range.selectNodeContents(p);selection.removeAllRanges();selection.addRange(range);}toast(t('copySelected'));}
-    else if(action==='replay'){const original=fixtures.find(r=>r.id===state.selected)||fixtures[0],next={...original,id:'replay-'+Date.now(),time:original.time+12};fixtures.unshift(next);visit(()=>{state.selected=next.id;state.filter='all';state.query='';});toast(t('replayed'));return;}
     else if(action==='export'){const u=URL.createObjectURL(new Blob([JSON.stringify(visibleRequests(),null,2)],{type:'application/json'})),a=document.createElement('a');a.href=u;a.download='aicat-traffic.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);toast(t('exported'));}
     remember();
-  });
-  function submitGatewayForm(form){
-    if(!form.reportValidity())return;
-    const values=new FormData(form);
-    if(form.dataset.gatewayForm==='provider'){
-      const address=String(values.get('address')).trim();
-      const endpoint=new URL(address);
-      addedProviders.push({name:endpoint.hostname,address,models:['fast-chat','reasoning']});
-      visit(()=>{state.gatewayPage='capability';state.gatewayCapability='models';});
-      toast(gatewayText('已添加上游，模型列表为演示数据','Provider added with sample model data'));
-    }else if(form.dataset.gatewayForm==='agent'){
-      const name=String(values.get('agent')).trim();
-      if(!name){form.elements.agent.setCustomValidity(gatewayText('请填写 Agent 名称','Enter an agent name'));form.reportValidity();return;}
-      addedAgents.push(name);
-      visit(()=>{state.gatewayPage='overview';});
-      toast(gatewayText('接入配置已保存，等待首次请求（演示）','Connection saved; awaiting the first request (demo)'));
-    }
-  }
-  root.addEventListener('submit',event=>{
-    const form=event.target.closest('[data-gateway-form]');
-    if(form){event.preventDefault();submitGatewayForm(form);}
   });
   root.addEventListener('change',event=>{if(event.target.matches('[data-feature-traffic]')){state.trafficEnabled=event.target.checked;render();remember();}});
   root.addEventListener('contextmenu',event=>{
@@ -1081,7 +987,7 @@
     closeProfile();
     if(requestRow){
       const id=requestRow.dataset.request,r=fixtures.find(r=>r.id===id);if(!r)return;
-      if(state.selected!==id)visit(()=>{state.selected=id;});
+      if(state.selected!==id)selectRequest(id);
       menuOrigin=main.querySelector(`[data-select="${id}"]`);
       menu.innerHTML=`<button class="cursor-interaction" role="menuitem" data-action="copy-url" data-request-id="${id}">${t('copyURL')}</button><button class="cursor-interaction" role="menuitem" data-action="copy-curl" data-request-id="${id}" ${r.encrypted?`disabled data-tooltip="${t('curlUnavailable')}"`:''}>${t('copyCurl')}</button>`;
       menu.innerHTML+=`<div role="separator"></div><button class="cursor-interaction" role="menuitem" data-pin="${esc(r.host)}">${t(state.pinned.includes(r.host)?'unpin':'pin')}</button>`;
@@ -1105,7 +1011,6 @@
   root.addEventListener('change',changeListener);
   root.addEventListener('change',event=>{if(event.target.matches('[data-language]')){state.locale=event.target.value;render();remember();main.querySelector('[data-language]')?.focus();}});
   root.addEventListener('keydown',event=>{
-    if(event.key==='Enter'&&event.target.matches('[data-gateway-form] input')){event.preventDefault();submitGatewayForm(event.target.closest('form'));return;}
     if(!menu.hidden&&event.target.closest('.ac-context-menu')&&['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const buttons=[...menu.querySelectorAll('button:not(:disabled)')],current=buttons.indexOf(document.activeElement),next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(current+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons[next]?.focus();return;}
     if(event.target.matches('[data-inspector-view]')&&['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const view=event.key==='Home'?'header':event.key==='End'?'raw':event.target.dataset.inspectorView==='header'?'raw':'header',side=event.target.dataset.inspectorSide;changeInspector(side,view);main.querySelector(`#ac-${side}-${view}-tab`).focus();return;}
     if(event.key==='Escape'&&!profileMenu.hidden){event.preventDefault();closeProfile(true);return;}

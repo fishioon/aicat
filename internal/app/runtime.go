@@ -9,6 +9,7 @@ import (
 	"github.com/fishioon/aicat/internal/gateway/addons/api"
 	capture "github.com/fishioon/aicat/internal/gateway/addons/traffic"
 	"github.com/fishioon/aicat/internal/mcpserver"
+	"github.com/fishioon/aicat/internal/provider"
 	"github.com/fishioon/aicat/internal/rewrite"
 	"github.com/fishioon/aicat/internal/systemproxy"
 	"github.com/fishioon/aicat/internal/traffic"
@@ -39,6 +40,7 @@ type runtime struct {
 	initialPins           []string
 	connection            *connection
 	rules                 *rewrite.Service
+	providers             *provider.Store
 }
 
 func start(ctx context.Context, o Options) (*runtime, error) {
@@ -78,6 +80,16 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 		})
 	}
 	endpoints.Handle("/mcp", tools)
+	providers, err := provider.Open(o.Home)
+	if err != nil {
+		service.Close()
+		return nil, err
+	}
+	models := provider.NewHandler(providers, service.Recorder(), addon.Recording)
+	for _, mount := range provider.Mounts() {
+		endpoints.Handle(mount, models)
+		endpoints.Handle(mount+"/", models)
+	}
 	endpoints.Handle("/", api.Handler(service))
 	addon.SetRecording(cfg.Features.Traffic)
 	policy := newInterception(o.Home, cfg.Gateway.InterceptHosts)
@@ -87,7 +99,7 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 		return nil, err
 	}
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	r := &runtime{traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.Features.Traffic, rules: rules}
+	r := &runtime{traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.Features.Traffic, rules: rules, providers: providers}
 	r.initialPreferences = cfg.UI
 	r.initialNavigationPins = cfg.Navigation.Pinned
 	r.initialPins = append([]string(nil), cfg.Traffic.PinnedDomains...)

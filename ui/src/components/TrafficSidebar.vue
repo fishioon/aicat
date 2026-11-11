@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { shell, navigate } from "../state/desktop";
 import { groups, expanded } from "../state/sidebar";
+import { records } from "../state/traffic";
 import { t } from "../i18n";
+import Icon from "./Icon.vue";
 import TreeRow from "./TreeRow.vue";
 function toggle(key: string) {
   if (expanded.has(key)) {
@@ -15,24 +17,25 @@ function toggle(key: string) {
 }
 </script>
 <template>
-  <div id="traffic-sidebar">
-    <div class="side-search">
-      <input
+  <aside id="traffic-sidebar" class="side" :aria-label="t('筛选')">
+    <label class="search"
+      ><span class="sr">{{ t("查找应用或域名") }}</span
+      ><Icon name="search" /><input
         id="domain-search"
         v-model="shell.sideQuery"
-        :aria-label="t('查找应用或域名')"
-        :placeholder="t('查找应用或域名…')"
-      />
-    </div>
+        class="field"
+        :placeholder="t('查找应用或域名')"
+        autocomplete="off"
+        spellcheck="false"
+    /></label>
     <button
       id="all-domains"
-      class="domain-heading active"
-      @click="navigate('traffic', { query: shell.query })"
+      class="side-item all-requests"
+      :aria-current="!shell.host && shell.app === null ? 'true' : undefined"
+      @click="navigate('traffic')"
     >
-      <span>⌄　{{ t("域名") }}</span
-      ><span id="domain-count">{{
-        groups.find((group) => group.key === "domains")?.count ?? 0
-      }}</span>
+      <span class="label">{{ t("全部请求") }}</span
+      ><span class="count num">{{ records.size }}</span>
     </button>
     <div id="domains">
       <section
@@ -41,33 +44,30 @@ function toggle(key: string) {
         :data-group="group.key"
         class="sidebar-group"
       >
-        <div class="ac-domain-parent">
-          <button class="ac-domain-toggle" @click="toggle(group.key)">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                :d="expanded.has(group.key) ? 'm6 9 6 6 6-6' : 'm9 6 6 6-6 6'"
-              />
-            </svg>
-          </button>
-          <button
-            class="ac-pin-group-title"
-            @click="
-              group.key === 'domains' ? navigate('traffic') : toggle(group.key)
-            "
+        <button
+          class="side-title group-title"
+          :aria-expanded="expanded.has(group.key)"
+          @click="$event.detail < 2 && toggle(group.key)"
+        >
+          <span
+            ><Icon name="chev" />{{
+              t(group.title, {}, "traffic-sidebar")
+            }}</span
+          ><span
+            class="count num"
+            :id="group.key === 'domains' ? 'domain-count' : undefined"
+            >{{ group.count }}</span
           >
-            <span>{{ t(group.title, {}, "traffic-sidebar") }}</span
-            ><em class="ac-count">{{ group.count }}</em>
-          </button>
-        </div>
-        <template v-if="expanded.has(group.key)"
-          ><TreeRow v-for="node in group.nodes" :key="node.key" :node="node"
-        /></template>
+        </button>
+        <ul v-if="expanded.has(group.key)">
+          <TreeRow
+            v-for="node in group.nodes"
+            :key="node.key"
+            :node="node"
+            :depth="0"
+          />
+        </ul>
       </section>
     </div>
-  </div>
+  </aside>
 </template>

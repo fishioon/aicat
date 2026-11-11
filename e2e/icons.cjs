@@ -7,45 +7,59 @@ const assert = require("node:assert/strict");
 // actions as expressions so WebKit does not report that syntax probe as an error.
 
 function measureIcons() {
-  return [
-    ...document.querySelectorAll(
-      "#titlebar svg, #navigation svg, #domains svg, [data-side-copy] svg, .extension-symbol svg, .extension-emblem svg, #popup svg",
-    ),
-  ]
-    .filter(
-      (svg) =>
-        svg.getBoundingClientRect().width > 0 &&
-        svg.getBoundingClientRect().height > 0,
-    )
-    .map((svg) => {
-      const container =
-        svg.closest(".extension-symbol, .extension-emblem") ??
-        svg.closest("button");
-      const icon = svg.getBoundingClientRect(),
-        box = container.getBoundingClientRect();
-      const label =
-        container.id ||
-        container.dataset.sideCopy ||
-        container.dataset.action ||
-        container.getAttribute("aria-label") ||
-        container.className;
-      return {
-        label,
-        icon: { x: icon.x, y: icon.y, width: icon.width, height: icon.height },
-        container: { x: box.x, y: box.y, width: box.width, height: box.height },
-        dx: icon.x + icon.width / 2 - box.x - box.width / 2,
-        dy: icon.y + icon.height / 2 - box.y - box.height / 2,
-        clipped:
-          icon.x < box.x - 0.75 ||
-          icon.y < box.y - 0.75 ||
-          icon.right > box.right + 0.75 ||
-          icon.bottom > box.bottom + 0.75 ||
-          icon.x < -0.75 ||
-          icon.y < -0.75 ||
-          icon.right > innerWidth + 0.75 ||
-          icon.bottom > innerHeight + 0.75,
-      };
-    });
+  return (
+    [
+      ...document.querySelectorAll(
+        "#titlebar svg, #navigation svg, #domains svg, [data-side-copy] svg, .xicon svg, #more-pop svg, #extension-menu svg",
+      ),
+    ]
+      // Only icon-only containers must center the glyph; icons next to a label
+      // (address, breadcrumb, group titles) sit in the text flow.
+      .map((svg) => ({ svg, container: svg.closest(".xicon, button") }))
+      .filter(
+        ({ svg, container }) =>
+          container &&
+          !container.textContent.trim() &&
+          svg.getBoundingClientRect().width > 0 &&
+          svg.getBoundingClientRect().height > 0,
+      )
+      .map(({ svg, container }) => {
+        const icon = svg.getBoundingClientRect(),
+          box = container.getBoundingClientRect();
+        const label =
+          container.id ||
+          container.dataset.sideCopy ||
+          container.dataset.action ||
+          container.getAttribute("aria-label") ||
+          container.className;
+        return {
+          label,
+          icon: {
+            x: icon.x,
+            y: icon.y,
+            width: icon.width,
+            height: icon.height,
+          },
+          container: {
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+          },
+          dx: icon.x + icon.width / 2 - box.x - box.width / 2,
+          dy: icon.y + icon.height / 2 - box.y - box.height / 2,
+          clipped:
+            icon.x < box.x - 0.75 ||
+            icon.y < box.y - 0.75 ||
+            icon.right > box.right + 0.75 ||
+            icon.bottom > box.bottom + 0.75 ||
+            icon.x < -0.75 ||
+            icon.y < -0.75 ||
+            icon.right > innerWidth + 0.75 ||
+            icon.bottom > innerHeight + 0.75,
+        };
+      })
+  );
 }
 
 module.exports = async function verifyIcons({
@@ -90,11 +104,12 @@ module.exports = async function verifyIcons({
     await page.waitForFunction(
       () => window.trafficView.state().detailRevision > 0,
     );
-    await page
-      .locator('[data-group="domains"] .ac-tree-toggle')
-      .first()
-      .click();
-    await page.locator('[data-group="domains"] .ac-tree-toggle').nth(1).click();
+    // Earlier scenarios may leave the Domain group folded.
+    const domains = page.locator('[data-group="domains"] .group-title');
+    if ((await domains.getAttribute("aria-expanded")) === "false")
+      await domains.click();
+    await page.locator('[data-group="domains"] .tree-toggle').first().click();
+    await page.locator('[data-group="domains"] .tree-toggle').nth(1).click();
     await sample("expanded-domain-tree");
     for (const theme of ["light", "dark"]) {
       if ((await page.locator("html").getAttribute("data-theme")) !== theme) {
@@ -110,8 +125,8 @@ module.exports = async function verifyIcons({
       await page.keyboard.press("Escape");
       await navigate("extensions");
       await sample("extensions-" + theme);
-      await navigate("community");
-      await sample("community-" + theme);
+      await navigate("proxy");
+      await sample("settings-" + theme);
       await navigate("traffic");
       await page.locator(".traffic-row").first().click();
       await page.waitForFunction(
@@ -121,23 +136,21 @@ module.exports = async function verifyIcons({
         path: path.join(root, "icons-traffic-" + theme + ".png"),
       });
     }
+    // Pinning keeps the popover open, so the unpinned state is sampled in place.
     await click("nav-more");
     await page.locator('[data-action="pin-navigation"]').click();
     await settled();
-    await click("nav-more");
     await sample("unpinned-menu");
     await page.locator('[data-action="pin-navigation"]').click();
     await settled();
+    await page.keyboard.press("Escape");
     for (const width of [900, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await sample("traffic-width-" + width);
-      await click("sidebar-toggle");
-      await sample("collapsed-width-" + width);
-      await click("sidebar-toggle");
     }
     await page.setViewportSize({ width: 1180, height: 900 });
     await navigate("general");
-    await page.selectOption("#preference-language", "en");
+    await page.locator("#preference-language-en").click();
     await settled();
     await navigate("traffic");
     await sample("traffic-english");
@@ -150,7 +163,7 @@ module.exports = async function verifyIcons({
       async () => await evaluate("window.trafficView.state().detailRevision>0"),
     );
     await evaluate(
-      `(document.querySelector('[data-group="domains"] .ac-tree-toggle').click(),true)`,
+      `(document.querySelector('[data-group="domains"] .tree-toggle').click(),true)`,
     );
     report.nativeTitlebar = await evaluate(`(() => {
       const header = document.querySelector('#titlebar').getBoundingClientRect();
@@ -172,7 +185,9 @@ module.exports = async function verifyIcons({
           Buffer.from(result.png, "base64"),
         ),
       );
-    await evaluate("(document.querySelector('#popup button').click(),true)");
+    await evaluate(
+      "(document.querySelector('#more-pop button.open').click(),true)",
+    );
     await evaluate("(window.desktop.navigate('extensions'),true)");
     await wait(
       async () =>
@@ -201,7 +216,7 @@ module.exports = async function verifyIcons({
     );
   }
   await navigate("general");
-  await page.selectOption("#preference-language", "zh-Hans");
+  await page.locator("#preference-language-zh-Hans").click();
   await settled();
   await navigate("traffic");
   if ((await page.locator("html").getAttribute("data-theme")) !== "light") {

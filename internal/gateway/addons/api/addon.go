@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -42,7 +43,36 @@ func (a *Addon) AccessProxyServer(r *http.Request, w http.ResponseWriter) {
 		http.Error(w, "browser origins are not allowed", http.StatusForbidden)
 		return
 	}
-	a.handler.ServeHTTP(w, r)
+	a.handler.ServeHTTP(streaming(w), r)
+}
+
+// The proxy hands addons a writer that tracks whether anything was written
+// but hides http.Flusher, so streamed responses (SSE from a model vendor, MCP)
+// would sit in the buffer. streaming keeps writes on that writer and flushes
+// through the one it embeds.
+type flushWriter struct {
+	http.ResponseWriter
+	flusher http.Flusher
+}
+
+func (w flushWriter) Flush() { w.flusher.Flush() }
+
+func streaming(w http.ResponseWriter) http.ResponseWriter {
+	if _, ok := w.(http.Flusher); ok {
+		return w
+	}
+	v := reflect.ValueOf(w)
+	if v.Kind() != reflect.Pointer || v.Elem().Kind() != reflect.Struct {
+		return w
+	}
+	field := v.Elem().FieldByName("ResponseWriter")
+	if !field.IsValid() || !field.CanInterface() {
+		return w
+	}
+	if flusher, ok := field.Interface().(http.Flusher); ok {
+		return flushWriter{ResponseWriter: w, flusher: flusher}
+	}
+	return w
 }
 func Handler(s *traffic.Service) http.Handler {
 	mux := http.NewServeMux()

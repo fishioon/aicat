@@ -184,12 +184,16 @@ async function launch() {
   await wait(async () => await evaluate("!!window.desktop?.state()"));
   await page.goto(fs.readFileSync(previewFile, "utf8"));
   await page.waitForFunction(() => !!window.desktop?.state());
+  // The app starts on the overview; the flows below work on traffic.
+  await page.locator("#overview").waitFor();
+  await navigate("traffic");
+  await evaluate("(window.desktop.navigate('traffic'),true)");
 }
 // Focused regression: ambiguous Apply/App translation, unstable group order,
 // and a positional domain counter pointing at App after a reorder.
 async function verifySidebar() {
   const labels = () =>
-    page.locator("#domains .ac-pin-group-title > span").allTextContents();
+    page.locator("#domains .group-title > span:first-child").allTextContents();
   assert.deepEqual(await labels(), ["固定", "域名", "应用"]);
   assert.deepEqual(
     await page
@@ -203,14 +207,14 @@ async function verifySidebar() {
     () => document.querySelector("#domain-count").textContent === "1",
   );
   await navigate("general");
-  await page.selectOption("#preference-language", "en");
+  await page.locator("#preference-language-en").click();
   await settled();
   await navigate("traffic");
   assert.deepEqual(await labels(), ["Pin", "Domain", "App"]);
   await wait(
     async () =>
       await evaluate(
-        "Array.from(document.querySelectorAll('#domains .ac-pin-group-title > span'), e => e.textContent).join('|') === 'Pin|Domain|App'",
+        "Array.from(document.querySelectorAll('#domains .group-title > span:first-child'), e => e.textContent).join('|') === 'Pin|Domain|App'",
       ),
   );
   await page.screenshot({ path: path.join(root, "sidebar-en.png") });
@@ -228,7 +232,7 @@ async function verifySidebar() {
     "Apply",
   );
   await navigate("general");
-  await page.selectOption("#preference-language", "zh-Hans");
+  await page.locator("#preference-language-zh-Hans").click();
   await settled();
   await navigate("traffic");
   assert.deepEqual(await labels(), ["固定", "域名", "应用"]);
@@ -273,7 +277,21 @@ async function verifyAppTree() {
   });
   assert.deepEqual(errors, []);
   check(
-    "App/domain/path trees, per-app counts and filtering, collapse, history, search and independent expansion in Chromium and WKWebView",
+    "App/domain/path trees, per-app counts and filtering, double-click expansion/collapse, history, search and independent expansion in Chromium and WKWebView",
+  );
+}
+async function verifyListSelection() {
+  report.listSelection = await require("./list-selection.cjs")({
+    page,
+    root,
+    send,
+    wait,
+    evaluate,
+    auto,
+  });
+  assert.deepEqual(errors, []);
+  check(
+    "scrolled list first-click selection, context menu and same-filter history preserve scroll; search/domain changes reset scroll; Chromium pointer and WKWebView DOM coverage",
   );
 }
 (async () => {
@@ -376,6 +394,12 @@ async function verifyAppTree() {
     check(
       "real MyGo WebView, portable browser frontend, authenticated preview and cross-origin denial",
     );
+    if (process.argv[4] === "list-selection") {
+      await verifyListSelection();
+      report.scenario = "list-selection";
+      report.passed = true;
+      return;
+    }
     if (process.argv[4] === "icons") {
       await verifyIconLayout();
       report.scenario = "icons";
@@ -395,6 +419,7 @@ async function verifyAppTree() {
       return;
     }
     await verifyAppTree();
+    await verifyListSelection();
     await verifyIconLayout();
     await page.screenshot({ path: path.join(root, "empty.png") });
     let index = 0;
@@ -495,13 +520,13 @@ async function verifyAppTree() {
     await page.waitForFunction(() =>
       document
         .querySelector("[data-side=response] .raw")
-        .textContent.includes("body-fixture"),
+        ?.textContent.includes("body-fixture"),
     );
     assert.equal(await page.evaluate(() => !!window.payloadExecuted), false);
     assert(
       (
         await page.locator("[data-side=response] .body-notice").textContent()
-      ).includes("65536"),
+      ).includes("64.0 KB"),
     );
     await page.locator("[data-side-copy=response]").click();
     await settled();
@@ -509,7 +534,9 @@ async function verifyAppTree() {
       execFileSync("pbpaste", { encoding: "utf8" }).includes("body-fixture"),
     );
     assert(
-      execFileSync("pbpaste", { encoding: "utf8" }).startsWith("HTTP 200\n"),
+      execFileSync("pbpaste", { encoding: "utf8" }).startsWith(
+        "HTTP/1.1 200 OK\n",
+      ),
     );
     await page.screenshot({ path: path.join(root, "raw.png") });
     report.design = await require("./design.cjs")(page, browser, root);
@@ -517,7 +544,7 @@ async function verifyAppTree() {
       "HTML design geometry, light/dark brand colors and captured reference/production screenshots",
     );
     check(
-      "Header/Raw, duplicate headers, on-demand bounded body, HTML stays text, actual OS clipboard and adjacent feedback",
+      "Header/Body/Raw, duplicate headers, on-demand bounded body, HTML stays text, actual OS clipboard and adjacent feedback",
     );
     const split = page.locator("#list-split");
     const beforeHeight = (await page.locator(".table-area").boundingBox())
@@ -532,10 +559,12 @@ async function verifyAppTree() {
     await page.waitForFunction(() =>
       document
         .querySelector("[data-side=request] .raw")
-        .dataset.text?.startsWith("GET /body"),
+        ?.dataset.text?.startsWith("GET /body"),
     );
     await page.locator("[data-side=request] [data-view=headers]").click();
     assert(await page.locator("[data-side=response] .raw").isVisible());
+    // Sidebar navigation keeps the URL search, so clear it explicitly.
+    await search.fill("");
     for (const target of [
       "/tree/v1/a",
       "/tree/v1/ab",
@@ -556,7 +585,7 @@ async function verifyAppTree() {
         )
         .first();
     const expandBranch = async (pathValue) =>
-      branch(pathValue).locator("..").locator(".ac-tree-toggle").click();
+      branch(pathValue).locator("..").locator(".tree-toggle").click();
     await expandBranch("");
     await expandBranch("/tree");
     await expandBranch("/tree/v1");
@@ -628,12 +657,28 @@ async function verifyAppTree() {
       ).stdout,
     );
     assert.equal(echo.body, special);
-    await page.locator(".traffic-row").click({ button: "right" });
-    await page.locator("#popup button").filter({ hasText: "固定" }).click();
-    await settled();
-    assert(
-      (await current()).pinnedDomains.includes("127.0.0.1:" + fixturePort),
-    );
+    // The domain may already be pinned by the app-tree scenario: the menu
+    // label follows the pin state, and two toggles must end pinned.
+    const pinnedNow = async () =>
+      (await current()).pinnedDomains.includes("127.0.0.1:" + fixturePort);
+    for (
+      let attempt = 0;
+      attempt < 2 && !(attempt && (await pinnedNow()));
+      attempt++
+    ) {
+      const was = await pinnedNow();
+      await page.locator(".traffic-row").click({ button: "right" });
+      await page
+        .locator("#popup")
+        .getByRole("menuitem", {
+          name: was ? "取消固定域名" : "固定域名",
+          exact: true,
+        })
+        .click();
+      await settled();
+      assert.equal(await pinnedNow(), !was);
+    }
+    assert(await pinnedNow());
     check(
       "virtual scrolling, context-menu target, executable safely quoted cURL, persistent domain pin",
     );
@@ -658,23 +703,20 @@ async function verifyAppTree() {
     );
     check("filtered JSON export and pause/resume preserve proxy forwarding");
     await navigate("general");
-    await page.selectOption("#preference-language", "en");
+    await page.locator("#preference-language-en").click();
     await settled();
     await page.waitForFunction(() => document.documentElement.lang === "en");
     await click("preference-theme-dark");
     await settled();
     assert(
-      !(await page.locator("#module-page .ac-rule-desc").allInnerTexts())
+      !(await page.locator("#module-page .row p").allInnerTexts())
         .join(" ")
         .match(/[\u4e00-\u9fff]/),
     );
-    assert.equal(
-      await page.locator("#connection").textContent(),
-      "Proxy listening",
-    );
+    assert.equal(await page.locator("#connection").textContent(), "Capturing");
     assert.equal(await page.locator("html").getAttribute("data-theme"), "dark");
     await page.screenshot({ path: path.join(root, "general-dark-en.png") });
-    await page.selectOption("#preference-language", "zh-Hans");
+    await page.locator("#preference-language-zh-Hans").click();
     await settled();
     await click("preference-theme-light");
     await settled();
@@ -688,25 +730,34 @@ async function verifyAppTree() {
     assert(!(await api()).some((r) => r.url.endsWith("/feature-disabled")));
     await click("feature-traffic");
     await settled();
-    await click("extension-open-traffic");
+    await click("extension-menu");
+    await page.locator("#popup [data-action=extension-open-traffic]").click();
+    await page.locator("#traffic-page").waitFor();
+    // Pinning keeps the popover open; unpinned, Traffic lives under More.
     await page.locator("#nav-more").click();
     await page.locator("[data-action=pin-navigation]").click();
     await settled();
     assert.equal(await page.locator("#nav-traffic").count(), 0);
-    await click("nav-more");
-    await page.locator("#popup button").filter({ hasText: "流量" }).click();
+    await click("more-traffic");
+    assert.equal(
+      await page.locator("#nav-more").getAttribute("aria-current"),
+      "page",
+    );
     await click("nav-more");
     await page.locator("[data-action=pin-navigation]").click();
     await settled();
-    await navigate("community");
-    assert(
-      (await page.locator("#module-page").textContent()).includes("即将推出"),
-    );
+    await page.keyboard.press("Escape");
+    await page.locator("#nav-traffic").waitFor();
     await navigate("extensions");
+    assert(
+      (await page.locator("#module-page").textContent()).includes(
+        "社区扩展的发现和安装尚未提供",
+      ),
+    );
     await page.locator("#extension-search").fill("no-match");
     assert.equal(await page.locator("#extension-traffic").count(), 0);
     check(
-      "extensions, community placeholder, search, traffic feature toggle, More and navigation pin",
+      "extensions, recommended placeholder, search, traffic feature toggle, More and navigation pin",
     );
     const cfgPath = path.join(home, "aicat.yaml");
     fs.renameSync(cfgPath, cfgPath + ".saved");
@@ -734,11 +785,11 @@ async function verifyAppTree() {
     await settled();
     assert.equal((await current()).certificate.trusted, true);
     const firstFingerprint = (await current()).certificate.fingerprint;
-    await click("certificate-details");
     assert(
-      (await page.locator("#dialog").textContent()).includes(firstFingerprint),
+      (await page.locator("#certificate").textContent()).includes(
+        firstFingerprint,
+      ),
     );
-    await page.locator("#dialog button").filter({ hasText: "关闭" }).click();
     await click("certificate-export");
     await settled();
     assert(
@@ -752,15 +803,18 @@ async function verifyAppTree() {
     check(
       "certificate install cancel/failure/retry, identity preserved, trust verified, details/public export/keychain",
     );
-    await click("add-decryption-domain");
     await page.locator("#decryption-domain-input").fill("https://invalid/path");
-    await page.locator("#dialog button").filter({ hasText: "添加" }).click();
-    await settled();
-    assert.equal(await page.locator("#dialog").isVisible(), true);
+    await click("add-decryption-domain");
+    await page.locator("#decryption-domain-error").waitFor();
+    assert(!(await current()).domains.some((d) => d.includes("invalid")));
     await page.locator("#decryption-domain-input").fill("EXAMPLE.COM");
-    await page.locator("#dialog button").filter({ hasText: "添加" }).click();
+    await click("add-decryption-domain");
+    await wait(async () => (await current()).domains.includes("example.com"));
+    await page.locator("#decryption-domain-input").fill("*.Example.com");
+    await page.locator("#decryption-domain-input").press("Enter");
+    await wait(async () => (await current()).domains.includes("*.example.com"));
+    await page.locator('[id="remove-decryption-*.example.com"]').click();
     await settled();
-    assert((await current()).domains.includes("example.com"));
     await page.locator('[id="remove-decryption-example.com"]').click();
     await settled();
     assert(!(await current()).domains.includes("example.com"));
@@ -772,7 +826,7 @@ async function verifyAppTree() {
     await settled();
     assert.equal(fixture({}).services[0].proxies.HTTPEnable, 0);
     check(
-      "decryption-domain validation/add/remove and system-proxy enable/restore",
+      "decryption-domain validation, wildcard add/remove and system-proxy enable/restore",
     );
     await page.locator("#listener-port").fill("0");
     assert.equal(await page.locator("#listener-apply").isDisabled(), true);

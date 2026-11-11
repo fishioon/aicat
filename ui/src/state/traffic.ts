@@ -1,7 +1,8 @@
 import { computed, reactive, shallowRef, watch } from "vue";
 import type { Summary, TrafficRecord, BodySnapshot } from "../generated/mygo";
 import { host } from "../host";
-import { shell, state, navigate, popup, problem, run } from "./desktop";
+import { shell, state, navigate, popup, problem, run, say } from "./desktop";
+import { t } from "../i18n";
 
 export const records = shallowRef(new Map<number, Summary>());
 export const detail = shallowRef<TrafficRecord | null>(null);
@@ -46,6 +47,10 @@ function matches(url: string, query: string): boolean {
       return true;
     });
 }
+export const failed = (row: Summary) =>
+  row.state === "failed" || row.state === "canceled" || row.statusCode >= 400;
+export const running = (row: Summary) =>
+  row.state === "request" || row.state === "response";
 export const filtered = computed(() => {
   const started = performance.now();
   const result = [...records.value.values()]
@@ -120,7 +125,6 @@ export function choose(id: number) {
     host: shell.host,
     path: shell.path,
     app: shell.app,
-    query: shell.query,
     selected: id,
   });
 }
@@ -138,8 +142,9 @@ export async function clearTraffic() {
   }
 }
 export const copied = reactive(new Set<string>());
-export async function copy(key: string, text: string) {
+export async function copy(key: string, text: string, what = "") {
   if (await run(() => host.copyText(text))) {
+    say(t("已复制") + what);
     copied.add(key);
     setTimeout(() => copied.delete(key), 2200);
   }
@@ -167,21 +172,23 @@ export async function rowMenu(event: MouseEvent, row: Summary) {
   if (shell.selected !== row.id || shell.route !== "traffic") return;
   const domain = new URL(row.url).host;
   popup({ x: event.clientX, y: event.clientY }, [
-    { label: "复制 URL", run: () => copy("row:" + row.id, row.url) },
+    { label: "复制 URL", run: () => copy("row:" + row.id, row.url, " URL") },
     {
       label: "复制 cURL",
       disabled:
         record.tunnel || record.requestReceived.body.state !== "complete",
       run: async () => {
         try {
-          await copy("row:" + row.id, await host.requestCURL(row.id));
+          await copy("row:" + row.id, await host.requestCURL(row.id), " cURL");
         } catch (error) {
           problem(error);
         }
       },
     },
     {
-      label: state.value?.pinnedDomains.includes(domain) ? "取消固定" : "固定",
+      label: state.value?.pinnedDomains.includes(domain)
+        ? "取消固定域名"
+        : "固定域名",
       run: () => pinDomain(domain),
     },
   ]);

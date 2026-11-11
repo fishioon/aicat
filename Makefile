@@ -3,7 +3,7 @@ VERSION ?= dev
 LDFLAGS := -s -w -X main.version=$(VERSION)
 DESKTOP_LDFLAGS := $(LDFLAGS) -X github.com/egoist/mygo.production=1
 .DEFAULT_GOAL := build
-.PHONY: build cli app run bindings frontend frontend-check frontend-e2e e2e-build vet fmt-check verify e2e clean
+.PHONY: build cli app run bindings frontend frontend-check frontend-e2e e2e-build vet fmt-check verify e2e design-shots clean
 
 assets/tray.png: assets/logo.svg build/icon/gen.go
 	$(GO) run ./build/icon/gen.go tray assets/logo.svg assets/tray.png
@@ -59,6 +59,8 @@ frontend-check: ui/node_modules/.aicat-install bindings
 	node --check e2e/design.cjs
 	node --check e2e/icons.cjs
 	node --check e2e/app-tree.cjs
+	node --check e2e/list-selection.cjs
+	node --check e2e/design-shots.cjs
 
 verify: frontend-check fmt-check vet build cli app
 	$(GO) test ./...
@@ -73,6 +75,9 @@ e2e-build: frontend-e2e
 
 e2e: e2e-build
 	python3 e2e/prototype.py --binary bin/aicat-e2e
+
+design-shots:
+	node e2e/design-shots.cjs build/design-shots $(SCENES)
 
 clean:
 	rm -rf bin .mygo ui/dist ui/dist-e2e

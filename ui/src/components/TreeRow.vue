@@ -5,8 +5,11 @@ import { pinDomain } from "../state/traffic";
 import type { TreeNode } from "../state/sidebar";
 import { expanded } from "../state/sidebar";
 import { t } from "../i18n";
-const props = defineProps<{ node: TreeNode }>();
-const open = computed(() => expanded.has(props.node.key));
+import Icon from "./Icon.vue";
+const props = defineProps<{ node: TreeNode; depth: number }>();
+const open = computed(
+  () => expanded.has(props.node.key) || !!shell.sideQuery.trim(),
+);
 const selected = computed(
   () =>
     shell.app === (props.node.app ?? null) &&
@@ -18,13 +21,12 @@ function choose() {
     host: props.node.host ?? "",
     path: props.node.path ?? "",
     app: props.node.app ?? null,
-    query: props.node.app === undefined ? "" : shell.query,
   });
 }
 function toggle() {
   const node = props.node;
   if (!node.children.length) return;
-  if (open.value) {
+  if (expanded.has(node.key)) {
     expanded.delete(node.key);
     const path = node.path ?? "";
     if (
@@ -50,36 +52,51 @@ function context(event: MouseEvent) {
 }
 </script>
 <template>
-  <div class="ac-tree-row" :data-selected="selected" @contextmenu="context">
-    <button
-      :class="node.children.length ? 'ac-tree-toggle' : 'ac-tree-spacer'"
-      :aria-label="t('展开或收起') + ' ' + node.label"
-      :aria-expanded="open"
-      @click="toggle"
+  <li>
+    <div
+      class="trow tree-row"
+      :style="{ paddingLeft: 22 + depth * 14 + 'px' }"
+      :data-selected="selected"
+      @contextmenu="context"
     >
-      <svg
+      <button
         v-if="node.children.length"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
+        class="twist tree-toggle"
+        :aria-label="t(open ? '收起' : '展开') + ' ' + node.label"
+        :aria-expanded="open"
+        @click="$event.detail < 2 && toggle()"
       >
-        <path :d="open ? 'm6 9 6 6 6-6' : 'm9 6 6 6-6 6'" />
-      </svg>
-    </button>
-    <button
-      class="ac-side-item"
-      :title="(node.host ?? '') + (node.path ?? '') || node.label"
-      :data-host="node.host"
-      :data-path="node.host ? (node.path ?? '') : undefined"
-      :data-app="node.app"
-      @click="choose"
-    >
-      <span>{{ node.label }}</span
-      ><em class="ac-count">{{ node.count }}</em>
-    </button>
-  </div>
-  <div v-if="open" class="ac-tree-children">
-    <TreeRow v-for="child in node.children" :key="child.key" :node="child" />
-  </div>
+        <Icon name="chev" />
+      </button>
+      <span v-else class="twist none"></span>
+      <button
+        class="side-item tree-item"
+        :aria-current="selected ? 'true' : undefined"
+        :title="(node.host ?? '') + (node.path ?? '') || node.label"
+        :data-host="node.host"
+        :data-path="node.host ? (node.path ?? '') : undefined"
+        :data-app="node.app"
+        @click="$event.detail < 2 && choose()"
+        @dblclick="toggle"
+      >
+        <span class="label" :class="{ path: !!node.path }">{{
+          node.label
+        }}</span
+        ><i
+          v-if="node.errors"
+          class="sd bad"
+          :title="t('{n} 个出错', { n: node.errors })"
+        ></i
+        ><span class="count num">{{ node.count }}</span>
+      </button>
+    </div>
+    <ul v-if="open && node.children.length">
+      <TreeRow
+        v-for="child in node.children"
+        :key="child.key"
+        :node="child"
+        :depth="depth + 1"
+      />
+    </ul>
+  </li>
 </template>

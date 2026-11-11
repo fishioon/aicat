@@ -60,6 +60,8 @@ type Summary struct {
 	Error         string        `json:"error,omitempty"`
 	Tunnel        bool          `json:"tunnel,omitempty"`
 	ClientApp     ClientApp     `json:"clientApp,omitzero"`
+	// ContentType is the media type of the latest observed response, without parameters.
+	ContentType string `json:"contentType,omitempty"`
 }
 type BodyInfo struct {
 	ID       BodyID `json:"id"`
