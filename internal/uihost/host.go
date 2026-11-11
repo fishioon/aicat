@@ -1,16 +1,13 @@
-//go:build webviewprobe
-
-// Package webviewprobe contains the traffic-page experiment's portable HTTP
-// adapter. The desktop shell lives in app; this package has no MyGo dependency.
-package webviewprobe
+// Package uihost provides the portable desktop HTTP contract and frontend.
+// Platform operations are injected by app; this package has no MyGo dependency.
+package uihost
 
 import (
+	"cmp"
 	"context"
-	"embed"
 	"encoding/json"
 	"errors"
 	"io"
-	"io/fs"
 	"net/http"
 	"slices"
 	"strconv"
@@ -19,36 +16,46 @@ import (
 	"time"
 
 	"github.com/fishioon/aicat/internal/traffic"
+	"github.com/fishioon/aicat/ui"
 )
-
-//go:embed web/*
-var assets embed.FS
-
-func Frontend() fs.FS {
-	files, err := fs.Sub(assets, "web")
-	if err != nil {
-		panic(err)
-	}
-	return files
-}
 
 type Host struct {
 	flows                                      *traffic.Service
-	record                                     func(bool)
-	recording                                  atomic.Bool
+	Control                                    func(context.Context, string, json.RawMessage) (any, error)
 	batches, bytes, details, bodies, bodyBytes atomic.Uint64
 }
 
-func New(flows *traffic.Service, record func(bool), recording bool) *Host {
-	h := &Host{flows: flows, record: record}
-	h.recording.Store(recording)
-	return h
-}
+func New(flows *traffic.Service) *Host { return &Host{flows: flows} }
 
 func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "application/json")
+	if origin := r.Header.Get("Origin"); origin != "" && origin != "mygo://localhost" && origin != "http://"+r.Host {
+		http.Error(w, "origin rejected", http.StatusForbidden)
+		return
+	}
 	switch {
+	case h.Control != nil && (r.Method == http.MethodGet && r.URL.Path == "/state" || r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/command/")):
+		action := strings.TrimPrefix(r.URL.Path, "/command/")
+		if r.Method == http.MethodGet {
+			action = "state"
+		}
+		var input json.RawMessage
+		if r.Method == http.MethodPost {
+			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&input); err != nil {
+				http.Error(w, "invalid command", 400)
+				return
+			}
+		}
+		value, err := h.Control(r.Context(), action, input)
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		if value == nil {
+			value = struct{}{}
+		}
+		_ = json.NewEncoder(w).Encode(value)
 	case r.Method == http.MethodGet && r.URL.Path == "/watch":
 		h.watch(w, r)
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/record/"):
@@ -84,7 +91,7 @@ func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}{body.Info, data})
 	case r.Method == http.MethodGet && r.URL.Path == "/status":
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"recording": h.recording.Load(), "batches": h.batches.Load(),
+			"batches":    h.batches.Load(),
 			"watchBytes": h.bytes.Load(), "detailReads": h.details.Load(),
 			"bodyReads": h.bodies.Load(), "bodyBytes": h.bodyBytes.Load(),
 		})
@@ -94,17 +101,7 @@ func (h *Host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_, _ = io.WriteString(w, "{}")
-	case r.Method == http.MethodPost && r.URL.Path == "/recording":
-		var input struct {
-			Enabled bool `json:"enabled"`
-		}
-		if err := json.NewDecoder(io.LimitReader(r.Body, 1024)).Decode(&input); err != nil {
-			http.Error(w, "invalid recording state", 400)
-			return
-		}
-		h.record(input.Enabled)
-		h.recording.Store(input.Enabled)
-		_, _ = io.WriteString(w, "{}")
+
 	default:
 		http.NotFound(w, r)
 	}
@@ -124,7 +121,7 @@ func (h *Host) watch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 503)
 		return
 	}
-	defer sub.Close()
+	defer func() { sub.Close() }()
 	previous := make(map[traffic.ID]uint64)
 	send := func(page traffic.Page, reset bool) error {
 		update := batch{Reset: reset, Items: []traffic.Summary{}, Removed: []traffic.ID{}, SentAt: time.Now().UnixMilli()}
@@ -145,13 +142,7 @@ func (h *Host) watch(w http.ResponseWriter, r *http.Request) {
 			return nil
 		}
 		slices.SortFunc(update.Items, func(a, b traffic.Summary) int {
-			if a.ID < b.ID {
-				return -1
-			}
-			if a.ID > b.ID {
-				return 1
-			}
-			return 0
+			return cmp.Compare(a.ID, b.ID)
 		})
 		data, err := json.Marshal(update)
 		if err != nil {
@@ -180,8 +171,18 @@ func (h *Host) watch(w http.ResponseWriter, r *http.Request) {
 			return
 		case _, open := <-sub.Changes:
 			if !open {
-				return
-			} // the page reconnects with an atomic Watch snapshot
+				if !errors.Is(sub.Err(), traffic.ErrSlowSubscriber) {
+					return
+				}
+				// Recover service backpressure inside this response. WKWebView
+				// custom-scheme readers need not observe an early EOF promptly.
+				page, sub, err = h.flows.Watch(r.Context(), traffic.Query{Limit: 2000})
+				if err != nil || send(page, true) != nil {
+					return
+				}
+				dirty = false
+				continue
+			}
 			dirty = true
 		case <-ticker.C:
 			if !dirty {
@@ -197,9 +198,9 @@ func (h *Host) watch(w http.ResponseWriter, r *http.Request) {
 }
 
 // Preview serves the same frontend and adapter over ordinary HTTP so the
-// experiment can check that the page also works outside the desktop shell.
+// authenticated test preview can exercise browser pointer and keyboard input.
 func (h *Host) Preview() http.Handler {
-	files := http.FileServerFS(Frontend())
+	files := http.FileServerFS(ui.Files())
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if origin := r.Header.Get("Origin"); origin != "" && origin != "http://"+r.Host {
 			http.Error(w, "origin rejected", http.StatusForbidden)
@@ -213,17 +214,4 @@ func (h *Host) Preview() http.Handler {
 		}
 		files.ServeHTTP(w, r)
 	})
-}
-
-func ClosePreview(ctx context.Context, server *http.Server) error {
-	if server == nil {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(ctx, time.Second)
-	defer cancel()
-	err := server.Shutdown(ctx)
-	if errors.Is(err, context.DeadlineExceeded) {
-		return server.Close()
-	}
-	return err
 }

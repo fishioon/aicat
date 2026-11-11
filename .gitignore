@@ -41,3 +41,6 @@ __pycache__/
 # MyGo development cache and nested module boundary for old local artifacts
 .mygo/
 !/build/go.mod
+
+# Browser acceptance dependencies
+/e2e/node_modules/

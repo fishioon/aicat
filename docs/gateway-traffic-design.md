@@ -2,7 +2,7 @@
 
 更新日期：2026-11-10。状态：原型、规则与插件后端已实现，后续能力仍按本文演进。
 
-aicat 使用 mygo Native UI、go-mitmproxy 和 moejs，从零实现。native UI 直接调用进程内服务；`127.0.0.1:9981` 承载代理和对外 API/MCP。本文细化 [一期设计](phase-one-design.md) 中 gateway、traffic 及两者之间的接缝，不增加历史兼容层。
+aicat 使用 MyGo + WebView、go-mitmproxy 和 moejs，从零实现。WebView 界面经私有协议调用进程内服务；`127.0.0.1:9981` 承载代理和对外 API/MCP。本文细化 [一期设计](phase-one-design.md) 中 gateway、traffic 及两者之间的接缝，不增加历史兼容层。
 
 ## 包边界
 
@@ -19,15 +19,16 @@ aicat 使用 mygo Native UI、go-mitmproxy 和 moejs，从零实现。native UI 
 
 macOS 应用归属由流量 addon 识别。首次记录回环连接时，把客户端及监听端点加入有界后台查询。按两端地址、端口和方向匹配 `lsof` 的 TCP socket；归属不唯一或连接已关闭时留空。应用 bundle 使用 bundle ID 分组，命令行程序使用进程名。记录可选的 `clientApp` 只含名称和 bundle ID，经 Revision 更新并随 UI、HTTP API 和 MCP 的记录返回。
 
-建议文件结构如下。文件先按职责划分，实际大小不足时可以合并，不为每个类型新增包。
+根 `ui/` 放 HTML/CSS/JS 和资源嵌入入口；Go 侧文件结构如下。文件先按职责划分，实际大小不足时可以合并，不为每个类型新增包。
 
 ```text
 internal/
 ├── app/
 │   ├── app.go
-│   ├── ui_shell.go
-│   ├── ui_theme.go
-│   └── ui_traffic.go
+│   ├── desktop_commands.go
+│   └── runtime.go
+├── uihost/
+│   └── host.go
 ├── gateway/
 │   ├── gateway.go
 │   ├── options.go
@@ -43,7 +44,7 @@ internal/
     └── subscription.go
 ```
 
-`app` 负责组合依赖；业务包不回调 `app`。HTTP/MCP handler 和 native UI 使用同一个 traffic 服务实例，外部授权在 HTTP/MCP 入口完成。底层 `proxy.Flow` 只在代理适配层使用。
+`app` 负责组合依赖；业务包不回调 `app`。HTTP/MCP handler 和 WebView 界面使用同一个 traffic 服务实例，外部授权在 HTTP/MCP 入口完成。底层 `proxy.Flow` 只在代理适配层使用。
 
 ## gateway 接口
 
@@ -97,7 +98,7 @@ go-mitmproxy v1.9.4 的公开 `Start` 自行创建 listener，没有公开就绪
 
 `api` addon 接收上层组装的 `http.Handler` 和允许的本机 authority。`AccessProxyServer` 同时核对 TCP peer 为 loopback 或本机实际地址、authority 和 Origin；监听 `0.0.0.0` 时，本机 API 客户端使用 `127.0.0.1`，不会将控制接口开放给其他机器。普通代理流量不因路径与 API 相同而被接管；MCP 继续核对 Bearer token。
 
-gateway 显式配置直接出站，不继承指向自己的 `HTTP_PROXY`/`HTTPS_PROXY`。aicat 或插件主动发起的业务 HTTP 请求仍可显式使用 9981，但最终转发与 native UI 的进程内调用不再绕回代理入口。
+gateway 显式配置直接出站，不继承指向自己的 `HTTP_PROXY`/`HTTPS_PROXY`。aicat 或插件主动发起的业务 HTTP 请求仍可显式使用 9981，但最终转发与 WebView 界面的进程内调用不再绕回代理入口。
 
 ## traffic 读取接口
 
@@ -243,13 +244,13 @@ Watch 的一致性约定如下：
 
 流量 addon 在规则或脚本前复制原始内容，执行后复制提交结果。外层 CONNECT 事件不能误调用户的 HTTP 内容钩子。普通、流式及短路响应都必须得到相应的记录状态，不能只在 `Response` 完整 body 钩子中才收尾。
 
-mygo 页面在后台调用 Watch，先展示返回的初始列表，再合并处理变化通知，使用 `Window.Update` 更新 `trafficState`。切换选中项时，返回结果要核对请求 ID、记录版本和当前页面请求代次，避免慢查询覆盖新选中项。查询及 UI 提交串行或按请求代次校验，避免较旧列表覆盖新结果。关闭页面时取消订阅，重新打开时重新调用 Watch。
+`internal/uihost` 在后台调用 Watch，先返回原子快照，再每 100ms 合并摘要增量；订阅背压关闭时在同一响应内重新 Watch 恢复。页面通过流式读取更新 Map 和虚拟行。切换选中项时，返回结果要核对请求 ID、记录版本和当前页面请求代次，避免慢查询覆盖新选中项。查询及 UI 提交串行或按请求代次校验，避免较旧列表覆盖新结果。关闭页面时取消订阅，重新打开时重新调用 Watch。
 
 UI、查询或 body 读取的延迟不回压代理流量。为了守住内存边界，服务允许在明确记录状态的前提下限制采集；实际网络转发仍按连接自身的背压运行。
 
 ## 装配与首轮范围
 
-`app` 先创建 traffic 服务，再把 Recorder 注入流量 addon，把读取能力注入 native UI 与 API/MCP handler。handler 通过 `api` addon 接到 gateway。启动后等待 Gateway Ready；退出时先停止入口并完成写端收尾，再关闭 traffic 服务。
+`app` 先创建 traffic 服务，再把 Recorder 注入流量 addon，把读取能力注入 WebView 界面与 API/MCP handler。handler 通过 `api` addon 接到 gateway。启动后等待 Gateway Ready；退出时先停止入口并完成写端收尾，再关闭 traffic 服务。
 
 首轮实现目标是内存中的有界记录、上述查询与订阅、HTTP/CONNECT/MITM 接入、API handler 挂载及可靠停止。规则与 moejs 执行现已接入下述接缝；SQLite 与完整导出仍未实现，不影响查询与订阅的调用方式。
 
@@ -280,11 +281,11 @@ UI、查询或 body 读取的延迟不回压代理流量。为了守住内存边
 - 改写前后的 headers 独立；未修改 body 共用引用，发生修改则分别保存原始与实际发送字节。`Response.Proto` 因库未公开而省略，不能伪造为已确认的协议。
 - `Recorder.NewBody`、`AppendBody` 是内存 body 的写入接缝；`Service.Clear` 清空记录但保留编号计数。`Summary.ResponseBytes` 提供列表大小列，避免 UI 为每行读取完整详情。
 - 分页采用数值 `Query.Before`；HTTP `nextPage` 返回下一页的 `before` 值。没有订阅事件 cursor。
-- native UI 每 50ms 合并变化，查询在后台执行，通过 `Window.Update` 提交；选中详情带请求代次校验。
+- WebView 界面每 100ms 在 `internal/uihost` 合并变化，通过 NDJSON 同步摘要；详情/正文分别读取；选中详情带请求代次校验。
 - Ready 通过随机路径与响应标记确认当前实例，未把端口可连接当作启动成功。
 - go-mitmproxy 的直通 CONNECT 可能因上游半连接而推迟 `Flow.Done`；addon 同时监听客户端断开作为该条隧道记录的结束边界。库内部等待可能持续到对端关闭或进程退出，尚不能保证同进程反复重建后的全部内部资源释放，待上游修复。
 - 原型 HTTP API 仅只读查询；拒绝未知 authority 和浏览器 Origin。规则/脚本管理与查询通过 `/mcp` 提供，HTTP API 仍只读；重放、导出和持久数据库未实现。
-- 验收通过 `make e2e` 的真实 socket、TLS、SSE、容量淘汰和 native 窗口操作完成；报告与截图写入隔离工件目录。
+- 验收通过 `make e2e` 的真实 socket、TLS、SSE、容量淘汰和 WebView 窗口操作完成；报告与截图写入隔离工件目录。
 
 ## UI 与按域名解密补充
 
@@ -302,7 +303,7 @@ UI、查询或 body 读取的延迟不回压代理流量。为了守住内存边
 
 ## 规则与插件执行接缝（2026-11-10）
 
-`app` 创建 rewrite 服务，将它与 Recorder 一同交给 traffic addon；9981 的 api addon 先处理本机 API/MCP，控制调用不进入采集与脚本。traffic 服务只接收独立 DTO，不依赖 moejs 或 rewrite。native UI 后续直接调用同一规则管理服务，本轮不新增页面。
+`app` 创建 rewrite 服务，将它与 Recorder 一同交给 traffic addon；9981 的 api addon 先处理本机 API/MCP，控制调用不进入采集与脚本。traffic 服务只接收独立 DTO，不依赖 moejs 或 rewrite。WebView 界面后续直接调用同一规则管理服务，本轮不新增页面。
 
 每条普通 HTTP 或已解密 HTTPS 交换持有一个 Session，固定启动配置；每阶段按当前 URL/method 及规则列表重新匹配。四个钩子由同一 addon 编排，原始 body 在脚本前保存，成功结果在校验后提交，最终写入四个观测位置。未解密 CONNECT 与 Upgrade 不执行插件。`Record.ruleRevision` 标识运行版本，`executions` 保存阶段、规则、插件、耗时、有界日志及错误；`synthetic` 标识自定义响应。插件错误不把成功转发的流量标成失败。
 

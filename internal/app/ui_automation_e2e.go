@@ -12,6 +12,7 @@ func automationMenus(a *application) []*mygo.MenuItem {
 		{Label: "关闭窗口", Click: func(*mygo.MenuItem, *mygo.Window) { a.win.Close() }},
 		{Label: "打开窗口", Click: func(*mygo.MenuItem, *mygo.Window) { a.showWindow() }},
 		{Label: "打开托盘菜单", Click: func(*mygo.MenuItem, *mygo.Window) { a.trayMenu.PopupAt(a.win, 180, 160) }},
+		{Label: "暂停或继续", Click: func(*mygo.MenuItem, *mygo.Window) { go a.toggleRecording() }},
 		{Label: "退出应用", Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	}}}
 }

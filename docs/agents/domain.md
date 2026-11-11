@@ -10,7 +10,7 @@
 - [一期设计](../phase-one-design.md) 与 [gateway/traffic 接口设计](../gateway-traffic-design.md)：当前架构及模块边界；
 - `docs/adr/`：与当前工作相关、仍适用的架构决策。
 
-当前为从零重写的 mygo Native UI 原型，历史 Claw、消息渠道和 Wails 桌面代码已移除。旧 ADR 保留历史语境，以当前设计文档与 `CONTEXT.md` 为准，不得据此恢复已移除的旧业务。唯一配置、进程边界、网关与 addon 职责、外部 runtime 和私有 fork 的限制均在当前设计中维护，实施时须遵守。
+当前为从零重写的 MyGo + WebView 原型，历史 Claw、消息渠道和 Wails 桌面代码已移除。旧 ADR 保留历史语境，以当前设计文档与 `CONTEXT.md` 为准，不得据此恢复已移除的旧业务。唯一配置、进程边界、网关与 addon 职责、外部 runtime 和私有 fork 的限制均在当前设计中维护，实施时须遵守。
 
 领域文档不存在时直接继续，不把缺失本身当作错误，也不预先创建空文件。在第一个术语或架构决策真正明确时，按需创建；有 `domain-modeling` skill 时使用它，不可用时按本文约定处理。
 

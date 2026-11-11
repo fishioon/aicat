@@ -31,17 +31,23 @@ vet:
 	$(GO) vet ./...
 
 fmt-check:
-	@test -z "$$(gofmt -l $$(rg --files cmd internal assets -g '*.go'))" || { echo 'Run gofmt on Go sources'; exit 1; }
+	@test -z "$$(gofmt -l $$(rg --files cmd internal ui assets -g '*.go'))" || { echo 'Run gofmt on Go sources'; exit 1; }
 
-verify: fmt-check vet build cli app
+verify: frontend-check fmt-check vet build cli app
 	$(GO) test ./...
 	bin/aicat-cli --version
 	bin/aicat-cli serve --help
 
 e2e:
 	@mkdir -p bin
-	$(GO) build -tags e2e -o bin/aicat-e2e ./cmd/aicat
+	$(GO) build -race -tags e2e -o bin/aicat-e2e ./cmd/aicat
+	$(GO) build -race -tags nogui,e2e -o bin/aicat-rules-e2e ./cmd/aicat
 	python3 e2e/prototype.py --binary bin/aicat-e2e
 
 clean:
 	rm -rf bin .mygo
+
+frontend-check:
+	@for source in ui/*.js; do node --input-type=module --check < "$$source" || exit 1; done
+	node --check e2e/desktop.cjs
+	node --check e2e/design.cjs
