@@ -30,10 +30,17 @@ function toggle(key: string) {
       @click="navigate('traffic', { query: shell.query })"
     >
       <span>⌄　{{ t("域名") }}</span
-      ><span id="domain-count">{{ groups[2].count }}</span>
+      ><span id="domain-count">{{
+        groups.find((group) => group.key === "domains")?.count ?? 0
+      }}</span>
     </button>
     <div id="domains">
-      <section v-for="group in groups" :key="group.key" class="sidebar-group">
+      <section
+        v-for="group in groups"
+        :key="group.key"
+        :data-group="group.key"
+        class="sidebar-group"
+      >
         <div class="ac-domain-parent">
           <button class="ac-domain-toggle" @click="toggle(group.key)">
             <svg
@@ -53,7 +60,7 @@ function toggle(key: string) {
               group.key === 'domains' ? navigate('traffic') : toggle(group.key)
             "
           >
-            <span>{{ t(group.title) }}</span
+            <span>{{ t(group.title, {}, "traffic-sidebar") }}</span
             ><em class="ac-count">{{ group.count }}</em>
           </button>
         </div>

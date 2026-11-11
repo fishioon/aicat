@@ -185,6 +185,60 @@ async function launch() {
   await page.goto(fs.readFileSync(previewFile, "utf8"));
   await page.waitForFunction(() => !!window.desktop?.state());
 }
+// Focused regression: ambiguous Apply/App translation, unstable group order,
+// and a positional domain counter pointing at App after a reorder.
+async function verifySidebar() {
+  const labels = () =>
+    page.locator("#domains .ac-pin-group-title > span").allTextContents();
+  assert.deepEqual(await labels(), ["固定", "域名", "应用"]);
+  assert.deepEqual(
+    await page
+      .locator("#domains .sidebar-group")
+      .evaluateAll((groups) => groups.map((group) => group.dataset.group)),
+    ["pins", "domains", "apps"],
+  );
+  await page.screenshot({ path: path.join(root, "sidebar-zh.png") });
+  await send("/sidebar/group-order");
+  await page.waitForFunction(
+    () => document.querySelector("#domain-count").textContent === "1",
+  );
+  await navigate("general");
+  await page.selectOption("#preference-language", "en");
+  await settled();
+  await navigate("traffic");
+  assert.deepEqual(await labels(), ["Pin", "Domain", "App"]);
+  await wait(
+    async () =>
+      await evaluate(
+        "Array.from(document.querySelectorAll('#domains .ac-pin-group-title > span'), e => e.textContent).join('|') === 'Pin|Domain|App'",
+      ),
+  );
+  await page.screenshot({ path: path.join(root, "sidebar-en.png") });
+  await auto
+    .call("capture")
+    .then((result) =>
+      fs.writeFileSync(
+        path.join(root, "sidebar-wkwebview.png"),
+        Buffer.from(result.png, "base64"),
+      ),
+    );
+  await navigate("proxy");
+  assert.equal(
+    (await page.locator("#listener-apply").textContent()).trim(),
+    "Apply",
+  );
+  await navigate("general");
+  await page.selectOption("#preference-language", "zh-Hans");
+  await settled();
+  await navigate("traffic");
+  assert.deepEqual(await labels(), ["固定", "域名", "应用"]);
+  await click("clear");
+  await page.waitForFunction(() => window.trafficView.state().total === 0);
+  assert.deepEqual(errors, []);
+  check(
+    "Pin/Domain/App order, contextual App versus Apply, Chinese labels and keyed domain count in browser and WKWebView",
+  );
+}
 (async () => {
   try {
     if (
@@ -285,6 +339,12 @@ async function launch() {
     check(
       "real MyGo WebView, portable browser frontend, authenticated preview and cross-origin denial",
     );
+    await verifySidebar();
+    if (process.argv[4] === "sidebar") {
+      report.scenario = "sidebar";
+      report.passed = true;
+      return;
+    }
     await page.screenshot({ path: path.join(root, "empty.png") });
     let index = 0;
     await Promise.all(
@@ -327,11 +387,23 @@ async function launch() {
       await auto.call("menu", { path: ["E2E", "打开窗口"] });
     }
     await wait(async () => {
-      const diagnostic = await request(Number(url.port), "/diagnostics", "GET", "", { "X-Aicat-Preview": url.searchParams.get("token") });
+      const diagnostic = await request(
+        Number(url.port),
+        "/diagnostics",
+        "GET",
+        "",
+        { "X-Aicat-Preview": url.searchParams.get("token") },
+      );
       return JSON.parse(diagnostic.data).trafficSubscriptions === 2;
     });
-    assert.equal((await page.evaluate(() => window.trafficView.status())).activeSubscriptions, 1);
-    check("typed events replace idle polling; repeated focus cancels old browser and native Channels");
+    assert.equal(
+      (await page.evaluate(() => window.trafficView.status()))
+        .activeSubscriptions,
+      1,
+    );
+    check(
+      "typed events replace idle polling; repeated focus cancels old browser and native Channels",
+    );
     const search = page.locator("#search");
     await search.click();
     await search.pressSequentially("/traffic/002199");
@@ -743,9 +815,17 @@ async function launch() {
       async () => await evaluate("window.desktop.state().recording===true"),
     );
     await evaluate("window.desktop.navigate('general');true");
-    await wait(async () => await evaluate("!!document.querySelector('#preference-theme-dark')"));
-    await evaluate("document.querySelector('#preference-theme-dark').click();true");
-    await wait(async () => await evaluate("window.desktop.state().preferences.theme==='dark'"));
+    await wait(
+      async () =>
+        await evaluate("!!document.querySelector('#preference-theme-dark')"),
+    );
+    await evaluate(
+      "document.querySelector('#preference-theme-dark').click();true",
+    );
+    await wait(
+      async () =>
+        await evaluate("window.desktop.state().preferences.theme==='dark'"),
+    );
     await navigate("general");
     await click("preference-theme-dark");
     await settled();
@@ -810,7 +890,14 @@ async function launch() {
     for (const dir of ["internal/app", "ui", "e2e"])
       for (const f of fs
         .readdirSync(dir, { recursive: true })
-        .filter((f) => !f.split(path.sep).some((part) => ["node_modules", "dist", "dist-e2e"].includes(part)) && /\.(go|js|ts|vue|cjs|html|css|py|json)$/.test(f))) {
+        .filter(
+          (f) =>
+            !f
+              .split(path.sep)
+              .some((part) =>
+                ["node_modules", "dist", "dist-e2e"].includes(part),
+              ) && /\.(go|js|ts|vue|cjs|html|css|py|json)$/.test(f),
+        )) {
         const p = path.join(dir, f);
         report.sources[p] = crypto
           .createHash("sha256")

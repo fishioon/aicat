@@ -66,6 +66,8 @@ make e2e-build
 python3 e2e/prototype.py --only desktop
 python3 e2e/prototype.py --only transport
 python3 e2e/prototype.py --only rules
+# 仅验证流量侧边栏的顺序、中英文标签与 Domain 计数
+node e2e/desktop.cjs bin/aicat-e2e build/sidebar-e2e sidebar
 ```
 
 `e2e/prototype.py` 不带 `--only` 时三组必须全部通过；`--output` 指定工件根目录，默认 `build/full-e2e-*/`。

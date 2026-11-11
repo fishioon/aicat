@@ -74,23 +74,6 @@ export const groups = computed(() => {
   const pins = state.value?.pinnedDomains ?? [];
   return [
     {
-      title: "应用",
-      key: "apps",
-      count: apps.size,
-      nodes: [...apps]
-        .sort(([, a], [, b]) => a.name.localeCompare(b.name))
-        .filter(([, app]) => app.name.toLowerCase().includes(query))
-        .map(([key, app]): TreeNode => ({
-          key: "app:" + key,
-          app: key,
-          label: app.name,
-          count:
-            app.requests +
-            (app.tunnels ? " · " + app.tunnels + " " + t("隧道") : ""),
-          children: [],
-        })),
-    },
-    {
       title: "固定",
       key: "pins",
       count: pins.length,
@@ -112,6 +95,23 @@ export const groups = computed(() => {
             ),
         )
         .map(([host, rows]) => tree(host, rows, "domains:")),
+    },
+    {
+      title: "应用",
+      key: "apps",
+      count: apps.size,
+      nodes: [...apps]
+        .sort(([, a], [, b]) => a.name.localeCompare(b.name))
+        .filter(([, app]) => app.name.toLowerCase().includes(query))
+        .map(([key, app]): TreeNode => ({
+          key: "app:" + key,
+          app: key,
+          label: app.name,
+          count:
+            app.requests +
+            (app.tunnels ? " · " + app.tunnels + " " + t("隧道") : ""),
+          children: [],
+        })),
     },
   ];
 });
