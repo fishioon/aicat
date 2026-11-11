@@ -1,5 +1,5 @@
 // Lucide-compatible 24px outline geometry, matching the HTML reference.
-const paths = {
+const paths: Record<string, string> = {
   pin: '<path d="m16 3 5 5-4 1-4 4-1 5-3-3-5 6 6-5-3-3 5-1 4-4z"/>',
   "pin-off":
     '<path d="m3 3 18 18M16 3l5 5-4 1-2 2M13 13l-1 5-3-3-5 6M7 9l-1 3 3 1"/>',
@@ -20,5 +20,5 @@ const paths = {
   settings:
     '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
 };
-export const icon = (name) =>
+export const icon = (name: string) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.extensions}</svg>`;

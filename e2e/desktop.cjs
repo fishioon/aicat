@@ -57,7 +57,8 @@ let proc,
   proxyPort,
   fixturePort,
   errors = [],
-  log;
+  log,
+  stateCalls = 0;
 const fixture = (update) => {
   let s = JSON.parse(fs.readFileSync(stateFile));
   Object.assign(s, update);
@@ -173,6 +174,8 @@ async function launch() {
       MYGO_AUTOMATION: sockFile,
       AICAT_E2E_OS_STATE: stateFile,
       AICAT_E2E_PREVIEW: previewFile,
+      MYGO_ENV: "development",
+      MYGO_DEV_URL: "http://127.0.0.1:1/must-not-load",
     },
     stdio: ["ignore", log, log],
   });
@@ -253,17 +256,26 @@ async function launch() {
     });
     page = await browser.newPage({ viewport: { width: 1180, height: 900 } });
     page.on("pageerror", (e) => errors.push(e.message));
+    page.on("request", (request) => {
+      if (request.url().endsWith("/rpc") && request.method() === "POST") {
+        if (request.postDataJSON()?.method === "Desktop.State") stateCalls++;
+      }
+    });
     await launch();
     report.windows = await auto.call("windows");
     assert.equal(report.windows.windows[0].kind, "page");
-    assert.equal(await page.evaluate(() => !!window.mygo), false);
+    assert.equal(await page.evaluate(() => window.__aicatPreview), true);
+    assert.equal((await current()).production, true);
+    assert.equal(await evaluate("window.desktop.state().production"), true);
+    assert.equal(await evaluate("location.origin"), "mygo://localhost");
+    assert.equal(await evaluate("!!window.__aicatPreview"), false);
     const url = new URL(fs.readFileSync(previewFile, "utf8"));
-    assert.equal((await request(Number(url.port), "/api/state")).status, 403);
+    assert.equal((await request(Number(url.port), "/rpc")).status, 403);
     const denied = await request(
       Number(url.port),
-      "/api/command/traffic",
+      "/rpc",
       "POST",
-      '{"enabled":false}',
+      '{"method":"Desktop.SetTrafficEnabled","args":[false]}',
       {
         "X-Aicat-Preview": url.searchParams.get("token"),
         Origin: "https://evil.invalid",
@@ -304,6 +316,22 @@ async function launch() {
       "2200 real proxy requests, 2000 retained matching IDs, bounded DOM in browser and WKWebView",
     );
     await page.screenshot({ path: path.join(root, "loaded.png") });
+    await settled();
+    await sleep(100);
+    const idleStateCalls = stateCalls;
+    await sleep(1800);
+    assert.equal(stateCalls, idleStateCalls, "idle UI must not poll State");
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await auto.call("menu", { path: ["E2E", "关闭窗口"] });
+      await auto.call("menu", { path: ["E2E", "打开窗口"] });
+    }
+    await wait(async () => {
+      const diagnostic = await request(Number(url.port), "/diagnostics", "GET", "", { "X-Aicat-Preview": url.searchParams.get("token") });
+      return JSON.parse(diagnostic.data).trafficSubscriptions === 2;
+    });
+    assert.equal((await page.evaluate(() => window.trafficView.status())).activeSubscriptions, 1);
+    check("typed events replace idle polling; repeated focus cancels old browser and native Channels");
     const search = page.locator("#search");
     await search.click();
     await search.pressSequentially("/traffic/002199");
@@ -581,8 +609,8 @@ async function launch() {
     fixture({ failInstall: false });
     await click("certificate-install");
     await settled();
-    assert.equal((await current()).certificate.Trusted, true);
-    const firstFingerprint = (await current()).certificate.Fingerprint;
+    assert.equal((await current()).certificate.trusted, true);
+    const firstFingerprint = (await current()).certificate.fingerprint;
     await click("certificate-details");
     assert(
       (await page.locator("#dialog").textContent()).includes(firstFingerprint),
@@ -651,22 +679,22 @@ async function launch() {
     await click("certificate-delete");
     await page.locator("#dialog button").filter({ hasText: "确定" }).click();
     await settled();
-    assert.equal((await current()).certificate.PendingDeletion, true);
+    assert.equal((await current()).certificate.pendingDeletion, true);
     fixture({ cancelRemove: false, failRemove: true });
     await click("certificate-delete");
     await page.locator("#dialog button").filter({ hasText: "确定" }).click();
     await settled();
-    assert.equal((await current()).certificate.PendingDeletion, true);
+    assert.equal((await current()).certificate.pendingDeletion, true);
     fixture({ failRemove: false });
     await click("certificate-delete");
     await page.locator("#dialog button").filter({ hasText: "确定" }).click();
     await settled();
-    assert.equal((await current()).certificate.Exists, false);
+    assert.equal((await current()).certificate.exists, false);
     await click("certificate-install");
     await settled();
-    assert.equal((await current()).certificate.Trusted, true);
+    assert.equal((await current()).certificate.trusted, true);
     assert.notEqual(
-      (await current()).certificate.Fingerprint,
+      (await current()).certificate.fingerprint,
       firstFingerprint,
     );
     check(
@@ -714,10 +742,10 @@ async function launch() {
     await wait(
       async () => await evaluate("window.desktop.state().recording===true"),
     );
-    const nativeResult = await evaluate(
-      'import("./client.js").then(({host})=>host.command("preferences",{language:"zh-Hans",theme:"dark"})).then(()=>true)',
-    );
-    assert.equal(nativeResult, true);
+    await evaluate("window.desktop.navigate('general');true");
+    await wait(async () => await evaluate("!!document.querySelector('#preference-theme-dark')"));
+    await evaluate("document.querySelector('#preference-theme-dark').click();true");
+    await wait(async () => await evaluate("window.desktop.state().preferences.theme==='dark'"));
     await navigate("general");
     await click("preference-theme-dark");
     await settled();
@@ -753,6 +781,7 @@ async function launch() {
     report.passed = true;
   } catch (error) {
     report.error = error.stack;
+    report.browserErrors = errors;
     if (auto)
       try {
         report.webviewFailure = await evaluate(
@@ -781,7 +810,7 @@ async function launch() {
     for (const dir of ["internal/app", "ui", "e2e"])
       for (const f of fs
         .readdirSync(dir, { recursive: true })
-        .filter((f) => /\.(go|js|cjs|html|css|py)$/.test(f))) {
+        .filter((f) => !f.split(path.sep).some((part) => ["node_modules", "dist", "dist-e2e"].includes(part)) && /\.(go|js|ts|vue|cjs|html|css|py|json)$/.test(f))) {
         const p = path.join(dir, f);
         report.sources[p] = crypto
           .createHash("sha256")

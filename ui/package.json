@@ -1,0 +1,24 @@
+{
+  "name": "aicat-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "check": "vue-tsc --noEmit",
+    "build": "npm run check && vite build",
+    "build:e2e": "vite build --mode e2e --outDir dist-e2e",
+    "format": "prettier --write src --ignore-path .prettierignore",
+    "format:check": "prettier --check src --ignore-path .prettierignore"
+  },
+  "dependencies": {
+    "mygo-runtime": "0.8.3",
+    "vue": "3.5.45"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "6.0.10",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3",
+    "vite": "8.3.8",
+    "vue-tsc": "3.3.14"
+  }
+}

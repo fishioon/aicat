@@ -15,7 +15,7 @@ aicat 的产品定位已于 2026-11-11 对齐为安装在用户节点上的常�
 | 项目 | 决定 |
 | --- | --- |
 | 产品主线 | 节点上的常驻 Agent Gateway，通过接口向 Agent 提供能力和管理操作。当前一期交付为 HTTP/HTTPS 代理、流量检查、规则与脚本插件服务 |
-| 桌面框架 | 使用 MyGo + WebView，应用装配放在 `internal/app/`，前端放在根 `ui/`，界面接口放在 `internal/uihost/`，参考 Codex 的界面结构及 mygo-music 的组件分工 |
+| 桌面框架 | 使用 MyGo + WebView，应用装配放在 `internal/app/`，Vue 3 + TypeScript + Vite 前端放在根 `ui/`，类型接口由 `internal/app/Desktop` 声明并生成客户端，参考 Codex 的界面结构及 mygo-music 的组件分工 |
 | 代理实现 | 使用 go-mitmproxy，网关及业务在 aicat 进程内运行 |
 | 脚本引擎 | 使用 moejs 执行用户编写的 JS/TS 插件 |
 | 统一入口 | 9981 由内置网关监听，aicat 自身的 HTTP 服务也从该入口访问 |
@@ -94,7 +94,7 @@ flowchart TB
 
 控制路由同时核对目标 authority 与保留路径，不能只匹配 `/api` 或 `/mcp` 这样的路径，以免截获目标网站的同名接口。具体路径及本机授权机制在接口设计时确定。控制流量默认排除在用户改写脚本和普通抓包记录之外。
 
-WebView 界面经 `internal/uihost` 的私有协议接口调用进程内业务服务，通过 Watch 接收合并后的变化。MCP 与 HTTP API 经 9981 调用相同服务，复用数据模型、校验和业务规则；此协议不监听 TCP，9981 不增加桌面管理操作。服务和 addon 不依赖 mygo，也不直接修改 UI 状态。
+WebView 界面经 MyGo 绑定的 Desktop 类型客户端调用进程内业务服务，通过 Channel 接收 Watch 合并后的变化，typed event 通知设置状态失效。MCP 与 HTTP API 经 9981 调用相同服务，复用数据模型、校验和业务规则；桌面绑定不监听 TCP，9981 不增加桌面管理操作。服务和 addon 不依赖 mygo，也不直接修改 UI 状态。
 
 ### 网关和 addon 边界
 
@@ -276,13 +276,13 @@ TypeScript 使用固定版本 moejs 去除类型语法，不承诺 Node.js/Bun �
 
 代理页的监听地址使用纯 IP 下拉框，默认 127.0.0.1，同时列出 0.0.0.0 和本机网卡 IP；端口单独编辑，范围 1–65535。点击“应用”后立即切换，成功才保存 gateway.addr，重启保留。可并行监听时先启动新入口，同端口重叠时先释放旧入口并在失败时恢复；采集记录、CA、解密名单和规则运行体保持。系统代理已开启时同步切换到可达的本机目标（通配监听使用 loopback），保存/切换失败尝试回退，回退自身失败则保留恢复所需的监听并显示错误。代理地址与 cURL 示例复制按钮均已移除。底层内部服务释放的已知限制见 gateway/traffic 文档。
 
-使用 MyGo + WebView：根 `ui/` 放 HTML/CSS/JS 页面和资源，`internal/uihost/` 提供不依赖框架的界面接口，`internal/app/` 装配服务并适配窗口、托盘、菜单、剪贴板和系统对话框。业务服务继续独立于 UI。私有协议复用标准 HTTP handler；默认构建不暴露额外 HTTP 管理端口。
+使用 MyGo + WebView：根 `ui/` 放独立的 Vue/TypeScript/Vite 工程和构建资源，Go Desktop 服务生成 TypeScript 接口，`internal/app/` 装配服务并适配窗口、托盘、菜单、剪贴板和系统对话框。业务服务继续独立于 UI。通信使用 MyGo 官方绑定、事件和 Channel；默认构建不暴露额外 HTTP 管理端口。
 
 布局、尺寸和间距以 ChatGPT 桌面应用为参照，主题颜色继承 netcat。具体度量与视觉稿由 UI 设计会话细化，早先估算的固定尺寸不作为实施依据。
 
 暗色强调色沿用 netcat 网站：品牌主色与高亮文字为 `#00bba7`，选中背景为 `#123b38`，避免额外提亮为浅薄荷色或使用偏灰绿的填充。保留当前中性灰底色；浅色主题不随此次调整变化。HTML 稿与原生调色板保持相同定义。
 
-排版、颜色和组件样式以 `docs/design/aicat-shell.html` 的快照为参照，提取到 `ui/design.css`，桌面适配集中在 `ui/layout.css`。系统字体和等宽字体由浏览器选择平台回退，Retina 不另行放大。
+排版、颜色和组件样式以 `docs/design/aicat-shell.html` 的快照为参照，提取到 `ui/src/design.css`，桌面适配集中在 `ui/src/layout.css`。系统字体和等宽字体由浏览器选择平台回退，Retina 不另行放大。
 
 | 用途 | 字号（DIP）与字重 |
 | --- | --- |

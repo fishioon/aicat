@@ -19,16 +19,15 @@ aicat 使用 MyGo + WebView、go-mitmproxy 和 moejs，从零实现。WebView �
 
 macOS 应用归属由流量 addon 识别。首次记录回环连接时，把客户端及监听端点加入有界后台查询。按两端地址、端口和方向匹配 `lsof` 的 TCP socket；归属不唯一或连接已关闭时留空。应用 bundle 使用 bundle ID 分组，命令行程序使用进程名。记录可选的 `clientApp` 只含名称和 bundle ID，经 Revision 更新并随 UI、HTTP API 和 MCP 的记录返回。
 
-根 `ui/` 放 HTML/CSS/JS 和资源嵌入入口；Go 侧文件结构如下。文件先按职责划分，实际大小不足时可以合并，不为每个类型新增包。
+根 `ui/` 放独立的 Vue 3/TypeScript/Vite 前端和薄资源嵌入入口；Go 侧文件结构如下。文件先按职责划分，实际大小不足时可以合并，不为每个类型新增包。
 
 ```text
 internal/
 ├── app/
 │   ├── app.go
-│   ├── desktop_commands.go
+│   ├── desktop.go
+│   ├── desktop_traffic.go
 │   └── runtime.go
-├── uihost/
-│   └── host.go
 ├── gateway/
 │   ├── gateway.go
 │   ├── options.go
@@ -244,7 +243,7 @@ Watch 的一致性约定如下：
 
 流量 addon 在规则或脚本前复制原始内容，执行后复制提交结果。外层 CONNECT 事件不能误调用户的 HTTP 内容钩子。普通、流式及短路响应都必须得到相应的记录状态，不能只在 `Response` 完整 body 钩子中才收尾。
 
-`internal/uihost` 在后台调用 Watch，先返回原子快照，再每 100ms 合并摘要增量；订阅背压关闭时在同一响应内重新 Watch 恢复。页面通过流式读取更新 Map 和虚拟行。切换选中项时，返回结果要核对请求 ID、记录版本和当前页面请求代次，避免慢查询覆盖新选中项。查询及 UI 提交串行或按请求代次校验，避免较旧列表覆盖新结果。关闭页面时取消订阅，重新打开时重新调用 Watch。
+`internal/app/Desktop.WatchTraffic` 在后台调用 Watch，先返回原子快照，再每 100ms 合并摘要增量；订阅背压关闭时在同一 Channel 内重新 Watch 恢复。页面通过官方 MyGo Channel 更新响应式 Map 和 Vue 虚拟行。切换选中项时，返回结果要核对请求 ID、记录版本和当前页面请求代次，避免慢查询覆盖新选中项。查询及 UI 提交串行或按请求代次校验，避免较旧列表覆盖新结果。关闭页面时取消订阅，重新打开时重新调用 Watch。
 
 UI、查询或 body 读取的延迟不回压代理流量。为了守住内存边界，服务允许在明确记录状态的前提下限制采集；实际网络转发仍按连接自身的背压运行。
 
@@ -281,7 +280,7 @@ UI、查询或 body 读取的延迟不回压代理流量。为了守住内存边
 - 改写前后的 headers 独立；未修改 body 共用引用，发生修改则分别保存原始与实际发送字节。`Response.Proto` 因库未公开而省略，不能伪造为已确认的协议。
 - `Recorder.NewBody`、`AppendBody` 是内存 body 的写入接缝；`Service.Clear` 清空记录但保留编号计数。`Summary.ResponseBytes` 提供列表大小列，避免 UI 为每行读取完整详情。
 - 分页采用数值 `Query.Before`；HTTP `nextPage` 返回下一页的 `before` 值。没有订阅事件 cursor。
-- WebView 界面每 100ms 在 `internal/uihost` 合并变化，通过 NDJSON 同步摘要；详情/正文分别读取；选中详情带请求代次校验。
+- WebView 界面每 100ms 在 `internal/app` 合并变化，通过官方 Channel 同步摘要；详情/正文分别读取；选中详情带请求代次校验。
 - Ready 通过随机路径与响应标记确认当前实例，未把端口可连接当作启动成功。
 - go-mitmproxy 的直通 CONNECT 可能因上游半连接而推迟 `Flow.Done`；addon 同时监听客户端断开作为该条隧道记录的结束边界。库内部等待可能持续到对端关闭或进程退出，尚不能保证同进程反复重建后的全部内部资源释放，待上游修复。
 - 原型 HTTP API 仅只读查询；拒绝未知 authority 和浏览器 Origin。规则/脚本管理与查询通过 `/mcp` 提供，HTTP API 仍只读；重放、导出和持久数据库未实现。

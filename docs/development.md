@@ -4,32 +4,50 @@
 
 本仓库默认在主仓库目录开发；没有用户明确要求，不创建额外 worktree。
 
-根 `go.mod`、`cmd/`、`internal/`、`ui/` 和 `assets/` 是主工程。桌面使用 MyGo + 系统 WebView；CLI 运行相同的 Go 服务。
+根 `go.mod`、`cmd/`、`internal/`、`ui/` 和 `assets/` 是主工程。桌面使用 MyGo + 系统 WebView，前端采用 Vue 3、TypeScript 和 Vite。CLI 运行相同的 Go 业务服务。
 
 | 目录 | 职责 |
 | --- | --- |
-| `ui/` | 框架无关的 HTML、CSS、JS、翻译及 Go 资源嵌入入口；不引入前端运行时或构建器 |
-| `internal/uihost/` | Go 界面接口、流量摘要合并和有界详情读取，不依赖 MyGo |
-| `internal/app/` | 服务装配、界面命令、MyGo 窗口/托盘/剪贴板/系统对话框 |
-| `docs/design/aicat-shell.html` | 本次迁移核对的 HTML 设计稿快照；包含尚未交付的产品方向，不代表所有稿内功能都已实现 |
+| `ui/` | 独立的前端工程、package-lock、Vite/TypeScript 配置及薄 Go embed 入口 |
+| `ui/src/components/` | Vue 单文件组件，按导航、设置、扩展、流量列表与详情拆分 |
+| `ui/src/state/` | 页面状态、历史、筛选、虚拟列表数据与订阅生命周期 |
+| `ui/src/host.ts` | 桌面通信适配，视图经此调用生成的服务客户端 |
+| `ui/src/generated/` | MyGo 从 Go 服务及语言目录生成的代码，不手改 |
+| `internal/app/` | 服务装配、typed Desktop 服务、MyGo 窗口/托盘/剪贴板/系统对话框 |
+| `internal/traffic/` 等业务包 | 业务模型与规则，不依赖 MyGo、Vue 或页面状态 |
+| `docs/design/aicat-shell.html` | HTML 设计稿快照，含尚未交付的产品方向；不代表稿内全部功能已实现 |
 
-`ui/design.css` 直接提取设计稿样式；`ui/layout.css` 承载桌面尺寸和真实数据适配，`ui/style.css` 提供动态列表等基础布局。页面不加载外部 CDN。变更设计稿时同步相应组件样式并复核浅深色截图。
+`ui/src/design.css` 提取设计稿样式；`layout.css` 承载桌面尺寸和真实数据适配，`style.css` 提供动态列表等基础布局。Vue 模板沿用相同结构和 class，不引入改变视觉规范的组件库。页面不加载 CDN。变更设计稿时同步组件并复核浅深色截图。
 
-需要 Go 1.27.3+，本地构建面向 macOS：
+需要 Go 1.27.3+、Node.js 22.12+（本轮以 Node.js 26 验证）及 npm。MyGo Go 模块和 CLI tool 固定为同一提交；UI 依赖由 `ui/package-lock.json` 锁定。TypeScript 使用与当前 vue-tsc 兼容的 5.9 系列。
 
 | 命令 | 产物与行为 |
 | --- | --- |
-| `make build` | WebView 桌面入口 `bin/aicat`，不含自动化插件和 HTTP 预览 |
-| `make cli` | `-tags nogui` 的 `bin/aicat-cli` |
-| `make app` | 未签名的 `build/native/aicat.app`；目录名沿用打包路径，不表示 Native UI |
-| `make verify` | 格式、vet、已有 Go 检查、release 构建、app 打包及 CLI smoke |
-| `make e2e` | race 构建 + WebView/浏览器、HTTP/TLS、规则/插件/MCP 完整验收 |
+| `make bindings` | `go tool mygo generate`，生成 Go 服务对应的 TypeScript 类型与方法 |
+| `make frontend` | 安装锁定依赖、生成接口、严格类型检查、构建 `ui/dist/` |
+| `make build` | 生产桌面入口 `bin/aicat`，不含自动化插件或 HTTP 预览 |
+| `make cli` | `-tags nogui` 的 `bin/aicat-cli`，无需前端依赖 |
+| `make app` | 未签名的 `build/desktop/aicat.app` |
+| `make run` | 构建前端后运行开发桌面入口 |
+| `make verify` | 格式、类型检查、vet、已有 Go 检查、release 构建、app 打包、CLI smoke 及构建验收 |
+| `make e2e-build` | 生成独立验收前端，构建带 race 的桌面与 CLI 验收入口 |
+| `make e2e` | 构建后运行 WebView/浏览器、HTTP/TLS、规则/插件/MCP 完整验收 |
 
-前端资源由 `ui/embed.go` 嵌入。这是 Go embed 必须相对当前包取文件的薄资源入口，页面逻辑不依赖 Go 或 MyGo。更换桌面框架时复用页面和 `uihost` 契约，替换 `internal/app` 中的平台适配即可。
+开发时可在一个终端运行 `npm --prefix ui run dev`，另一个终端运行 `MYGO_DEV_URL=http://127.0.0.1:5173 go run ./cmd/aicat --home <隔离目录>`，在 WebView 中使用 Vite 热更新。首次先执行 `make bindings`。开发 URL 仅对开发二进制生效；生产链接标记优先于 `MYGO_ENV` 和 `MYGO_DEV_URL`。MyGo 配置也保留官方 CLI 的 dev/build 字段，CLI 打包会进行签名，应在明确准备分发时使用。
+
+生产遵循 MyGo 官方的手动构建方式：Vite 输出静态资源，Go embed + `mygo.SetFrontend` 嵌入，链接 `-X github.com/egoist/mygo.production=1` 并使用 `mygo_noinspector`。保留手动打包是为了执行本仓库本地构建不签名的约束。`mygo_noinspector` 不能替代 production 链接标记。首次类型生成前 Make 创建忽略的临时 embed 输入，Vite 构建时清理；不把占位资源或前端源码打进成品。
+
+## 界面接口
+
+Go 的 `Desktop` 是前后端接口的唯一声明：具体方法和 DTO 经 `mygo.Bind` 暴露，`mygo generate` 输出类型客户端，不维护手写字符串命令或重复 DTO。`Desktop.WatchTraffic` 通过官方 `Channel<TrafficBatch>` 推送每 100ms 合并的摘要；正文只在 Raw 展开时读取。`DesktopChanged` 是 typed event，用于失效页面快照，托盘操作也走同一通知。页面没有定时状态轮询。
+
+网关、配置及 OS 初始化在 `App.WhenReady` 后进行。类型生成只运行入口和绑定注册，不能读写 Home、启动 listener 或操作证书/系统代理。
+
+组件和页面状态只引用 `host.ts` 的方法与生成的 DTO。未来迁移桌面框架时可复用 Vue 页面及 Go 业务包，替换 host 适配、生成器和 `internal/app` 中的平台装配；不是完全零成本。扩展自身 UI 的权限与隔离需要另行设计，不直接信任第三方 HTML。
 
 ## 验证流程
 
-日常功能实现和 bug 修复只验证受影响的流程。整轮开发结束、准备统一验收，或用户明确要求全量回归时，再运行完整检查：
+日常功能只验证受影响的流程。整轮开发结束、准备统一验收时运行：
 
 ```sh
 npm --prefix e2e ci
@@ -37,53 +55,48 @@ make verify
 make e2e
 ```
 
-浏览器验收使用 Playwright 1.58.2。macOS 默认使用 `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`，也可通过 `AICAT_CHROMIUM` 指向已有浏览器。依赖位于别处时，`AICAT_PLAYWRIGHT` 可指定已安装的 `playwright` 包路径，无须重复安装。全量验收不下载浏览器。
+不在实现后补写单元测试；确需隔离测试先列出失败方式。构建验收 `e2e/build.py` 使用生产二进制在占用端口下生成类型，确认没有创建数据 Home，核对 DTO、参数约束、生产资源和包体积，工件输出到 `build/build-e2e-*/`。桌面验收还实际断言 production 模式及忽略开发 URL。
 
-若 `make` 不可用，使用 Makefile 的相同 tags、`-trimpath` 和 release `-ldflags`，执行 `gofmt`、`go vet ./...`、`go test ./...`、桌面/CLI 构建、打包及 CLI `--version`、`serve --help`。不在实现后补写单元测试；有必要的隔离测试先列出失败方式。
+Playwright 使用锁定版本和已安装的 Chrome，不下载浏览器。macOS 默认浏览器路径为 `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`；可用 `AICAT_CHROMIUM` 改写，`AICAT_PLAYWRIGHT` 可指定已有 playwright 包路径。
 
 定向入口：
 
 ```sh
-# 构建测试运行体；OS 操作仍通过测试适配器隔离
- go build -race -tags e2e -o bin/aicat-e2e ./cmd/aicat
- go build -race -tags nogui,e2e -o bin/aicat-rules-e2e ./cmd/aicat
-
-# 只运行某组受影响的验收
+make e2e-build
 python3 e2e/prototype.py --only desktop
 python3 e2e/prototype.py --only transport
 python3 e2e/prototype.py --only rules
 ```
 
-`e2e/prototype.py` 是完整验收编排入口，未指定 `--only` 时三组必须全部通过。`--output` 指定工件根目录，默认 `build/full-e2e-*/`。旧 Native 控件树用例由当前 WebView 用例替代，不能继续作为桌面验收入口。
+`e2e/prototype.py` 不带 `--only` 时三组必须全部通过；`--output` 指定工件根目录，默认 `build/full-e2e-*/`。
 
 | 组 | 实际验证 |
 | --- | --- |
-| desktop | 正式桌面入口与真实 WKWebView；同一嵌入页面在 Chromium 中使用键盘、点击和滚轮；有界列表、搜索、Header/Raw/复制、cURL、域名树、历史、扩展/更多/固定、偏好、监听与配置失败、证书与系统代理、隐藏/恢复及退出/重启 |
-| design | 与仓库内 HTML 稿比较标题栏、导航、侧栏、工具栏、表格、详情栏、复制按钮和 Raw 行号尺寸；比较浅深色强调色，保存稿件与实际页面截图 |
-| transport | CLI 的 loopback、通配、IPv6 HTTP/TLS MITM，以及 CA 跨进程重启保留 |
-| rules | 规则/插件管理、MCP 认证与 schema、四阶段 HTTP/HTTPS 改写、前后快照、失败回滚、时限/内存/并发、大 body/SSE、自定义响应、重启生效及采集独立性 |
+| desktop | 真实 MyGo WKWebView/Channel 与原生生命周期；同一前端在 Chromium 中的键盘/点击/滚轮；有界列表、搜索、Header/Raw/复制、cURL、域名树、历史、扩展/更多/固定、偏好、监听与配置失败、证书与系统代理、隐藏/恢复/退出/重启 |
+| design（desktop 内） | 与 HTML 稿比较标题栏、导航、侧栏、工具栏、表格、详情、复制和 Raw 行号尺寸；比较浅深色强调色，保存稿件和实际截图 |
+| transport | loopback、通配、IPv6 HTTP/TLS MITM 与 CA 跨进程重启保留 |
+| rules | 规则/插件、MCP 认证与 schema、四阶段 HTTP/HTTPS 改写、前后快照、失败回滚、时限/内存/并发、大 body/SSE、自定义响应、重启生效与采集独立性 |
 
-工件包括总报告、子报告、日志、源码与二进制 hash、依赖信息、配置和实际截图。画面验收需要 macOS 解锁；锁屏时不得把缓存截图或未运行用例报告为通过。Chromium 的输入测试与 WKWebView 的 DOM/原生壳验证分别记录，不能把前者称作 WKWebView 指针事件覆盖。
+工件含报告、日志、源码与二进制 hash、依赖、配置和截图。画面验收需要 macOS 解锁；锁屏时不能把缓存截图或未运行用例报告为通过。Chromium 输入与 WKWebView DOM/原生壳覆盖分别记录，不把前者称为 WKWebView 指针事件覆盖。
 
 ## 隔离与权限
 
-smoke 和 E2E 必须使用 `--home <隔离目录>`，不写真实 `~/.aicat/`，不修改真实 Keychain 或 system proxy。测试只替换 OS 边界和保存对话框；配置、证书文件、HTTP/TLS、窗口、托盘、剪贴板与服务保持真实。
+smoke 和 E2E 必须使用隔离 `--home`，不写真实 `~/.aicat/`，不修改真实 Keychain 或 system proxy。测试只替换 OS 边界和保存对话框，其他服务、配置、证书文件、HTTP/TLS、窗口、托盘和剪贴板保持真实。
 
-正式界面使用 `desktopapi://localhost` 私有协议调用 Go handler。默认构建不开 HTTP 管理预览，不把桌面操作暴露到 9981；9981 的 API/MCP 继续执行原有访问限制。`e2e` tag 下才允许通过 `AICAT_E2E_PREVIEW` 创建随机 loopback 预览，URL 文件为 0600，接口要求随机 token，拒绝跨源 Origin。
+正式桌面通过 MyGo 内建绑定通信，不增加 HTTP 管理 listener。9981 的 API/MCP 继续执行原有访问限制。仅 `e2e` tag 编译随机 loopback 浏览器预览；它通过反射调用同一个 Desktop 服务，桥接相同的摘要和状态通知。URL 文件为 0600，RPC/事件要求随机 token 并拒绝跨源 Origin。预览 JavaScript 仅进入 `ui/dist-e2e/`；正式 `ui/dist/` 与发布二进制均不包含此适配。
 
-安装证书仍由用户点击后直接进入 macOS 授权。删除证书和启用系统代理保留相应确认流程；退出恢复失败则保留网关运行并显示恢复错误，供用户重试。
+安装证书仍由用户点击后进入 macOS 授权；删除证书和启用系统代理保留确认。退出恢复失败则保留网关并显示错误供重试。
 
 ## 本地构建与已安装应用
 
-本地 app 构建不签名，`make verify` 不包含签名步骤，也不覆盖已安装应用。不得将本地未签名产物直接覆盖安装。
+本地 app 构建不签名，`make verify` 不包含签名或安装，不覆盖已安装应用。不得将本地未签名产物直接覆盖安装。
 
-更新已获用户授权的 macOS 安装时：
+更新已获授权的 macOS 安装时，先确认现有签名证书及 designated requirement；沿用原证书签署新 app 并核对 requirement 一致后才覆盖。缺少原证书或无法保持身份时，说明阻塞，不换成未签名或其他身份的包。
 
-1. 确认目标机现有 app 的签名证书及 designated requirement。
-2. 沿用目标机原有证书签署完整新 app。
-3. 在覆盖前核对新旧包 designated requirement 一致，保持系统授权身份。
-4. 只有核对通过才覆盖安装；缺少原证书或无法保持身份时，说明阻塞，不以未签名或不同身份的包替代。
+## 参考
 
-## 历史可行性实验
+- [MyGo frontend 与手动 embed](https://mygo.egoist.dev/docs/frontend)
+- [绑定、生成客户端、事件和 Channel](https://mygo.egoist.dev/docs/bindings)
+- [Vue 的 TypeScript 工程配置](https://vuejs.org/guide/typescript/overview.html)
 
-2026-11-11 迁移前的流量页原型已在 WKWebView 与 Chrome 跑通；其主进程 RSS 不含已确认归属的 WebKit XPC 内存，不能用来证明整应用更省内存。当时相同 release 参数下，Native `.app` 约 22.08 MiB、ZIP 8.88 MiB，局部 WebView 原型 `.app` 约 18.54 MiB、ZIP 7.38 MiB；后者未完全对齐功能，不代表本次完整迁移后的最终体积。旧工件 `build/webview-probe-*/`、`build/webview-size/` 仅保留本机参考。原型入口已由正式桌面实现替代。
+历史内存实验的主进程 RSS 没有完整包含 WebKit XPC，不能证明整应用更省内存。当前构建验收记录成品体积；整应用内存需要在一致场景下汇总主进程与归属的 WebView 子进程，不能用前端资源大小替代。

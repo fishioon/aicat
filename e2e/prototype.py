@@ -44,7 +44,7 @@ def main():
                 raise RuntimeError(f'{name} failed: {sub}')
         report['passed'] = True
     finally:
-        report['sources'] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for folder in ('cmd', 'internal', 'e2e') for p in Path(folder).rglob('*') if p.is_file() and p.suffix in ('.go', '.js', '.cjs', '.css', '.html', '.py', '.json') and 'node_modules' not in p.parts}
+        report['sources'] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for folder in ('cmd', 'internal', 'ui', 'e2e') for p in Path(folder).rglob('*') if p.is_file() and p.suffix in ('.go', '.js', '.ts', '.vue', '.cjs', '.css', '.html', '.py', '.json') and not {'node_modules', 'dist', 'dist-e2e'}.intersection(p.parts)}
         for name, binary in [('desktop', args.binary), ('cli', args.cli)]:
             path = Path(binary)
             if path.exists():

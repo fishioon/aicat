@@ -44,3 +44,7 @@ __pycache__/
 
 # Browser acceptance dependencies
 /e2e/node_modules/
+
+/ui/node_modules/
+/ui/dist/
+/ui/dist-e2e/

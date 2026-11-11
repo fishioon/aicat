@@ -16,10 +16,15 @@ import (
 var ErrCanceled = errors.New("已取消证书授权")
 
 type Status struct {
-	Name, Fingerprint           string
-	NotBefore, NotAfter         time.Time
-	Trusted, Expired, Supported bool
-	Exists, PendingDeletion     bool
+	Name            string    `json:"name"`
+	Fingerprint     string    `json:"fingerprint"`
+	NotBefore       time.Time `json:"notBefore"`
+	NotAfter        time.Time `json:"notAfter"`
+	Trusted         bool      `json:"trusted"`
+	Expired         bool      `json:"expired"`
+	Supported       bool      `json:"supported"`
+	Exists          bool      `json:"exists"`
+	PendingDeletion bool      `json:"pendingDeletion"`
 }
 
 func Inspect(ctx context.Context, path string) (Status, error) {

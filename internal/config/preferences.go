@@ -8,8 +8,8 @@ import (
 
 // Preferences is the app-wide presentation state in the sole aicat.yaml config.
 type Preferences struct {
-	Language string `yaml:"language"`
-	Theme    string `yaml:"theme"`
+	Language string `yaml:"language" json:"language"`
+	Theme    string `yaml:"theme" json:"theme"`
 }
 
 func (p Preferences) Validate() error {

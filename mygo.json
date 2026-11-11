@@ -4,9 +4,14 @@
   "identifier": "ai.netcat.aicat",
   "version": "0.1.0",
   "main": "./cmd/aicat",
-  "out": "build/native",
+  "out": "build/desktop",
   "i18n": {
     "dir": "internal/app/locales",
     "source": "zh-Hans"
-  }
+  },
+  "devUrl": "http://127.0.0.1:5173",
+  "devCommand": "npm --prefix ui run dev",
+  "buildCommand": "npm --prefix ui run build",
+  "frontendDist": "ui/dist",
+  "bindings": "ui/src/generated/mygo.ts"
 }
