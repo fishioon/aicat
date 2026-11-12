@@ -349,11 +349,7 @@ const snippet = computed(
                 {{ saved.models.error }}
               </details>
               <p v-if="!saved.responses">
-                {{
-                  t(
-                    "这个供应商不支持 Responses 接口，它的模型不会提供给 Codex。",
-                  )
-                }}
+                {{ t("这个供应商不支持 Responses 接口。") }}
               </p>
               <ul v-if="saved.models.models.length">
                 <li

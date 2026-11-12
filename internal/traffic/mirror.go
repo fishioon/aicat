@@ -7,7 +7,7 @@ import (
 )
 
 // Mirror records one exchange that aicat forwards itself, outside the proxy
-// pipeline: a provider route or the Codex entry. A nil Mirror records
+// pipeline: a provider route or an extension. A nil Mirror records
 // nothing; every method accepts it.
 type Mirror struct {
 	r    *Recorder

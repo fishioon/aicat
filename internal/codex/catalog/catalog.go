@@ -91,33 +91,21 @@ func (c *Catalog) Stale() bool {
 	return err != nil || time.Since(st.ModTime()) > staleAfter
 }
 
-// Refresh downloads the catalog in the background when it is stale.
-func (c *Catalog) Refresh() {
-	if !c.Stale() {
-		return
-	}
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-		defer cancel()
-		if err := c.Sync(ctx); err != nil {
-			log.Printf("models.dev: %v", err)
-		}
-	}()
-}
-
-// KeepFresh looks every hour whether the catalog is wanted and stale, and
-// downloads it then, until ctx ends.
-func (c *Catalog) KeepFresh(ctx context.Context, wanted func() bool) {
+// KeepFresh downloads the catalog now if it is stale, then looks again every
+// hour, until ctx ends; a download in flight ends with it.
+func (c *Catalog) KeepFresh(ctx context.Context) {
 	tick := time.NewTicker(time.Hour)
 	defer tick.Stop()
 	for {
+		if c.Stale() {
+			if err := c.Sync(ctx); err != nil && ctx.Err() == nil {
+				log.Printf("models.dev: %v", err)
+			}
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			if wanted() {
-				c.Refresh()
-			}
 		}
 	}
 }

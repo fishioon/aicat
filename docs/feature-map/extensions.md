@@ -29,11 +29,11 @@ Preconditions:
 - **恢复。** 再点 `#feature-traffic`，在齿轮菜单点击“打开流量”，发送 `/feature-resumed`，列表与 API 出现新记录。先在流量页点 `#recording` 暂停，再关闭和开启功能，回到流量页应仍暂停；手动继续后才采集新请求。
 - **固定。** 点击 `#nav-more`，点击 `#popup [data-action="pin-navigation"]` 取消固定；流量功能仍启用，导航按钮消失。再次打开“更多”，点击角色为 `menuitem`、名称精确为“流量”的行，仍能进入流量；再点图钉恢复。只读核对 `navigation.pinned`，重启后仍保持。
 - **入口与占位。** 从扩展详情点 `#extension-proxy-settings` 应进入代理设置。返回扩展，点 `#extension-community`，主面板显示“即将推出”，没有安装操作；展开“已安装”显示暂无已安装社区扩展。
-- **重启。** 保存流量关闭状态后重启同一 Home，启动应进入概览且导航栏没有流量；再启用并恢复原固定配置。检查 `aicat.yaml` 中 `features.traffic` 与界面一致。
+- **重启。** 保存流量关闭状态后重启同一 Home，启动应进入概览且导航栏没有流量；再启用并恢复原固定配置。检查 `aicat.yaml` 中 `extensions.traffic.enabled` 与界面一致。
 
 ## Gotchas
 
-- 当前 `features.traffic` 缺省开启；产品方向中的默认关闭还未实现。
+- 当前 `extensions.traffic.enabled` 缺省开启；产品方向中的默认关闭还未实现。
 - 临时暂停不跨重启保留；功能开关与导航固定持久化。重新启用功能保留本次会话之前的暂停状态。
 - 关闭流量不关闭代理、规则改写或只读 API；现有记录仍受容量淘汰与清空影响。
 - “更多”只有已启用模块可固定；功能停用期间不显示其入口，重新启用恢复原固定位置。

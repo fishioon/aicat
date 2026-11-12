@@ -51,22 +51,35 @@ func update(home string, edit func(*yaml.Node) error) error {
 	return os.Rename(f.Name(), path)
 }
 
-func SetTrafficEnabled(home string, enabled bool) error {
-	return setFeature(home, "traffic", enabled)
-}
-
-func SetCodexEnabled(home string, enabled bool) error {
-	return setFeature(home, "codex", enabled)
-}
-
-func setFeature(home, name string, enabled bool) error {
+// SetExtensionEnabled saves an extension's switch as extensions.<id>.enabled,
+// keeping the rest of its section.
+func SetExtensionEnabled(home, id string, enabled bool) error {
+	if id == "" {
+		return fmt.Errorf("invalid extension id %q", id)
+	}
 	return update(home, func(root *yaml.Node) error {
-		features := value(root, "features", yaml.MappingNode)
-		if features.Kind != yaml.MappingNode {
-			return fmt.Errorf("features must contain a mapping")
+		extensions := mapping(value(root, "extensions", yaml.MappingNode))
+		if extensions == nil {
+			return fmt.Errorf("extensions must contain a mapping")
 		}
-		return value(features, name, yaml.ScalarNode).Encode(enabled)
+		section := mapping(value(extensions, id, yaml.MappingNode))
+		if section == nil {
+			return fmt.Errorf("extensions.%s must contain a mapping", id)
+		}
+		return value(section, "enabled", yaml.ScalarNode).Encode(enabled)
 	})
+}
+
+// mapping is a node as a mapping, an empty value turned into one; nil if it
+// holds something else.
+func mapping(n *yaml.Node) *yaml.Node {
+	if n.Kind == yaml.ScalarNode && (n.Tag == "!!null" || n.Value == "") {
+		*n = yaml.Node{Kind: yaml.MappingNode}
+	}
+	if n.Kind != yaml.MappingNode {
+		return nil
+	}
+	return n
 }
 
 func SetSystemProxyEnabled(home string, enabled bool) error {

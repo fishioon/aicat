@@ -16,6 +16,7 @@ import (
 	"github.com/egoist/mygo/transfer"
 	"github.com/fishioon/aicat/internal/certificate"
 	"github.com/fishioon/aicat/internal/config"
+	"github.com/fishioon/aicat/internal/extension"
 	"github.com/fishioon/aicat/internal/gateway"
 	"github.com/fishioon/aicat/internal/listenaddr"
 	"github.com/fishioon/aicat/internal/provider"
@@ -32,7 +33,7 @@ type DesktopState struct {
 	Preferences      config.Preferences  `json:"preferences"`
 	Language         string              `json:"language"`
 	TrafficEnabled   bool                `json:"trafficEnabled"`
-	CodexEnabled     bool                `json:"codexEnabled"`
+	Extensions       []extension.State   `json:"extensions"`
 	Recording        bool                `json:"recording"`
 	NavigationPins   []string            `json:"navigationPins"`
 	PinnedDomains    []string            `json:"pinnedDomains"`
@@ -71,7 +72,7 @@ func (d *Desktop) State(ctx context.Context) (DesktopState, error) {
 		a.checkedAt = time.Now()
 	}
 	addresses, _ := listenaddr.Addresses()
-	return DesktopState{Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, CodexEnabled: a.r.codex.Enabled(), Recording: a.recording, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Providers: a.r.providers.List(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
+	return DesktopState{Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, Extensions: a.r.extensions.List(), Recording: a.recording, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Providers: a.r.providers.List(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
 }
 func (d *Desktop) mutate(ctx context.Context, operation func() error) error {
 	a := d.app
@@ -108,26 +109,18 @@ func (d *Desktop) SetPreferences(ctx context.Context, p config.Preferences) erro
 		return nil
 	})
 }
-func (d *Desktop) SetTrafficEnabled(ctx context.Context, enabled bool) error {
-	return d.mutate(ctx, func() error {
-		a := d.app
-		if err := config.SetTrafficEnabled(a.r.home, enabled); err != nil {
-			return err
-		}
-		a.enabled = enabled
-		a.r.capture.SetRecording(a.enabled && a.recording)
-		a.updateTray()
-		return nil
-	})
-}
 
-// SetCodexEnabled turns the Codex extension on or off. It decrypts Codex's
-// HTTPS to its backend, so it is turned on only once the root certificate is
-// trusted; Codex would otherwise refuse the connection.
-func (d *Desktop) SetCodexEnabled(ctx context.Context, enabled bool) error {
+// SetExtensionEnabled turns a built-in extension on or off. One that decrypts
+// HTTPS is turned on only once the root certificate is trusted; its client
+// would otherwise refuse the connection.
+func (d *Desktop) SetExtensionEnabled(ctx context.Context, id string, enabled bool) error {
 	return d.mutate(ctx, func() error {
 		a := d.app
-		if enabled {
+		known, needsTrust := a.r.extensions.Known(id)
+		if !known {
+			return errors.New("没有这个扩展：" + id)
+		}
+		if enabled && needsTrust {
 			status, err := a.r.connection.inspect(ctx)
 			if err != nil {
 				return err
@@ -136,14 +129,13 @@ func (d *Desktop) SetCodexEnabled(ctx context.Context, enabled bool) error {
 				return errors.New("请先安装并信任本机证书")
 			}
 		}
-		if err := config.SetCodexEnabled(a.r.home, enabled); err != nil {
+		if err := config.SetExtensionEnabled(a.r.home, id, enabled); err != nil {
 			return err
 		}
-		a.r.codex.SetEnabled(enabled)
-		if enabled {
-			a.r.catalog.Refresh()
+		if id == trafficExtension.ID {
+			a.setTraffic(enabled)
 		}
-		return nil
+		return a.r.extensions.Set(id, enabled)
 	})
 }
 
@@ -303,3 +295,11 @@ func (d *Desktop) ClearTraffic(ctx context.Context) error {
 
 // trafficViews counts active native channel subscriptions for diagnostics.
 var trafficViews atomic.Int32
+
+// setTraffic applies the traffic extension's switch: capture stops or
+// resumes, keeping the session's pause.
+func (a *application) setTraffic(enabled bool) {
+	a.enabled = enabled
+	a.r.capture.SetRecording(a.enabled && a.recording)
+	a.updateTray()
+}

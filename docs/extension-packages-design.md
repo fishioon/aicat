@@ -32,7 +32,7 @@ header-label.aicat.zip
 {
   "manifestVersion": 1,
   "apiVersion": 1,
-  "id": "com.example.header-label",
+  "id": "example.header-label",
   "name": "Header Label",
   "version": "1.0.0",
   "description": "为匹配请求添加调试标记",
@@ -48,7 +48,7 @@ header-label.aicat.zip
 }
 ```
 
-`manifestVersion` 负责包格式兼容，`apiVersion` 继续表示现有脚本 SDK v1。`id` 沿用当前 1–64 字符的规则，首字符为字母或数字，其余允许字母、数字、点、下划线和连字符。新包保留 `builtin.` 前缀给内置能力；相同 ID 在已安装包和既有本地脚本之间不得冲突。发布包的 `version` 使用完整 SemVer；既有本地脚本保留原有版本字符串。
+`manifestVersion` 负责包格式兼容，`apiVersion` 继续表示现有脚本 SDK v1。`id` 沿用当前 1–64 字符的规则，首字符为字母或数字，其余允许字母、数字、点、下划线和连字符；发布包的 ID 写作「发布者.名称」，必须含一个点。内置扩展的 ID 不含点（如 `traffic`、`codex`），两者因此不会冲突，不另设 `builtin.` 前缀；相同 ID 在已安装包和既有本地脚本之间不得冲突。发布包的 `version` 使用完整 SemVer；既有本地脚本保留原有版本字符串。
 
 首版必填字段为两个版本字段、`id`、`name`、`version`、`main` 与 `contributes.rewrite.hooks`；展示字段可选。`main` 只允许 `index.js` 或 `index.ts`，入口最多 512 KiB。清单最多 64 KiB。未知能力、未知控制字段、不支持的格式或 SDK 版本均拒绝安装，不静默忽略。展示文本只作为文本处理。
 
@@ -88,16 +88,15 @@ header-label.aicat.zip
 
 ```yaml
 extensions:
-  installed:
-    com.example.header-label:
-      enabled: false
-      version: 1.0.0
-      artifact: sha256:<64hex>
-      source:
-        kind: github-release
-        repository: example/header-label
-        tag: v1.0.0
-        asset: header-label.aicat.zip
+  example.header-label:
+    enabled: false
+    version: 1.0.0
+    artifact: sha256:<64hex>
+    source:
+      kind: github-release
+      repository: example/header-label
+      tag: v1.0.0
+      asset: header-label.aicat.zip
 
 rewrite:
   enabled: true
@@ -109,7 +108,7 @@ rewrite:
         hosts: [example.com]
         methods: [GET]
         pathPrefix: /api/
-      plugin: com.example.header-label
+      plugin: example.header-label
       settings:
         label: debug
 ```
@@ -120,7 +119,7 @@ rewrite:
 
 停用扩展保留规则与设置，规则展示“扩展已停用”并在新的运行快照中跳过。卸载前必须移除所有保存的规则引用，包括已关闭的规则，沿用现有插件删除约束。安装、启用、存在生效规则、成功执行过是不同状态，界面分别说明。
 
-内置流量仍由 `features.traffic` 控制，不写进社区安装记录，也不打包成脚本。统一展示扩展列表即可，不要求内置 Go 能力和社区 JS 包使用同一种运行机制。
+内置扩展的节只有 `enabled`（如 `extensions.traffic`），没有版本与来源，也不打包成脚本。统一展示扩展列表即可，不要求内置 Go 能力和社区 JS 包使用同一种运行机制。
 
 ## 安装与版本切换
 

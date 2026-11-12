@@ -383,9 +383,11 @@ function collect(resolve) {
     const shot = (name) =>
       page.screenshot({ path: path.join(root, name + ".png") });
     const state = () => page.evaluate(() => window.desktop.state());
+    const codexOn = (st) =>
+      !!st.extensions.find((x) => x.id === "codex")?.enabled;
 
     // Off by default: the local entry refuses and chatgpt.com is not decrypted.
-    assert.equal((await state()).codexEnabled, false);
+    assert.equal(codexOn(await state()), false);
     assert.equal(
       (
         await call(port, "/backend-api/codex/models", {
@@ -404,7 +406,9 @@ function collect(resolve) {
       ).issuer,
       "Codex E2E Root",
     );
-    check("off by default: local entry refused, chatgpt.com tunnelled");
+    assert.equal(catalogHits.length, 0);
+    assert.ok(!fs.existsSync(path.join(home, "cache", "models-dev.json")));
+    check("off by default: local entry refused, chatgpt.com tunnelled, nothing downloaded");
 
     // Turning it on asks for the certificate first, then turns it on.
     await page.locator("#nav-extensions").click();
@@ -415,14 +419,14 @@ function collect(resolve) {
     await page.locator("#dialog").getByText("需要先安装证书").waitFor();
     await shot("codex-certificate-prompt-light");
     await page.locator("#dialog button").filter({ hasText: "取消" }).click();
-    assert.equal((await state()).codexEnabled, false);
+    assert.equal(codexOn(await state()), false);
     await page.locator("#feature-codex").click();
     await page
       .locator("#dialog button")
       .filter({ hasText: "安装证书" })
       .click();
-    await wait(async () => (await state()).codexEnabled);
-    assert.match(config(), /codex: true/);
+    await wait(async () => codexOn(await state()));
+    assert.match(config(), /codex:\n\s+enabled: true/);
     await page.locator("#codex-status").waitFor();
     check("enabling prompts for the certificate, then enables and persists");
 
@@ -715,8 +719,8 @@ function collect(resolve) {
 
     // Off again: local entry refused, new tunnels to the backend not decrypted.
     await page.locator("#feature-codex").click();
-    await wait(async () => !(await state()).codexEnabled);
-    assert.match(config(), /codex: false/);
+    await wait(async () => !codexOn(await state()));
+    assert.match(config(), /codex:\n\s+enabled: false/);
     assert.equal(
       (
         await call(port, "/backend-api/codex/models", {

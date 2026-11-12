@@ -15,8 +15,9 @@
 | `ui/src/generated/` | MyGo 从 Go 服务及语言目录生成的代码，不手改 |
 | `internal/app/` | 服务装配、typed Desktop 服务、MyGo 窗口/托盘/剪贴板/系统对话框 |
 | `internal/provider/` | 供应商密钥存储（Home 下 0600 的 `providers.json`）、模型列表同步（`provider-models.json`）与带密钥的转发路由 |
-| `internal/codex/` | Codex 扩展：合并 Codex 模型列表、按模型分流 ChatGPT 与供应商；`internal/gateway/addons/codex/` 是它的解密入口 |
-| `internal/catalog/` | models.dev 目录的本地副本与按模型 ID 的查询 |
+| `internal/extension/` | 内置扩展的登记与启停；`internal/app/extensions.go` 是唯一的登记处 |
+| `internal/codex/` | Codex 扩展：合并 Codex 模型列表、按模型分流 ChatGPT 与供应商、解密入口；`catalog/` 是 models.dev 目录的本地副本与查询 |
+| `ui/src/extensions/` | 扩展页里各扩展自定义的详情与操作，按目录名（扩展 ID）自动加载，不需登记 |
 | `internal/traffic/` 等业务包 | 业务模型与规则，不依赖 MyGo、Vue 或页面状态 |
 | `docs/design/aicat-redesign.html` | HTML 设计稿，含尚未交付的产品方向（如用量图表）；不代表稿内全部功能已实现 |
 

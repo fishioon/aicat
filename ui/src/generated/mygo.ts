@@ -40,7 +40,7 @@ export interface DesktopState {
   preferences: Preferences;
   language: string;
   trafficEnabled: boolean;
-  codexEnabled: boolean;
+  extensions: ExtensionState[];
   recording: boolean;
   navigationPins: string[];
   pinnedDomains: string[];
@@ -68,6 +68,34 @@ export interface Execution {
 export interface ExecutionLog {
   level: string;
   message: string;
+}
+
+/** State is a registered extension and whether it is on. */
+export interface ExtensionState {
+  /**
+   * ID names its section in aicat.yaml (extensions.<ID>). A built-in's ID
+   * has no dot; a community package's is publisher.name.
+   */
+  id: string;
+  /**
+   * Name, Summary, Lede and Categories are shown on the extensions page,
+   * in the source language; the page translates them.
+   */
+  name: string;
+  summary: string;
+  lede: string;
+  categories: string[];
+  /**
+   * NeedsTrust: the extension decrypts HTTPS, so it is turned on only once
+   * the root certificate is trusted.
+   */
+  needsTrust: boolean;
+  /**
+   * Restart says what must be restarted for turning it on or off to take
+   * full effect, if anything.
+   */
+  restart?: string;
+  enabled: boolean;
 }
 
 export type Header = Record<string, string[]>;
@@ -295,19 +323,19 @@ export const Desktop = {
   saveProvider(in_: Input): Promise<string> {
     return call("Desktop.SaveProvider", in_);
   },
-  /**
-   * SetCodexEnabled turns the Codex extension on or off. It decrypts Codex's
-   * HTTPS to its backend, so it is turned on only once the root certificate is
-   * trusted; Codex would otherwise refuse the connection.
-   */
-  setCodexEnabled(enabled: boolean): Promise<void> {
-    return call("Desktop.SetCodexEnabled", enabled);
-  },
   setDecryptionDomain(host: string, enabled: boolean): Promise<void> {
     return call("Desktop.SetDecryptionDomain", host, enabled);
   },
   setDomainPins(values: string[]): Promise<void> {
     return call("Desktop.SetDomainPins", values);
+  },
+  /**
+   * SetExtensionEnabled turns a built-in extension on or off. One that decrypts
+   * HTTPS is turned on only once the root certificate is trusted; its client
+   * would otherwise refuse the connection.
+   */
+  setExtensionEnabled(id: string, enabled: boolean): Promise<void> {
+    return call("Desktop.SetExtensionEnabled", id, enabled);
   },
   setListener(address: string): Promise<void> {
     return call("Desktop.SetListener", address);
@@ -324,9 +352,6 @@ export const Desktop = {
   },
   setSystemProxy(enabled: boolean): Promise<void> {
     return call("Desktop.SetSystemProxy", enabled);
-  },
-  setTrafficEnabled(enabled: boolean): Promise<void> {
-    return call("Desktop.SetTrafficEnabled", enabled);
   },
   /** State reads the current settings and OS status. It starts no services. */
   state(): Promise<DesktopState> {

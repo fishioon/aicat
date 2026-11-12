@@ -20,12 +20,10 @@ type Config struct {
 	SystemProxy struct {
 		Enabled bool `yaml:"enabled"`
 	} `yaml:"systemProxy"`
-	Features struct {
-		Traffic bool `yaml:"traffic"`
-		// Codex: the built-in Codex extension, off unless the user turns it on.
-		Codex bool `yaml:"codex"`
-	} `yaml:"features"`
-	Gateway struct {
+	// Extensions holds each extension's section by its ID: its switch now,
+	// its own settings later.
+	Extensions map[string]Extension `yaml:"extensions"`
+	Gateway    struct {
 		Addr              string   `yaml:"addr"`
 		InterceptHosts    []string `yaml:"interceptHosts"`
 		BufferedBodyLimit int64    `yaml:"bufferedBodyLimit"`
@@ -38,11 +36,21 @@ type Config struct {
 	} `yaml:"traffic"`
 }
 
+// Extension is an extension's section in aicat.yaml.
+type Extension struct {
+	// Enabled is off unless the user turns it on; traffic alone is on by
+	// default.
+	Enabled bool `yaml:"enabled"`
+}
+
+// ExtensionEnabled reports whether the extension of this ID is turned on.
+func (c Config) ExtensionEnabled(id string) bool { return c.Extensions[id].Enabled }
+
 func Load(home string) (Config, error) {
 	var c Config
 	c.UI = Preferences{Language: "system", Theme: "system"}
 	c.Navigation.Pinned = []string{"traffic"}
-	c.Features.Traffic = true
+	c.Extensions = map[string]Extension{"traffic": {Enabled: true}}
 	c.Gateway.Addr = "127.0.0.1:9981"
 	c.Gateway.BufferedBodyLimit = 1 << 20
 	c.Traffic.MaxRecords = 2000
@@ -63,6 +71,13 @@ func Load(home string) (Config, error) {
 	}
 	if err != nil {
 		return c, fmt.Errorf("read %s: %w", path, err)
+	}
+	if _, ok := c.Extensions["traffic"]; !ok {
+		// an empty extensions section still leaves traffic on
+		if c.Extensions == nil {
+			c.Extensions = map[string]Extension{}
+		}
+		c.Extensions["traffic"] = Extension{Enabled: true}
 	}
 	if err := c.UI.Validate(); err != nil {
 		return c, err

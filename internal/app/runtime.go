@@ -3,13 +3,11 @@ package app
 import (
 	"context"
 	"errors"
-	"github.com/fishioon/aicat/internal/catalog"
 	"github.com/fishioon/aicat/internal/certificate"
-	"github.com/fishioon/aicat/internal/codex"
 	"github.com/fishioon/aicat/internal/config"
+	"github.com/fishioon/aicat/internal/extension"
 	"github.com/fishioon/aicat/internal/gateway"
 	"github.com/fishioon/aicat/internal/gateway/addons/api"
-	codexdoor "github.com/fishioon/aicat/internal/gateway/addons/codex"
 	capture "github.com/fishioon/aicat/internal/gateway/addons/traffic"
 	"github.com/fishioon/aicat/internal/mcpserver"
 	"github.com/fishioon/aicat/internal/provider"
@@ -44,8 +42,7 @@ type runtime struct {
 	connection            *connection
 	rules                 *rewrite.Service
 	providers             *provider.Store
-	codex                 *codex.Handler
-	catalog               *catalog.Catalog
+	extensions            *extension.Host
 }
 
 func start(ctx context.Context, o Options) (*runtime, error) {
@@ -92,36 +89,36 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 	}
 	models := provider.NewHandler(providers, service.Recorder(), addon.Recording)
 	endpoints.Handle(provider.Mount, models)
-	modelsDev := catalog.Open(filepath.Join(o.Home, "cache", "models-dev.json"), modelsDevURL())
-	codexHandler, err := codex.New(codex.Options{Backend: codexBackend(), Providers: providers, Forward: models, Catalog: modelsDev, Recorder: service.Recorder(), Recording: addon.Recording})
+	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	extensions, err := extension.New(runCtx, extension.Env{Home: o.Home, Providers: providers, Forward: models, Recorder: service.Recorder(), Recording: addon.Recording}, builtins)
 	if err != nil {
+		cancel()
 		service.Close()
 		return nil, err
 	}
-	codexHandler.SetEnabled(cfg.Features.Codex)
-	codexAddon := codexdoor.New(codexHandler)
-	endpoints.Handle(codex.Path+"/", codexHandler)
+	extensions.Mount(endpoints)
 	endpoints.Handle("/", api.Handler(service))
-	addon.SetRecording(cfg.Features.Traffic)
+	addon.SetRecording(cfg.ExtensionEnabled("traffic"))
 	policy := newInterception(o.Home, cfg.Gateway.InterceptHosts)
 	intercept := func(req *http.Request) bool {
-		return ca.Available() && (policy.shouldIntercept(req) || codexAddon.Intercepts(req))
+		return ca.Available() && (policy.shouldIntercept(req) || extensions.Intercepts(req))
 	}
 	gw, err := gateway.New(gateway.Options{Addr: cfg.Gateway.Addr, CA: ca, ShouldIntercept: intercept, BufferedBodyLimit: cfg.Gateway.BufferedBodyLimit, AddressAddons: func(address string) []proxy.Addon {
-		// codex answers the requests it serves before capture sees them
-		return []proxy.Addon{api.New(address, endpoints), codexAddon, addon}
+		// extensions answer the requests they serve before capture sees them
+		return append(append([]proxy.Addon{api.New(address, endpoints)}, extensions.Addons()...), addon)
 	}})
 	if err != nil {
+		cancel()
 		service.Close()
 		return nil, err
 	}
-	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	r := &runtime{traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.Features.Traffic, rules: rules, providers: providers, codex: codexHandler, catalog: modelsDev}
+	r := &runtime{traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.ExtensionEnabled("traffic"), rules: rules, providers: providers, extensions: extensions}
 	providers.SyncMissing()
-	if cfg.Features.Codex {
-		modelsDev.Refresh()
+	for id, section := range cfg.Extensions {
+		if known, _ := extensions.Known(id); known && section.Enabled {
+			_ = extensions.Set(id, true)
+		}
 	}
-	go modelsDev.KeepFresh(runCtx, codexHandler.Enabled)
 	r.initialPreferences = cfg.UI
 	r.initialNavigationPins = cfg.Navigation.Pinned
 	r.initialPins = append([]string(nil), cfg.Traffic.PinnedDomains...)
@@ -153,6 +150,7 @@ func (r *runtime) close() error {
 	restoreErr := r.connection.prepareQuit()
 	r.cancel()
 	<-r.done
+	r.extensions.Close()
 	err := r.err
 	// Socket teardown terminates flow callbacks before releasing traffic storage.
 	drained := make(chan struct{})

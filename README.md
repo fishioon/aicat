@@ -71,9 +71,11 @@ ui:
   theme: system      # system / light / dark
 systemProxy:
   enabled: false
-features:
-  traffic: true
-  codex: false
+extensions:
+  traffic:
+    enabled: true
+  codex:
+    enabled: false
 gateway:
   addr: 127.0.0.1:9981
   interceptHosts: []

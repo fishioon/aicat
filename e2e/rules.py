@@ -4,7 +4,7 @@ rollback, cancellation/time/memory budgets, bounded/compressed/stream bodies,
 custom replies, restart semantics, persistence conflicts and control access.
 No native UI, real Keychain, real system proxy, public server or cloud is used.
 """
-import argparse,base64,concurrent.futures,gzip,hashlib,http.client,http.server,json,os,signal,socket,ssl,stat,subprocess,tempfile,threading,time
+import argparse,re,base64,concurrent.futures,gzip,hashlib,http.client,http.server,json,os,signal,socket,ssl,stat,subprocess,tempfile,threading,time
 from pathlib import Path
 
 
@@ -111,7 +111,7 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--binary',default='bin/aicat-rules-e2e');parser.add_argument('--port',type=int,default=19993);parser.add_argument('--output');args=parser.parse_args()
     root=Path(args.output).resolve() if args.output else Path(tempfile.mkdtemp(prefix='rules-e2e-',dir=Path('build').resolve()))
     root.mkdir(parents=True,exist_ok=True);root.chmod(0o700);home=root/'.aicat';home.mkdir(mode=0o700)
-    cfg=home/'aicat.yaml';cfg.write_text(f'''# preserve this comment\nfutureSetting: keep\nfeatures:\n  traffic: true\ngateway:\n  addr: 127.0.0.1:{args.port}\n  interceptHosts: [localhost]\n  bufferedBodyLimit: 2048\ntraffic:\n  maxRecords: 200\n  maxBodyBytes: 4096\n  maxTotalBodyBytes: 1048576\n''')
+    cfg=home/'aicat.yaml';cfg.write_text(f'''# preserve this comment\nfutureSetting: keep\nextensions:\n  traffic:\n    enabled: true\ngateway:\n  addr: 127.0.0.1:{args.port}\n  interceptHosts: [localhost]\n  bufferedBodyLimit: 2048\ntraffic:\n  maxRecords: 200\n  maxBodyBytes: 4096\n  maxTotalBodyBytes: 1048576\n''')
     def openssl(*argv):subprocess.run(['openssl',*argv],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     (root/'root.cnf').write_text('[req]\ndistinguished_name=dn\nx509_extensions=v3_ca\nprompt=no\n[dn]\nCN=Rules E2E Root\n[v3_ca]\nbasicConstraints=critical,CA:true\nkeyUsage=critical,keyCertSign,cRLSign\n')
     openssl('req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(root/'root.key'),'-out',str(root/'root.pem'),'-days','2','-config',str(root/'root.cnf'))
@@ -304,7 +304,7 @@ def main():
         tool('rewrite_set_enabled',{'enabled':False});assert fetch('/normal',payload)[0]==201
         stop();launch();assert fetch('/normal',payload)[0]==200 and not tool('rewrite_status')['activeEnabled']
         rec=record(latest('/normal'));assert not rec.get('executions') and rec['requestReceived']['body']['id']==rec['requestSent']['body']['id']
-        tool('rewrite_set_enabled',{'enabled':True});stop();cfg.write_text(cfg.read_text().replace('traffic: true','traffic: false'));launch()
+        tool('rewrite_set_enabled',{'enabled':True});stop();cfg.write_text(re.sub(r'(traffic:\s*\n\s*enabled:) true',r'\1 false',cfg.read_text()));launch()
         assert api()['items']==[];assert fetch('/normal',payload)[0]==201 and api()['items']==[] and tool('rewrite_logs')['executions']
         checks.append('global disable takes effect only after restart; disabling traffic collection preserves rewrite behavior and bounded diagnostics')
 

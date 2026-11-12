@@ -30,7 +30,7 @@ flowchart TD
       D[配置节与数据目录]
       A[Agent 运行器]
     end
-    subgraph ext["消息扩展 builtin.messages"]
+    subgraph ext["消息扩展 messages"]
       C[渠道适配器] --> I[Room 归档与消费进度]
       I --> G[触发规则]
       G --> Q[Room 投递]
@@ -59,7 +59,7 @@ flowchart TD
 
 ```go
 type Extension struct {
-    ID          string       // builtin.messages
+    ID          string       // messages
     Contributes Contributes  // 声明要用的扩展点，用于展示和冲突检查
     Activate    func(ctx context.Context, h Host) error
 }
@@ -130,8 +130,7 @@ type Action func(ctx context.Context, c Call) (json.RawMessage, error)
 
 ### 配置与存储
 
-- 开关沿用内置能力的做法，写在 `features.<短名>`，消息扩展为 `features.messages`，缺省关闭。
-- 设置写在 `aicat.yaml` 的同名顶层节（`messages:`），与 `traffic:` 的做法一致，仍是唯一行为配置。扩展通过 `ConfigSection` 读取和原子更新自己的节，不导入 `config`。
+- 开关与设置按 [扩展规范](extension-standard.md) 写在 `aicat.yaml` 的 `extensions.messages` 节：`enabled` 是开关，缺省关闭，账号与触发等设置放在同一节，仍是唯一行为配置。扩展通过 `ConfigSection` 读取和原子更新自己的节，不导入 `config`。
 - 运行数据写在 `Home/data/<短名>/`，目录 0700、文件 0600。凭据不进 YAML，只保存绝对路径。
 - 宿主提供原子写文件的辅助（原型的 `internal/statefile`）。“归档、去重标识、消费进度一起提交”这类一致性由扩展自己保证，宿主不提供事务。
 
@@ -278,26 +277,26 @@ Agent 必须调用 `messages_send` 回复，`requestId` 用 `<任务 ID>/reply/<
 ### 配置
 
 ```yaml
-features:
-  messages: true          # 扩展总开关，缺省 false
-messages:
-  accounts:
-    - id: work-wecom
-      channel: wecom-local
-      read: true
-      send: true
-      settings:            # 由渠道适配器解释
-        accountID: "123456789"
-        dataDir: /absolute/path/to/account/database
-        keyFile: /absolute/path/to/keys.json
-  dispatch:
-    enabled: true          # 自动触发子开关；关闭后只保留读取和工具
-    agent: codex
-    trigger:
-      chat: true
-      regex: '^虾虾'
-      self: false
-  jobs: []                 # 持久定时任务
+extensions:
+  messages:
+    enabled: true          # 扩展总开关，缺省 false
+    accounts:
+      - id: work-wecom
+        channel: wecom-local
+        read: true
+        send: true
+        settings:            # 由渠道适配器解释
+          accountID: "123456789"
+          dataDir: /absolute/path/to/account/database
+          keyFile: /absolute/path/to/keys.json
+    dispatch:
+      enabled: true          # 自动触发子开关；关闭后只保留读取和工具
+      agent: codex
+      trigger:
+        chat: true
+        regex: '^虾虾'
+        self: false
+    jobs: []                 # 持久定时任务
 agents:
   codex:                   # 运行器设置，属于宿主
     binary: /absolute/path/to/codex
@@ -326,7 +325,7 @@ agents:
 | `internal/agent` 的队列、`codex.go`、`worker.go` | 宿主 Agent 运行器及其 Codex 实现 |
 | `internal/tasks` | 宿主调度器的持久任务；`Job` 改为处理器名加输入 |
 | `internal/mcpserver/messages.go` | 经 `ToolRegistry` 注册，随扩展启停 |
-| 顶层配置 `messages`、`agent`、`tasks` | `features.messages`、`messages`、`agents` |
+| 顶层配置 `messages`、`agent`、`tasks` | `extensions.messages`、`agents` |
 | 归档 | 原型没有，随迁入补齐 |
 
 ## 需要覆盖的失败方式

@@ -1,10 +1,11 @@
-// Package codex is the gateway's door for Codex: while the Codex extension is
-// on, Codex's HTTPS to its backend is decrypted, and the requests the codex
-// handler serves (the model list, a turn for a provider's model, a WebSocket
-// it turns down) are answered here. Every other request to the backend,
-// ChatGPT's own turns among them, goes on through the gateway as it came,
-// captured and rewritten like any other.
 package codex
+
+// The gateway's door for Codex: while the extension is on, Codex's HTTPS to
+// its backend is decrypted, and the requests the handler serves (the model
+// list, a turn for a provider's model, a WebSocket it turns down) are answered
+// here. Every other request to the backend, ChatGPT's own turns among them,
+// goes on through the gateway as it came, captured and rewritten like any
+// other.
 
 import (
 	"errors"
@@ -14,33 +15,31 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/fishioon/aicat/internal/codex"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
 
-type Addon struct {
+type door struct {
 	proxy.BaseAddon
-	h         *codex.Handler
+	h         *Handler
 	authority string
 }
 
-func New(h *codex.Handler) *Addon {
-	backend := h.BackendHost()
-	return &Addon{h: h, authority: authority(backend.Host, backend.Scheme)}
+func newDoor(h *Handler) *door {
+	return &door{h: h, authority: authority(h.backend.Host, h.backend.Scheme)}
 }
 
-// Intercepts reports whether a CONNECT target is Codex's backend while the
-// extension is on. It adds to the user's decryption list without being in it.
-func (a *Addon) Intercepts(r *http.Request) bool {
-	return a.h.Enabled() && authority(r.Host, "https") == a.authority
+// intercepts reports whether a CONNECT target is Codex's backend. It adds to
+// the user's decryption list without being in it.
+func (a *door) intercepts(r *http.Request) bool {
+	return authority(r.Host, "https") == a.authority
 }
 
-func (a *Addon) mine(f *proxy.Flow) bool {
+func (a *door) mine(f *proxy.Flow) bool {
 	u := f.Request.URL
-	return a.h.Enabled() && strings.HasPrefix(u.Path, codex.Path+"/") && authority(u.Host, u.Scheme) == a.authority
+	return strings.HasPrefix(u.Path, Path+"/") && authority(u.Host, u.Scheme) == a.authority
 }
 
-func (a *Addon) Requestheaders(f *proxy.Flow) {
+func (a *door) Requestheaders(f *proxy.Flow) {
 	if !a.mine(f) {
 		return
 	}
@@ -60,9 +59,9 @@ func (a *Addon) Requestheaders(f *proxy.Flow) {
 }
 
 // Responseheaders tags the model list ETag that ChatGPT's own replies carry.
-func (a *Addon) Responseheaders(f *proxy.Flow) {
+func (a *door) Responseheaders(f *proxy.Flow) {
 	if a.mine(f) && f.Response != nil {
-		a.h.Retag(f.Response.Header)
+		a.h.retag(f.Response.Header)
 	}
 }
 
@@ -70,7 +69,7 @@ var errFlowDone = errors.New("codex: flow ended")
 
 // serve runs the handler for a flow and hands its reply to the proxy as it is
 // written: headers once the handler sends them, then the body streamed.
-func serve(f *proxy.Flow, h http.Handler, r *http.Request) *proxy.Response {
+func serve(f *proxy.Flow, h *Handler, r *http.Request) *proxy.Response {
 	pr, pw := io.Pipe()
 	w := &pipeWriter{header: http.Header{}, ready: make(chan struct{}), body: pw}
 	go func() {

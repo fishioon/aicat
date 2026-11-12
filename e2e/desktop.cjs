@@ -384,7 +384,7 @@ async function verifyListSelection() {
       Number(url.port),
       "/rpc",
       "POST",
-      '{"method":"Desktop.SetTrafficEnabled","args":[false]}',
+      '{"method":"Desktop.SetExtensionEnabled","args":["traffic",false]}',
       {
         "X-Aicat-Preview": url.searchParams.get("token"),
         Origin: "https://evil.invalid",

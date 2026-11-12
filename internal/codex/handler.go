@@ -1,5 +1,6 @@
-// Package codex extends what Codex's ChatGPT backend serves with the models of
-// the providers aicat holds keys for.
+// Package codex is the built-in Codex extension: it extends what Codex's
+// ChatGPT backend serves with the models of the providers aicat holds keys
+// for.
 //
 // Codex keeps its own sign-in and sends what it would send chatgpt.com: its
 // model list, which is the backend's with the providers' models added as
@@ -7,7 +8,7 @@
 // goes to that provider with the provider's key and none of Codex's
 // credentials, and any other goes on to ChatGPT as it came. Codex reaches the
 // handler two ways: through the gateway, where its HTTPS to chatgpt.com is
-// decrypted (internal/gateway/addons/codex), or with openai_base_url pointing
+// decrypted (addon.go), or with openai_base_url pointing
 // at aicat's listener. The way Codex is served follows Magpie (MIT,
 // github.com/yetone/magpie internal/gateway/codex_backend.go).
 package codex
@@ -22,10 +23,9 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
-	"sync/atomic"
 	"time"
 
-	"github.com/fishioon/aicat/internal/catalog"
+	"github.com/fishioon/aicat/internal/codex/catalog"
 	"github.com/fishioon/aicat/internal/provider"
 	"github.com/fishioon/aicat/internal/traffic"
 )
@@ -58,7 +58,6 @@ type Handler struct {
 	recording func() bool
 	transport *http.Transport
 	client    *http.Client
-	enabled   atomic.Bool
 }
 
 func New(o Options) (*Handler, error) {
@@ -82,17 +81,13 @@ func New(o Options) (*Handler, error) {
 		transport: transport, client: &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 
-func (h *Handler) Enabled() bool         { return h.enabled.Load() }
-func (h *Handler) SetEnabled(on bool)    { h.enabled.Store(on) }
-func (h *Handler) BackendHost() *url.URL { u := *h.backend; return &u }
-
 // Takes reports whether the handler answers a request Codex sent to its
 // backend through the gateway: its model list, a turn for a provider's model,
 // or a WebSocket it turns down. A turn for one of ChatGPT's own models is left
 // to the gateway, which sends it on as it came. Its body is read to find the
 // model and put back.
 func (h *Handler) Takes(r *http.Request) bool {
-	if !h.Enabled() || !strings.HasPrefix(r.URL.Path, Path+"/") {
+	if !strings.HasPrefix(r.URL.Path, Path+"/") {
 		return false
 	}
 	rest := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, Path), "/")
@@ -110,10 +105,6 @@ func (h *Handler) Takes(r *http.Request) bool {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !h.Enabled() {
-		writeError(w, http.StatusServiceUnavailable, "aicat 的 Codex 扩展未启用；在 aicat 的扩展里启用后再试")
-		return
-	}
 	rest := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, Path), "/")
 	if webSocket(r.Header) {
 		// 426 sends Codex to the same call over plain HTTP at once, where
@@ -291,15 +282,9 @@ func (h *Handler) passthrough(w http.ResponseWriter, r *http.Request) {
 	}).ServeHTTP(w, r)
 }
 
-// Retag puts aicat's tag into a backend reply's X-Models-Etag, as the model
+// retag puts aicat's tag into a backend reply's X-Models-Etag, as the model
 // list's own ETag has it, so a reply doesn't send Codex for the list again
 // each turn and a change to the providers' models does.
-func (h *Handler) Retag(header http.Header) {
-	if h.Enabled() {
-		h.retag(header)
-	}
-}
-
 func (h *Handler) retag(header http.Header) {
 	if v := header.Get("X-Models-Etag"); v != "" && !strings.Contains(v, tagMark) {
 		header.Set("X-Models-Etag", withTag(v, h.tag()))

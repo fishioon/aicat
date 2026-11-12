@@ -44,18 +44,18 @@ flowchart TB
 | `internal/gateway` | 装配代理、连接生命周期、CA 注入、解密选择与直接出站 | 使用 go-mitmproxy，不依赖 MyGo，不承载业务规则 |
 | `internal/gateway/addons/api` | 把 HTTP handler 接入监听地址 | 只识别发给 aicat 的请求，不接管代理站点的同名路径 |
 | `internal/gateway/addons/traffic` | 把代理阶段转成流量观测，编排四阶段改写 | 使用 traffic 的写入接口与 rewrite，不依赖 UI |
-| `internal/gateway/addons/codex` | Codex 扩展的解密入口 | 调用 `internal/codex` |
 | `internal/traffic` | 流量模型、有界记录、body 读取、查询与变化订阅 | 不依赖 gateway、go-mitmproxy、MyGo 或 moejs |
 | `internal/rewrite` | 规则与插件文件管理、启动快照、事务化四阶段执行 | 调用 plugins，不依赖 UI、`proxy.Flow` 或 traffic |
 | `internal/plugins` | moejs 编译、隔离调用与宿主绑定 | 不依赖 gateway、traffic 或 MyGo |
 | `internal/mcpserver` | 规则、插件与流量查询的 MCP 适配 | 复用进程内服务，在入口认证 |
 | `internal/provider` | 供应商密钥存储、模型列表同步、带密钥的转发路由 | 不依赖 UI |
-| `internal/codex`、`internal/catalog` | Codex 模型列表合并与按模型分流；models.dev 目录 | 调用 provider |
+| `internal/extension` | 内置扩展的登记与启停：扩展交出 addon、额外解密判断、路由与后台任务，宿主只在扩展启用时使用它们 | 不导入任何具体扩展 |
+| `internal/codex` | Codex 扩展：模型列表合并、按模型分流、解密入口与 models.dev 目录（`catalog/`） | 只依赖 extension 与核心包 |
 | `internal/certificate` | 根证书身份、当前用户信任的检测与管理 | 不属于 gateway |
 | `internal/systemproxy` | 系统代理的接管、恢复日志与恢复 | 不属于 gateway |
 | `internal/config` | 串行、原子地读写唯一的 `aicat.yaml` | 保留未知字段与注释 |
 
-涉及网关的业务一律是 `internal/gateway/addons/<业务>/` 下的 `proxy.Addon`；持久化、插件 runtime 与业务查询是普通 Go 包，由 addon 或控制服务调用。规则与脚本阶段由 traffic addon 明确编排，不依赖多个 addon 的注册顺序。go-mitmproxy 的缺口在 addon 侧适配，必要时向上游提交补丁，不维护私有 fork。
+核心的网关业务是 `internal/gateway/addons/<业务>/` 下的 `proxy.Addon`；扩展的 addon 放在扩展自己的目录，经 `internal/extension` 接入，内置扩展只在 `internal/app/extensions.go` 登记一行，界面按 `ui/src/extensions/<ID>/` 目录自动加载（见 [扩展规范](extension-standard.md)）。持久化、插件 runtime 与业务查询是普通 Go 包，由 addon 或控制服务调用。规则与脚本阶段由 traffic addon 明确编排，不依赖多个 addon 的注册顺序。go-mitmproxy 的缺口在 addon 侧适配，必要时向上游提交补丁，不维护私有 fork。
 
 前端位于独立的 `ui/`（Vue 3 + TypeScript + Vite）。Go 的 `Desktop` 是前后端接口的唯一声明，MyGo 由它生成类型客户端；桌面绑定不监听 TCP。详见 [开发约定](development.md)。
 
