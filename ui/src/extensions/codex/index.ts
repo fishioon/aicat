@@ -23,6 +23,7 @@ const models = computed(
 );
 
 const ui: ExtensionUI = {
+  icon: '<rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="m5 6.5 2 1.5-2 1.5M8.5 10h2.5"/>',
   menu: () => [
     {
       label: "接入供应商",

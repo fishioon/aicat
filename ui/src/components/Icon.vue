@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { icon } from "../icons";
-const props = defineProps<{ name: string }>();
-const markup = computed(() => icon(props.name));
+import { icon, svg } from "../icons";
+// geometry, when given, is drawn instead of the shared icon of that name.
+const props = defineProps<{ name: string; geometry?: string }>();
+const markup = computed(() =>
+  props.geometry ? svg(props.geometry) : icon(props.name),
+);
 </script>
 <template><span class="icon" v-html="markup"></span></template>
 <style scoped>

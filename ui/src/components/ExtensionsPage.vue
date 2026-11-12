@@ -137,7 +137,8 @@ function tabKey(event: KeyboardEvent) {
                 :aria-current="current?.id === x.id ? 'true' : undefined"
                 @click="choose(x.id)"
               >
-                <span class="xicon"><Icon :name="x.id" /></span
+                <span class="xicon"
+                  ><Icon :name="x.id" :geometry="uiOf(x.id).icon" /></span
                 ><span class="top"
                   ><strong
                     >{{ t(x.name) }}
@@ -175,7 +176,7 @@ function tabKey(event: KeyboardEvent) {
       >
         <header class="xd-head">
           <span class="xicon extension-emblem"
-            ><Icon :name="current.id"
+            ><Icon :name="current.id" :geometry="ui.icon"
           /></span>
           <h1>
             {{ t(current.name) }}<span class="tag">{{ t("内置") }}</span>
