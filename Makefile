@@ -64,6 +64,7 @@ frontend-check: ui/node_modules/.aicat-install bindings
 	node --check e2e/app-tree.cjs
 	node --check e2e/list-selection.cjs
 	node --check e2e/traffic-default.cjs
+	node --check e2e/system-proxy.cjs
 	node --check e2e/tray.cjs
 	node --check e2e/tray-assets.cjs
 	node --check e2e/tunnel.cjs

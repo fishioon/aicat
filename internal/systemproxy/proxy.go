@@ -109,6 +109,7 @@ func (m *Manager) Status() Status {
 			status.Problem = "系统代理操作未完成，已保留逐命令恢复记录，请恢复原设置。"
 		}
 	}
+	status.Recovery = saved.OwnerPID != os.Getpid() || status.Problem != ""
 	return status
 }
 

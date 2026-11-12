@@ -143,7 +143,7 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 	}()
 	select {
 	case <-gw.Ready():
-		r.connection.startup(ctx)
+		r.connection.startup()
 		log.Printf("aicat ready at %s; CA %s; HTTPS interception: %v", cfg.Gateway.Addr, filepath.Join(caDir, "mitmproxy-ca-cert.pem"), cfg.Gateway.InterceptHosts)
 		return r, nil
 	case <-r.done:

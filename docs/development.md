@@ -76,6 +76,8 @@ python3 e2e/prototype.py --only rules
 node e2e/tray.cjs bin/aicat-e2e build/tray-e2e
 # 仅验证 SVG 生成、30% 端点、等长/等粗和固定画布，并保存浅深色资源对照图
 node e2e/tray-assets.cjs build/tray-assets-e2e
+# 仅验证系统代理直接开关、正常/崩溃退出恢复、失败重试和外部设置保护
+node e2e/system-proxy.cjs bin/aicat-e2e build/system-proxy-e2e
 # 仅验证流量入口默认可用、采集默认暂停、手动采集与启动配置
 node e2e/traffic-default.cjs bin/aicat-e2e build/traffic-default-e2e
 # 仅验证 CONNECT 双栏、响应侧解密提示与域名启用

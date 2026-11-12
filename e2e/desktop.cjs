@@ -839,7 +839,6 @@ async function verifyListSelection() {
     await settled();
     assert(!(await current()).domains.includes("example.com"));
     await click("system-proxy-toggle");
-    await page.locator("#dialog button").filter({ hasText: "确定" }).click();
     await settled();
     assert.equal(fixture({}).services[0].proxies.HTTPEnable, 1);
     await click("system-proxy-toggle");
@@ -967,7 +966,6 @@ async function verifyListSelection() {
     );
     await navigate("proxy");
     await click("system-proxy-toggle");
-    await page.locator("#dialog button").filter({ hasText: "确定" }).click();
     await settled();
     fixture({ failApply: true });
     await auto.call("menu", { path: ["E2E", "退出应用"] });

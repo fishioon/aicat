@@ -348,14 +348,13 @@ async function removeDomain(domain: string) {
               </p>
             </div>
             <div class="ctl">
-              <span>{{ t(state.proxy.enabled ? "已接管" : "未接管") }}</span>
               <button
                 id="system-proxy-toggle"
                 class="switch"
                 role="switch"
                 :aria-checked="state.proxy.enabled"
                 aria-labelledby="system-proxy-title"
-                :disabled="!state.proxy.supported"
+                :disabled="!state.proxy.supported || state.proxy.ownedElsewhere"
                 @click="toggleSystemProxy"
               ></button>
             </div>

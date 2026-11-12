@@ -154,10 +154,7 @@ async function verify({
   await page.locator("#certificate-install").click();
   await wait(async () => (await current()).certificate.trusted);
   await page.locator("#system-proxy-toggle").click();
-  await page.locator("#dialog").getByText("取消", { exact: true }).click();
-  assert.equal((await menu()).taken, false);
-  await page.locator("#system-proxy-toggle").click();
-  await page.locator("#dialog").getByText("确定", { exact: true }).click();
+  assert.equal(await page.locator("#dialog[open]").count(), 0);
   await wait(async () => (await menu()).taken);
   const active = await menu();
   assert.equal(item(active, "proxy").label, "系统代理：已接管");
@@ -181,7 +178,7 @@ async function verify({
   await animate("active-click-round-trip", true);
   await page.screenshot({ path: path.join(root, "proxy-active.png") });
   checks.push(
-    "proxy takeover requires confirmation, changes icon and leaves capture off",
+    "proxy takeover applies directly, changes icon and leaves capture off",
   );
 
   const owned = fixture({});

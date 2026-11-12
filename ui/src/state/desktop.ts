@@ -234,18 +234,6 @@ export function ask(title: string, message: string, action: () => unknown) {
 // Shared by the settings page and the native tray entry.
 export function toggleSystemProxy() {
   const proxy = state.value?.proxy;
-  if (!proxy || (proxy.recovery && proxy.problem)) return;
-  if (proxy.enabled)
-    void run(() => host.setSystemProxy(false)).then(
-      (ok) => ok && say(t("已恢复原来的系统代理设置")),
-    );
-  else
-    ask(
-      "系统代理",
-      "更改此 Mac 的 HTTP 与 HTTPS 代理，退出 aicat 时恢复原设置。",
-      () =>
-        run(() => host.setSystemProxy(true)).then(
-          (ok) => ok && say(t("系统代理已接管")),
-        ),
-    );
+  if (!proxy || proxy.ownedElsewhere) return;
+  void run(() => host.setSystemProxy(!proxy.enabled));
 }

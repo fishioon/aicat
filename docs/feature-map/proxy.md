@@ -14,19 +14,20 @@
 
 - 导航栏底部的设置 → 代理；也可从通用设置、托盘设置或流量扩展的“代理设置”进入。
 - “本地代理”选择 IP、编辑端口、点击“应用”。
-- “系统代理”点击“启用”并确认；点击“关闭”或故障时“恢复原设置”。
+- “系统代理”使用一个开关直接启用或关闭；仅恢复失败时显示“恢复原设置”重试入口。
 - CLI：`bin/aicat-cli serve --home <隔离目录> --addr 127.0.0.1:<空闲端口>`。
 
 ## Driving it with Playwright and HTTP
 
 Preconditions:
 
-- 使用独立 Home、本地上游和现有 OS fixture；系统代理初始关闭。系统接管场景先按[证书配方](https.md)完成测试证书信任。
+- 使用独立 Home、本地上游和现有 OS fixture；系统代理初始关闭。系统接管不要求先安装或信任证书；只有 HTTPS 解密需要证书信任。
 
 - **显式代理。** 在 harness 中运行 `await send('/proxy-check')`；核对上游响应和 `/api/traffic` 中已完成记录。终端等价请求为 `curl --noproxy '' --proxy "http://127.0.0.1:$AICAT_PROXY_PORT" "http://127.0.0.1:$AICAT_UPSTREAM_PORT/proxy-check"`，两个变量取本次 fixture 端口。
 - **监听切换。** 通过导航栏底部的设置进入代理页，在 `#listener-address` 选择 `0.0.0.0`，在 `#listener-port` 填入空闲端口，点击 `#listener-apply`；等待 `#proxy-address` 显示新地址。向 `127.0.0.1:新端口` 发送请求，核对历史记录与 CA 指纹保留；只读检查 `gateway.addr`，重启同一 Home 后复查。
 - **输入失败。** 分别填入 `0`、`65536` 和非数字，应用按钮禁用、`#listener-error` 有提示。使用被本次测试占用的端口再应用，旧监听应继续或恢复可用，配置不保存失败目标，并显示错误。
-- **系统接管。** 点击 `#system-proxy-toggle`，在 `#dialog` 中确认；从 OS fixture 核对 HTTP/HTTPS 地址与端口，原有例外和无关字段保留。再点关闭，核对 OS 设置恢复，而代理 listener 仍可响应。
+- **系统接管。** 点击 `#system-proxy-toggle`，不弹应用内确认；从 OS fixture 核对 HTTP/HTTPS 地址与端口，原有例外和无关字段保留。再点关闭，核对 OS 设置恢复，而代理 listener 仍可响应。
+- **独立后台场景。** `node e2e/system-proxy.cjs bin/aicat-e2e build/system-proxy-<run>`：覆盖无证书信任直接开关、正常接管不误报待恢复、退出恢复、SIGKILL 后重启恢复再接管、恢复失败重试与外部设置保护；保存浅深色截图、日志与报告，不操作真实系统网络设置或原生授权窗口。
 - **恢复异常。** 使用现有桌面 harness 的 OS 故障 fixture，覆盖恢复失败、重试及外部修改；失败时出现问题及 `#system-proxy-restore`，应用保留可用监听。重试后验证实际 OS 状态，不能仅断言按钮文字。
 - **传输入口。** 运行索引中的 `--only transport`，核对 loopback、通配与 IPv6 的 HTTP/TLS 真实请求和 CA 跨重启保留；该报告不涵盖系统代理设置 UI。
 

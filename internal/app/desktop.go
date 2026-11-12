@@ -218,7 +218,7 @@ func (d *Desktop) DeleteProvider(ctx context.Context, id string) error {
 }
 func (d *Desktop) SetSystemProxy(ctx context.Context, enabled bool) error {
 	return d.mutate(ctx, func() error {
-		err := d.app.r.connection.set(ctx, enabled)
+		err := d.app.r.connection.set(enabled)
 		d.app.updateTray()
 		return err
 	})

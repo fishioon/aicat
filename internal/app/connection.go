@@ -23,7 +23,7 @@ type connection struct {
 	problem          string
 }
 
-func (c *connection) startup(ctx context.Context) {
+func (c *connection) startup() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closing {
@@ -35,35 +35,14 @@ func (c *connection) startup(ctx context.Context) {
 		return
 	}
 	if c.desired {
-		c.problem = errorText(c.enable(ctx))
+		c.problem = errorText(c.proxy.Enable(listenaddr.ClientAddress(c.addr)))
 	}
 }
-
-func (c *connection) enable(ctx context.Context) error {
-	status, err := c.inspectLocked(ctx)
-	if err != nil {
-		return err
-	}
-	if !status.Trusted {
-		return errors.New("请先安装并信任本机证书")
-	}
-	return c.proxy.Enable(listenaddr.ClientAddress(c.addr))
-}
-
-func (c *connection) set(ctx context.Context, enabled bool) error {
+func (c *connection) set(enabled bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closing {
 		return errors.New("应用正在退出")
-	}
-	if enabled {
-		status, err := c.inspectLocked(ctx)
-		if err != nil {
-			return err
-		}
-		if !status.Trusted {
-			return errors.New("请先安装并信任本机证书")
-		}
 	}
 	if err := config.SetSystemProxyEnabled(c.home, enabled); err != nil {
 		return err
@@ -85,6 +64,7 @@ func (c *connection) status() systemproxy.Status {
 	s := c.proxy.Status()
 	if c.problem != "" {
 		s.Problem = c.problem
+		s.Recovery = true
 	}
 	return s
 }
