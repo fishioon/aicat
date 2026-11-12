@@ -1,5 +1,6 @@
 // 16px outline geometry from docs/design/aicat-redesign.html.
 const paths: Record<string, string> = {
+  lock: '<rect x="3.5" y="7" width="9" height="7" rx="1.5"/><path d="M5 7V4.5a3 3 0 0 1 6 0V7"/>',
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
   search: '<circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/>',
   chev: '<path d="m6 3.5 4.5 4.5L6 12.5"/>',

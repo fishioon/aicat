@@ -11,15 +11,10 @@ import {
 } from "../state/desktop";
 import { host } from "../host";
 import { t } from "../i18n";
+import Icon from "./Icon.vue";
 const props = defineProps<{ record: TrafficRecord }>();
-const authority = computed(() => new URL(props.record.url).host);
 const domain = computed(() => new URL(props.record.url).hostname);
 const rule = computed(() => decryptionRule(domain.value));
-const headers = computed(() =>
-  Object.entries(props.record.requestReceived.headers ?? {}).flatMap(
-    ([name, values]) => values.map((value) => [name, value] as const),
-  ),
-);
 async function enable() {
   if (await run(() => host.setDecryptionDomain(domain.value, true))) {
     closeDialog();
@@ -51,43 +46,45 @@ function decrypt() {
 }
 </script>
 <template>
-  <div class="tunnel" id="tunnel-detail">
-    <h3>{{ t("这是一条加密隧道") }}</h3>
-    <p>
-      {{
-        t("aicat 只转发了 {host} 的加密数据，没有解密内容。", {
-          host: authority,
-        })
-      }}
-    </p>
-    <div v-if="rule" id="decryption-covered" class="note plain">
-      {{
-        rule === domain
-          ? t(
-              "{domain} 已在解密域名里。这条隧道建立得更早，保持未解密；新连接会被解密。",
-              { domain },
-            )
-          : t(
-              "{domain} 匹配解密域名 {rule}。这条隧道建立得更早，保持未解密；新连接会被解密。",
-              { domain, rule },
-            )
-      }}
+  <section
+    class="pane inspector"
+    data-side="response"
+    :aria-label="t('响应')"
+    id="tunnel-detail"
+  >
+    <div class="pane-head">
+      <h3>{{ t("响应") }}</h3>
     </div>
-    <template v-else>
-      <p>
-        {{ t("解密后可以看到这个域名的请求和响应。只对之后新建的连接生效。") }}
-      </p>
-      <button id="enable-decryption" class="btn primary" @click="decrypt">
-        {{ t("解密此域名") }}
-      </button>
-    </template>
-    <table class="kv" v-if="headers.length">
-      <tbody>
-        <tr v-for="([name, value], index) in headers" :key="index">
-          <th scope="row">{{ name }}</th>
-          <td>{{ value }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+    <div class="tunnel-body" tabindex="0">
+      <div class="tunnel">
+        <h3><Icon name="lock" />{{ t("HTTPS 响应") }}</h3>
+        <p>
+          {{ t("此 HTTPS 响应已加密。") }}<br />{{
+            t("启用 SSL 代理以查看内容。")
+          }}
+        </p>
+        <div v-if="rule" id="decryption-covered" class="note plain">
+          {{
+            rule === domain
+              ? t(
+                  "{domain} 已在解密域名里。这条隧道建立得更早，保持未解密；新连接会被解密。",
+                  { domain },
+                )
+              : t(
+                  "{domain} 匹配解密域名 {rule}。这条隧道建立得更早，保持未解密；新连接会被解密。",
+                  { domain, rule },
+                )
+          }}
+        </div>
+        <button
+          v-else
+          id="enable-decryption"
+          class="btn primary"
+          @click="decrypt"
+        >
+          {{ t("仅启用此域名") }}
+        </button>
+      </div>
+    </div>
+  </section>
 </template>

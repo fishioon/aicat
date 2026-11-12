@@ -1,0 +1,9 @@
+{
+  "frameCount": 25,
+  "width": 48,
+  "height": 36,
+  "durationMs": 600,
+  "fromCurl": 100,
+  "toCurl": 30,
+  "sourceSHA256": "e1b16e127c31c2d608f981767c1b748bd80caee6307b48d95635f8002ecfbe29"
+}

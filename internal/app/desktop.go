@@ -22,6 +22,7 @@ import (
 	"github.com/fishioon/aicat/internal/provider"
 	"github.com/fishioon/aicat/internal/systemproxy"
 	"github.com/fishioon/aicat/internal/traffic"
+	"github.com/fishioon/aicat/internal/usage"
 )
 
 // Desktop is the typed boundary between the web UI and desktop services.
@@ -35,6 +36,7 @@ type DesktopState struct {
 	TrafficEnabled   bool                `json:"trafficEnabled"`
 	Extensions       []extension.State   `json:"extensions"`
 	Recording        bool                `json:"recording"`
+	CaptureStarted   bool                `json:"captureStarted"`
 	NavigationPins   []string            `json:"navigationPins"`
 	PinnedDomains    []string            `json:"pinnedDomains"`
 	Gateway          gateway.Status      `json:"gateway"`
@@ -72,7 +74,7 @@ func (d *Desktop) State(ctx context.Context) (DesktopState, error) {
 		a.checkedAt = time.Now()
 	}
 	addresses, _ := listenaddr.Addresses()
-	return DesktopState{Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, Extensions: a.r.extensions.List(), Recording: a.recording, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Providers: a.r.providers.List(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
+	return DesktopState{Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, Extensions: a.r.extensions.List(), Recording: a.recording, CaptureStarted: a.captureStarted, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Providers: a.r.providers.List(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
 }
 func (d *Desktop) mutate(ctx context.Context, operation func() error) error {
 	a := d.app
@@ -157,6 +159,7 @@ func (d *Desktop) SetRecording(ctx context.Context, enabled bool) error {
 			return errors.New("流量功能已关闭")
 		}
 		a.recording = enabled
+		a.captureStarted = a.captureStarted || enabled
 		a.r.capture.SetRecording(enabled)
 		a.updateTray()
 		return nil
@@ -214,7 +217,11 @@ func (d *Desktop) DeleteProvider(ctx context.Context, id string) error {
 	return d.mutate(ctx, func() error { return d.app.r.providers.Delete(id) })
 }
 func (d *Desktop) SetSystemProxy(ctx context.Context, enabled bool) error {
-	return d.mutate(ctx, func() error { return d.app.r.connection.set(ctx, enabled) })
+	return d.mutate(ctx, func() error {
+		err := d.app.r.connection.set(ctx, enabled)
+		d.app.updateTray()
+		return err
+	})
 }
 func (d *Desktop) InstallCertificate(ctx context.Context) error {
 	return d.mutate(ctx, func() error {
@@ -283,6 +290,16 @@ func (d *Desktop) RequestCURL(ctx context.Context, id traffic.ID) (string, error
 	defer body.Reader.Close()
 	return curlRequest(record.RequestReceived, body.Reader)
 }
+
+// Usage sums the model calls of a period: "today", "7d" or "30d".
+func (d *Desktop) Usage(ctx context.Context, period string) (usage.Report, error) {
+	if err := ctx.Err(); err != nil {
+		return usage.Report{}, err
+	}
+	sum, err := d.app.r.usage.Summary(period, time.Now())
+	sum.Name(d.app.r.providers.Name)
+	return sum, err
+}
 func (d *Desktop) Record(ctx context.Context, id traffic.ID) (traffic.Record, error) {
 	return d.app.r.traffic.Get(ctx, id)
 }
@@ -315,6 +332,7 @@ var trafficViews atomic.Int32
 // resumes, keeping the session's pause.
 func (a *application) setTraffic(enabled bool) {
 	a.enabled = enabled
+	a.captureStarted = a.captureStarted || (enabled && a.recording)
 	a.r.capture.SetRecording(a.enabled && a.recording)
 	a.updateTray()
 }

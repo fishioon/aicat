@@ -111,7 +111,7 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--binary',default='bin/aicat-rules-e2e');parser.add_argument('--port',type=int,default=19993);parser.add_argument('--output');args=parser.parse_args()
     root=Path(args.output).resolve() if args.output else Path(tempfile.mkdtemp(prefix='rules-e2e-',dir=Path('build').resolve()))
     root.mkdir(parents=True,exist_ok=True);root.chmod(0o700);home=root/'.aicat';home.mkdir(mode=0o700)
-    cfg=home/'aicat.yaml';cfg.write_text(f'''# preserve this comment\nfutureSetting: keep\nextensions:\n  traffic:\n    enabled: true\ngateway:\n  addr: 127.0.0.1:{args.port}\n  interceptHosts: [localhost]\n  bufferedBodyLimit: 2048\ntraffic:\n  maxRecords: 200\n  maxBodyBytes: 4096\n  maxTotalBodyBytes: 1048576\n''')
+    cfg=home/'aicat.yaml';cfg.write_text(f'''# preserve this comment\nfutureSetting: keep\nextensions:\n  traffic:\n    enabled: true\ngateway:\n  addr: 127.0.0.1:{args.port}\n  interceptHosts: [localhost]\n  bufferedBodyLimit: 2048\ntraffic:\n  recording: true\n  maxRecords: 200\n  maxBodyBytes: 4096\n  maxTotalBodyBytes: 1048576\n''')
     def openssl(*argv):subprocess.run(['openssl',*argv],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     (root/'root.cnf').write_text('[req]\ndistinguished_name=dn\nx509_extensions=v3_ca\nprompt=no\n[dn]\nCN=Rules E2E Root\n[v3_ca]\nbasicConstraints=critical,CA:true\nkeyUsage=critical,keyCertSign,cRLSign\n')
     openssl('req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(root/'root.key'),'-out',str(root/'root.pem'),'-days','2','-config',str(root/'root.cnf'))

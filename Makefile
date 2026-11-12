@@ -3,10 +3,13 @@ VERSION ?= dev
 LDFLAGS := -s -w -X main.version=$(VERSION)
 DESKTOP_LDFLAGS := $(LDFLAGS) -X github.com/egoist/mygo.production=1
 .DEFAULT_GOAL := build
-.PHONY: build cli app run bindings frontend frontend-check frontend-e2e e2e-build vet fmt-check verify e2e design-shots clean
+.PHONY: build cli app run bindings frontend frontend-check frontend-e2e e2e-build vet fmt-check verify e2e design-shots clean tray-icons
 
-assets/tray.png: assets/logo.svg build/icon/gen.go
-	$(GO) run ./build/icon/gen.go tray assets/logo.svg assets/tray.png
+assets/tray-motion.json: assets/logo.svg build/icon/gen.go build/icon/tail.go
+	$(GO) run ./build/icon/*.go tray-motion assets/logo.svg assets
+
+tray-icons: assets/tray-motion.json
+	@test -f assets/tray.png -a -f assets/tray-active.png -a -f assets/tray-active.svg -a -f assets/tray-motion.png || $(GO) run ./build/icon/*.go tray-motion assets/logo.svg assets
 
 ui/node_modules/.aicat-install: ui/package.json ui/package-lock.json
 	npm --prefix ui ci --ignore-scripts
@@ -14,7 +17,7 @@ ui/node_modules/.aicat-install: ui/package.json ui/package-lock.json
 
 # Generation executes main, but never WhenReady or gateway/OS initialization.
 # An ignored empty embed input breaks the first-build cycle before Vite runs.
-bindings:
+bindings: tray-icons
 	@mkdir -p ui/dist
 	@test -f ui/dist/index.html || touch ui/dist/.keep
 	$(GO) tool mygo generate
@@ -26,7 +29,7 @@ frontend-e2e: ui/node_modules/.aicat-install bindings
 	npm --prefix ui run check
 	npm --prefix ui run build:e2e
 
-build: assets/tray.png frontend
+build: tray-icons frontend
 	@mkdir -p bin
 	$(GO) build -tags mygo_noinspector -trimpath -ldflags "$(DESKTOP_LDFLAGS)" -o bin/aicat ./cmd/aicat
 
@@ -60,6 +63,10 @@ frontend-check: ui/node_modules/.aicat-install bindings
 	node --check e2e/icons.cjs
 	node --check e2e/app-tree.cjs
 	node --check e2e/list-selection.cjs
+	node --check e2e/traffic-default.cjs
+	node --check e2e/tray.cjs
+	node --check e2e/tray-assets.cjs
+	node --check e2e/tunnel.cjs
 	node --check e2e/codex.cjs
 	node --check e2e/design-shots.cjs
 

@@ -97,7 +97,7 @@ function tunnel(port, authority) {
   await new Promise((r) => temp.close(r));
   fs.writeFileSync(
     path.join(home, "aicat.yaml"),
-    `gateway:\n  addr: 127.0.0.1:${proxyPort}\nui:\n  language: zh-Hans\n  theme: light\n`,
+    `traffic:\n  recording: true\nextensions:\n  traffic:\n    enabled: true\ngateway:\n  addr: 127.0.0.1:${proxyPort}\nui:\n  language: zh-Hans\n  theme: light\n`,
   );
   fs.writeFileSync(
     stateFile,
@@ -169,11 +169,9 @@ function tunnel(port, authority) {
       async () =>
         (await page.evaluate(() => window.trafficView.state().total)) >= 6,
     );
-    await page
-      .locator("#overview-todos")
-      .getByText("查看请求")
-      .first()
-      .waitFor();
+    // No provider yet: the usage board asks for one instead of numbers.
+    await page.locator(".ov-empty").getByText("还没有接入供应商").waitFor();
+    await page.locator("#usage-period-today[aria-checked=true]").waitFor();
     await shot("overview-light");
     check("overview");
 

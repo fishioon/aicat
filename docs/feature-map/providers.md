@@ -9,13 +9,14 @@ aicat 保管模型供应商的 API Key。本机的 Agent 把模型地址指向 a
 - `provider-forward`：所有供应商共用一个入口，按请求正文里的 `model` 选择供应商，附上保管的密钥转发，流式响应边到边发。入口是 `/v1/messages`（Anthropic 协议的供应商）、`/v1/chat/completions`（`openai`、`chat`）和 `/v1/responses`（`openai`）。模型写作 `供应商 ID/模型`，前缀在转发前去掉；不带前缀的模型名在提供该接口的供应商里只有一家启用了它时也能命中，这时正文原样转发。带前缀的模型不论是否启用都转发。
 - `provider-pick`：供应商页的模型列表逐个勾选要启用的模型，可按名称筛选，全选、全不选只作用于筛选出的模型；显示“已启用 X / 总数”。没勾选过时全部启用，供应商新增的模型随之出现；勾选过后新模型不自动启用。改接口地址或协议时回到全部启用，只换密钥时保留。
 - `provider-models`：`GET /v1/models` 返回各供应商启用的模型，写作 `供应商 ID/模型`；带 `Anthropic-Version` 头时只列 Anthropic 协议的供应商，否则列 `openai` 与 `chat` 的。
-- `provider-status`：已保存的供应商以最近一次同步的结果作为连通状态：已连通、密钥被拒（401/403）、连不上、这个地址没有模型列表。重新同步失败时保留上次列表，第二步不标记为可用，概览的供应商条目显示“密钥无效”“连不上”或“没有模型列表”。
+- `provider-status`：已保存的供应商以最近一次同步的结果作为连通状态：已连通、密钥被拒（401/403）、连不上、这个地址没有模型列表。重新同步失败时保留上次列表，第二步不标记为可用，概览的待办显示“供应商 X 不可用”及“密钥无效”“连不上”或“没有模型列表”，点“管理”回到供应商页。
 - `provider-records`：转发的请求出现在流量里，不含任何凭据。
+- `provider-usage`：每次转发记一条用量（Token、耗时、首字时间、Agent），概览的用量看板和 `GET /api/usage` 按今天、7 天、30 天汇总；流式 Chat 请求没要求 usage 时 aicat 补上 `stream_options.include_usage`。不依赖流量扩展，见领域文档的“用量”。
 - `provider-model-sync`：保存时（地址、协议或密钥有变化）向供应商的 `/models` 取模型列表，可手动重新同步；Codex 扩展用其中启用的模型向 Codex 提供模型，见 [Codex 扩展](codex.md)。
 
 ## 入口
 
-- 概览 → “接入供应商”；已保存的供应商出现在概览的“已接入”里，点“管理”回到这一页。
+- 概览 → “接入供应商”；有调用的供应商出现在概览的“按供应商”里，点这一行回到这一页；同步失败的供应商出现在待办里，点“管理”。
 - Agent 侧：页面第二步给出的环境变量，Anthropic 协议是 `ANTHROPIC_BASE_URL=http://127.0.0.1:9981`，OpenAI 协议是 `OPENAI_BASE_URL=http://127.0.0.1:9981/v1`；模型名写作 `供应商 ID/模型`。
 
 ## 前提
@@ -34,7 +35,8 @@ aicat 保管模型供应商的 API Key。本机的 Agent 把模型地址指向 a
 - **取不到模型列表不保存。** fixture 的列表有 `claude-test`、`claude-other` 两个模型，只在 `/v1/models` 回答。填 fixture 不认的密钥保存，`#provider-status.bad` 提示密钥被拒；接口地址填 fixture 的 `/nolist` 保存，提示没有模型列表。两次都只剩旧文件那一家供应商，`providers.json` 不含这把密钥，请求返回 400。
 - **转发。** 向 `http://127.0.0.1:<监听端口>/v1/messages` 发 POST，模型写 `anthropic/claude-test`，自带一个假的 `x-api-key` 和 `Authorization`。fixture 收到的 `x-api-key` 是保管的密钥，没有 `Authorization`，路径、查询串和其他请求头原样到达，正文里的模型是 `claude-test`；SSE 的两段数据分开到达客户端。
 - **流量记录。** `/api/traffic` 里有这条记录，URL 是上游地址，状态 200，类型 SSE。`/api/traffic/{id}` 的全文不含保管的密钥和 Agent 自带的假密钥，`X-Api-Key` 记为 `[aicat]`，没有 `requestSent`；请求和响应正文可读。
-- **改地址不丢密钥。** 在概览点“管理”，只改 `#provider-url` 后保存；再发请求仍然带着原密钥。
+- **用量。** fixture 的 SSE 在 `message_start` 报输入 120、缓存读 300、缓存写 30，隔 400 ms 发正文后在 `message_delta` 报输出 45；请求带 `User-Agent: claude-cli/…`。`/api/usage?period=today` 里 `anthropic` 供应商的四类 Token 是每次调用的整数倍，首字时间不少于 300 ms，Agent 是 Claude Code；概览 `#usage-tokens` 非零，`#overview-providers` 有 Anthropic，`#overview-agents` 有 Claude Code。流式 Chat 请求到达 fixture 时带 `"stream_options":{"include_usage":true}`，非流式请求原样到达。`usage.jsonl` 权限为 0600，不含密钥。
+- **改地址不丢密钥。** 在概览“按供应商”点 Anthropic，只改 `#provider-url` 后保存；再发请求仍然带着原密钥。
 - **移除。** 点击 `#provider-delete` 并确认，回到概览；`providers.json` 不再含密钥，请求返回 400，fixture 不再收到请求。
 - **同步模型列表。** 保存后 fixture 收到一次带保管密钥的 `GET /v1/models`；转发断言只看 `/v1/messages` 请求。模型列表本身的配方见 [Codex 扩展](codex.md)。
 - **不带前缀与模型列表。** 模型只写 `claude-test` 也到达 Anthropic 协议的那家（OpenAI 协议的那家列表里也有它，但不提供这个接口）。`GET /v1/models` 带 `Anthropic-Version` 返回 `anthropic/claude-test`，不带返回 `openai/claude-test`。

@@ -48,7 +48,8 @@ flowchart TB
 | `internal/rewrite` | 规则与插件文件管理、启动快照、事务化四阶段执行 | 调用 plugins，不依赖 UI、`proxy.Flow` 或 traffic |
 | `internal/plugins` | moejs 编译、隔离调用与宿主绑定 | 不依赖 gateway、traffic 或 MyGo |
 | `internal/mcpserver` | 规则、插件与流量查询的 MCP 适配 | 复用进程内服务，在入口认证 |
-| `internal/provider` | 供应商密钥存储、模型列表同步、带密钥的转发路由 | 不依赖 UI |
+| `internal/provider` | 供应商密钥存储、模型列表同步、带密钥的转发路由 | 不依赖 UI；转发时把调用交给 usage 记录 |
+| `internal/usage` | 模型调用的用量记录、从回复读取 Token、按时段汇总与 `/api/usage` | 不依赖 provider、traffic 或 UI |
 | `internal/extension` | 内置扩展的登记与启停：扩展交出 addon、额外解密判断、路由与后台任务，宿主只在扩展启用时使用它们 | 不导入任何具体扩展 |
 | `internal/codex` | Codex 扩展：模型列表合并、按模型分流、解密入口与 models.dev 目录（`catalog/`） | 只依赖 extension 与核心包 |
 | `internal/certificate` | 根证书身份、当前用户信任的检测与管理 | 不属于 gateway |
@@ -176,6 +177,7 @@ UI、HTTP API 与 MCP 读取同一个服务实例；`Recorder` 是只交给代�
 | `ca/` | 根证书与私钥（目录 0700，私钥 0600），私钥不导入钥匙串 |
 | `mcp-token` | MCP 的 Bearer 凭据（0600） |
 | `providers.json`、`provider-models.json` | 供应商密钥（0600）与同步到的模型列表 |
+| `usage.jsonl` | 模型调用的用量记录（0600，只追加） |
 | `plugins/`、`trash/plugins/` | 脚本插件及已删除的插件 |
 | `state/system-proxy.json` | 系统代理的恢复日志 |
 | `cache/models-dev.json` | models.dev 目录的本地副本 |

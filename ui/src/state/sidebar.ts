@@ -1,6 +1,6 @@
 import { computed, reactive } from "vue";
 import { records, appKey, failed } from "./traffic";
-import { shell, state } from "./desktop";
+import { state } from "./desktop";
 import { t } from "../i18n";
 import type { Summary } from "../generated/mygo";
 export interface TreeNode {
@@ -105,16 +105,13 @@ export const groups = computed(() => {
     if (!app.hosts.has(host)) app.hosts.set(host, []);
     app.hosts.get(host)!.push(row);
   }
-  const query = shell.sideQuery.toLowerCase();
   const pins = state.value?.pinnedDomains ?? [];
   return [
     {
       title: "固定",
       key: "pins",
       count: pins.length,
-      nodes: pins
-        .filter((host) => host.toLowerCase().includes(query))
-        .map((host) => tree(host, hosts.get(host) ?? [], "pins:")),
+      nodes: pins.map((host) => tree(host, hosts.get(host) ?? [], "pins:")),
     },
     {
       title: "域名",
@@ -122,13 +119,6 @@ export const groups = computed(() => {
       count: hosts.size,
       nodes: [...hosts]
         .sort(([a], [b]) => a.localeCompare(b))
-        .filter(
-          ([host, rows]) =>
-            host.toLowerCase().includes(query) ||
-            rows.some((row) =>
-              new URL(row.url).pathname.toLowerCase().includes(query),
-            ),
-        )
         .map(([host, rows]) => tree(host, rows, "domains:")),
     },
     {
@@ -137,17 +127,6 @@ export const groups = computed(() => {
       count: apps.size,
       nodes: [...apps]
         .sort(([, a], [, b]) => a.name.localeCompare(b.name))
-        .filter(
-          ([, app]) =>
-            app.name.toLowerCase().includes(query) ||
-            [...app.hosts].some(
-              ([host, rows]) =>
-                host.toLowerCase().includes(query) ||
-                rows.some((row) =>
-                  new URL(row.url).pathname.toLowerCase().includes(query),
-                ),
-            ),
-        )
         .map(([key, app]): TreeNode => ({
           key: "app:" + key,
           app: key,

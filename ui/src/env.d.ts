@@ -1,10 +1,16 @@
 import type { DesktopState } from "./generated/mygo";
-import type { navigate, refresh, problem } from "./state/desktop";
+import type {
+  navigate,
+  refresh,
+  problem,
+  toggleSystemProxy,
+} from "./state/desktop";
 import type { metrics } from "./state/traffic";
 declare global {
   interface Window {
     desktop: {
       navigate: typeof navigate;
+      toggleSystemProxy: typeof toggleSystemProxy;
       refresh: typeof refresh;
       problem: typeof problem;
       state: () => DesktopState | null;

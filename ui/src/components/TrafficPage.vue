@@ -35,6 +35,13 @@ import TrafficSidebar from "./TrafficSidebar.vue";
 import TunnelView from "./TunnelView.vue";
 
 const ROW = 28;
+const recordingAction = computed(() =>
+  state.value?.recording
+    ? "暂停采集"
+    : state.value?.captureStarted
+      ? "继续采集"
+      : "开始采集",
+);
 const viewport = ref<HTMLElement>();
 const viewportHeight = ref(340);
 const listHeight = ref(45),
@@ -153,7 +160,7 @@ async function key(event: KeyboardEvent) {
         >
           <Icon :name="state?.recording ? 'pause' : 'play'" /><span
             id="recording-label"
-            >{{ t(state?.recording ? "暂停采集" : "继续采集") }}</span
+            >{{ t(recordingAction) }}</span
           >
         </button>
         <button id="clear" class="btn" @click="clearTraffic">
@@ -258,13 +265,15 @@ async function key(event: KeyboardEvent) {
                 </button></template
               >
               <template v-else-if="!state?.recording"
-                ><h2>{{ t("采集已暂停") }}</h2>
+                ><h2>
+                  {{ t(state?.captureStarted ? "采集已暂停" : "尚未开始采集") }}
+                </h2>
                 <p>{{ t("代理仍在转发请求，只是不再记录。") }}</p>
                 <button
                   class="btn primary"
                   @click="run(() => host.setRecording(true))"
                 >
-                  <Icon name="play" />{{ t("继续采集") }}
+                  <Icon name="play" />{{ t(recordingAction) }}
                 </button></template
               >
               <template v-else
@@ -331,8 +340,7 @@ async function key(event: KeyboardEvent) {
                 detailError || `#${shell.selected} · ${t("正在读取…")}`
               }}</span>
             </div>
-            <TunnelView v-if="summary && tunnelSelected" :record="summary" />
-            <div v-else class="panes inspectors">
+            <div class="panes inspectors">
               <Inspector
                 side="request"
                 :record="summary"
@@ -343,7 +351,11 @@ async function key(event: KeyboardEvent) {
                 container=".inspectors"
                 v-model="requestWidth"
                 :label="t('调整请求和响应宽度')"
-              /><Inspector side="response" :record="summary" />
+              /><TunnelView
+                v-if="summary && tunnelSelected"
+                :record="summary"
+              />
+              <Inspector v-else side="response" :record="summary" />
             </div>
           </section>
         </template>
@@ -357,7 +369,15 @@ async function key(event: KeyboardEvent) {
           id="connection"
           class="state"
           :class="state?.recording ? 'ok' : 'idle'"
-          >{{ t(state?.recording ? "正在采集" : "已暂停，代理继续转发") }}</span
+          >{{
+            t(
+              state?.recording
+                ? "正在采集"
+                : state?.captureStarted
+                  ? "已暂停，代理继续转发"
+                  : "未开始采集，代理继续转发",
+            )
+          }}</span
         >
         <span id="count"
           ><span class="num">{{ records.size }}</span> {{ t("个请求")

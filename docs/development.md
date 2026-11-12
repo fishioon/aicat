@@ -33,6 +33,7 @@
 | `make cli` | `-tags nogui` 的 `bin/aicat-cli`，无需前端依赖 |
 | `make app` | 未签名的 `build/desktop/aicat.app` |
 | `make run` | 构建前端后运行开发桌面入口 |
+| `make tray-icons` | 从 `assets/logo.svg` 生成原始卷尾、30% 卷曲端点及统一画布的 25 帧 PNG 图集；原生托盘以模板图着色 |
 | `make verify` | 格式、类型检查、vet、已有 Go 检查、release 构建、app 打包、CLI smoke 及构建验收 |
 | `make e2e-build` | 生成独立验收前端，构建带 race 的桌面与 CLI 验收入口 |
 | `make e2e` | 构建后运行 WebView/浏览器、HTTP/TLS、规则/插件/MCP 完整验收 |
@@ -71,6 +72,14 @@ make e2e-build
 python3 e2e/prototype.py --only desktop
 python3 e2e/prototype.py --only transport
 python3 e2e/prototype.py --only rules
+# 仅验证托盘菜单模型、采集对号、系统代理两态与显式刷新（后台，不弹原生菜单）
+node e2e/tray.cjs bin/aicat-e2e build/tray-e2e
+# 仅验证 SVG 生成、30% 端点、等长/等粗和固定画布，并保存浅深色资源对照图
+node e2e/tray-assets.cjs build/tray-assets-e2e
+# 仅验证流量入口默认可用、采集默认暂停、手动采集与启动配置
+node e2e/traffic-default.cjs bin/aicat-e2e build/traffic-default-e2e
+# 仅验证 CONNECT 双栏、响应侧解密提示与域名启用
+node e2e/tunnel.cjs bin/aicat-e2e build/tunnel-e2e
 # 仅验证流量侧边栏的顺序、中英文标签与 Domain 计数
 node e2e/desktop.cjs bin/aicat-e2e build/sidebar-e2e sidebar
 # 仅验证 App → 域名 → 路径树及跨应用隔离、搜索、折叠与历史
@@ -87,7 +96,7 @@ node e2e/codex.cjs bin/aicat-e2e build/codex-e2e
 node e2e/desktop.cjs bin/aicat-e2e build/icons-e2e icons
 ```
 
-只经浏览器预览驱动的场景（`redesign.cjs`、`provider.cjs`、`codex.cjs`）以 `AICAT_E2E_BACKGROUND=1` 启动验收二进制：原生窗口保持隐藏、不抢焦点、不出现 Dock 图标，可在后台反复运行。该开关只存在于 `e2e` tag 构建。`desktop.cjs` 及 `prototype.py --only desktop` 要驱动并断言真实 WKWebView 窗口的显示/隐藏，仍会弹出窗口。
+只经浏览器预览驱动的场景（`tray.cjs`、`traffic-default.cjs`、`tunnel.cjs`、`redesign.cjs`、`provider.cjs`、`codex.cjs`）以 `AICAT_E2E_BACKGROUND=1` 启动验收二进制：原生窗口保持隐藏、不抢焦点、不出现 Dock 图标，可在后台反复运行。该开关只存在于 `e2e` tag 构建。采集按钮的 `traffic-default.cjs` 不连接原生自动化，保留浏览器截图、日志与报告；原 `desktop.cjs ... traffic-default` 命令也转交此后台入口。`desktop.cjs` 的其他场景及 `prototype.py --only desktop` 要驱动并断言真实 WKWebView 窗口的显示/隐藏，仍会弹出窗口。
 
 `e2e/prototype.py` 不带 `--only` 时三组必须全部通过；`--output` 指定工件根目录，默认 `build/full-e2e-*/`。
 

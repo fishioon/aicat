@@ -7,9 +7,7 @@ import { expanded } from "../state/sidebar";
 import { t } from "../i18n";
 import Icon from "./Icon.vue";
 const props = defineProps<{ node: TreeNode; depth: number }>();
-const open = computed(
-  () => expanded.has(props.node.key) || !!shell.sideQuery.trim(),
-);
+const open = computed(() => expanded.has(props.node.key));
 const selected = computed(
   () =>
     shell.app === (props.node.app ?? null) &&

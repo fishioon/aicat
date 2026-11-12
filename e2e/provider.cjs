@@ -12,7 +12,9 @@
  * unknown model forwarded anywhere; the old per-provider paths still served;
  * a provider saved whose key is refused or that lists no models; an
  * unticked model still offered in the list or matched by its bare name, or
- * refused when named with its prefix.
+ * refused when named with its prefix; a call's tokens, first-token time or
+ * agent missing from usage, a streamed Chat call left without its usage, or
+ * the usage file readable by others or holding a key.
  * Usage: node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
  */
 const fs = require("node:fs"),
@@ -109,9 +111,16 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
         return;
       }
       res.writeHead(200, { "Content-Type": "text/event-stream" });
-      res.write('event: message_start\ndata: {"type":"message_start"}\n\n');
+      res.write(
+        'event: message_start\ndata: {"type":"message_start","message":{"model":"claude-test","usage":{"input_tokens":120,"cache_read_input_tokens":300,"cache_creation_input_tokens":30,"output_tokens":1}}}\n\n',
+      );
       await sleep(400);
-      res.end('event: message_stop\ndata: {"type":"message_stop"}\n\n');
+      res.write(
+        'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}\n\n',
+      );
+      res.end(
+        'event: message_delta\ndata: {"type":"message_delta","usage":{"output_tokens":45}}\n\nevent: message_stop\ndata: {"type":"message_stop"}\n\n',
+      );
     });
   });
   await new Promise((r) => upstream.listen(0, "127.0.0.1", r));
@@ -122,7 +131,7 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
   await new Promise((r) => temp.close(r));
   fs.writeFileSync(
     path.join(home, "aicat.yaml"),
-    `gateway:\n  addr: 127.0.0.1:${port}\nui:\n  language: zh-Hans\n  theme: light\n`,
+    `traffic:\n  recording: true\nextensions:\n  traffic:\n    enabled: true\ngateway:\n  addr: 127.0.0.1:${port}\nui:\n  language: zh-Hans\n  theme: light\n`,
   );
   // A file from before providers were named: one entry per vendor kind, and
   // an address typed without /v1.
@@ -167,6 +176,7 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
         "x-api-key": AGENT_KEY,
         Authorization: "Bearer " + AGENT_KEY,
         "anthropic-version": "2023-06-01",
+        "User-Agent": "claude-cli/2.1.0 (external, cli)",
       },
     });
   try {
@@ -235,6 +245,16 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
         url,
       );
     assert.equal(seen.length, reached);
+    // A streamed Chat call is asked to end with its usage.
+    await call(port, "/v1/chat/completions", {
+      method: "POST",
+      body: '{"model":"openai/gpt-x","stream":true}',
+    });
+    assert.deepEqual(JSON.parse(seen.at(-1).body), {
+      model: "gpt-x",
+      stream: true,
+      stream_options: { include_usage: true },
+    });
     check("legacy providers.json kept as a named provider, /v1 fixed");
     check(
       "routed by model; other protocols, unknown models and old paths refused",
@@ -447,6 +467,43 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     assert(!(await page.content()).includes(KEY));
     await shot("provider-traffic-light");
     check("recorded in traffic without credentials");
+
+    // Each forwarded call is in the usage, with its tokens, first token and
+    // agent, apart from the traffic records.
+    const usage = async () =>
+      JSON.parse((await call(port, "/api/usage?period=today")).text);
+    const held = await wait(async () => {
+      const p = (await usage()).providers.find((g) => g.key === "anthropic");
+      return p?.requests >= 3 && p;
+    });
+    const calls = held.input / 120;
+    assert(Number.isInteger(calls) && calls >= 3, JSON.stringify(held));
+    assert.equal(held.name, "Anthropic");
+    assert.deepEqual(
+      [held.cacheRead, held.cacheWrite, held.output],
+      [300 * calls, 30 * calls, 45 * calls],
+    );
+    assert(held.ttftMs >= 300, "first token time " + held.ttftMs);
+    const summary = await usage();
+    assert(summary.agents.some((a) => a.name === "Claude Code"));
+    assert(summary.models.some((m) => m.key === "claude-test"));
+    const ledger = path.join(home, "usage.jsonl");
+    assert.equal(fs.statSync(ledger).mode & 0o777, 0o600);
+    const lines = fs.readFileSync(ledger, "utf8");
+    assert(!lines.includes(KEY) && !lines.includes(AGENT_KEY));
+    assert.equal((await call(port, "/api/usage?period=1y")).status, 400);
+    await page.locator("#nav-overview").click();
+    await wait(
+      async () =>
+        (await page.locator("#usage-tokens").innerText()).trim() !== "0",
+    );
+    await page.locator("#overview-providers").getByText("Anthropic").waitFor();
+    await page.locator("#overview-agents").getByText("Claude Code").waitFor();
+    await page.locator("#usage-period-7d").click();
+    await page.locator("#usage-period-7d[aria-checked=true]").waitFor();
+    await page.locator("#usage-period-today").click();
+    await shot("provider-usage-light");
+    check("calls summed in usage and on the overview");
 
     // Changing the endpoint keeps the saved key.
     await page.locator("#nav-overview").click();

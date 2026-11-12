@@ -51,6 +51,7 @@ func desktopPreview(desktop *Desktop) (func(), error) {
 		}
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("/tray", desktop.app.previewTray)
 	mux.Handle("/", mygo.FileServer(ui.Files()))
 	mux.HandleFunc("/diagnostics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -120,7 +121,7 @@ func desktopPreview(desktop *Desktop) (func(), error) {
 		}
 	})
 	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if (r.URL.Path == "/rpc" || r.URL.Path == "/events" || r.URL.Path == "/diagnostics") && (r.Header.Get("X-Aicat-Preview") != token || (r.Header.Get("Origin") != "" && r.Header.Get("Origin") != "http://"+r.Host)) {
+		if (r.URL.Path == "/rpc" || r.URL.Path == "/events" || r.URL.Path == "/diagnostics" || r.URL.Path == "/tray") && (r.Header.Get("X-Aicat-Preview") != token || (r.Header.Get("Origin") != "" && r.Header.Get("Origin") != "http://"+r.Host)) {
 			http.Error(w, "unauthorized", 403)
 			return
 		}

@@ -28,6 +28,7 @@ import (
 	"github.com/fishioon/aicat/internal/codex/catalog"
 	"github.com/fishioon/aicat/internal/provider"
 	"github.com/fishioon/aicat/internal/traffic"
+	"github.com/fishioon/aicat/internal/usage"
 )
 
 // Path is where Codex's backend requests live, on chatgpt.com and on aicat.
@@ -174,6 +175,7 @@ func (h *Handler) vendor(w http.ResponseWriter, r *http.Request, rest string, bo
 		out.Header.Set("Accept", accept)
 	}
 	out.Header.Set("User-Agent", "aicat")
+	out.Header.Set(usage.AgentHeader, "Codex")
 	h.forward.ServeHTTP(w, out)
 }
 

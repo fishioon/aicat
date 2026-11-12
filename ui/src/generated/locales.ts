@@ -740,6 +740,10 @@ export interface Messages {
    */
   resumeCapture(): string;
   /**
+   * `开始采集`
+   */
+  startCapture(): string;
+  /**
    * `aicat · 已暂停采集`
    */
   aicatCapturePaused(): string;
@@ -959,6 +963,66 @@ export interface Messages {
    * `无法保存导航栏设置：%v`
    */
   saveNavigationError(): string;
+  /**
+   * `采集流量`
+   */
+  captureTraffic(): string;
+  /**
+   * `系统代理：未接管`
+   */
+  trayProxyInactive(): string;
+  /**
+   * `系统代理：已接管`
+   */
+  trayProxyActive(): string;
+  /**
+   * `监听于 `
+   */
+  trayListenOn(): string;
+  /**
+   * `代理设置…`
+   */
+  trayProxySettings(): string;
+  /**
+   * `复制代理地址`
+   */
+  trayCopyAddress(): string;
+  /**
+   * `接入 Agent…`
+   */
+  trayConnectAgent(): string;
+  /**
+   * `扩展管理…`
+   */
+  trayExtensions(): string;
+  /**
+   * `帮助`
+   */
+  trayHelp(): string;
+  /**
+   * `使用文档…`
+   */
+  trayManual(): string;
+  /**
+   * `反馈问题…`
+   */
+  trayFeedback(): string;
+  /**
+   * `启用系统代理…`
+   */
+  trayEnableProxy(): string;
+  /**
+   * `关闭系统代理`
+   */
+  trayDisableProxy(): string;
+  /**
+   * `处理代理设置…`
+   */
+  trayHandleProxy(): string;
+  /**
+   * `部分网络设置与 aicat 接管时不一致；恢复时会保留这些修改。`
+   */
+  trayProxyModified(): string;
 }
 
 const catalog = createCatalog<Messages>({
@@ -1153,6 +1217,7 @@ const catalog = createCatalog<Messages>({
     "quitAicat": [],
     "aicatCapturing": [],
     "resumeCapture": [],
+    "startCapture": [],
     "aicatCapturePaused": [],
     "capturePausedProxyForwardingContinues": [],
     "trafficIsDisabled": [],
@@ -1208,6 +1273,21 @@ const catalog = createCatalog<Messages>({
     "pinToNavigation": [],
     "unpinFromNavigation": [],
     "saveNavigationError": [],
+    "captureTraffic": [],
+    "trayProxyInactive": [],
+    "trayProxyActive": [],
+    "trayListenOn": [],
+    "trayProxySettings": [],
+    "trayCopyAddress": [],
+    "trayConnectAgent": [],
+    "trayExtensions": [],
+    "trayHelp": [],
+    "trayManual": [],
+    "trayFeedback": [],
+    "trayEnableProxy": [],
+    "trayDisableProxy": [],
+    "trayHandleProxy": [],
+    "trayProxyModified": [],
   },
   messages: {
     "zh-Hans": {
@@ -1395,6 +1475,7 @@ const catalog = createCatalog<Messages>({
       "quitAicat": "退出 aicat",
       "aicatCapturing": "aicat · 正在采集",
       "resumeCapture": "继续采集",
+      "startCapture": "开始采集",
       "aicatCapturePaused": "aicat · 已暂停采集",
       "capturePausedProxyForwardingContinues": "采集已暂停，代理继续转发",
       "trafficIsDisabled": "流量功能已关闭",
@@ -1450,6 +1531,21 @@ const catalog = createCatalog<Messages>({
       "pinToNavigation": "固定到导航栏",
       "unpinFromNavigation": "从导航栏取消固定",
       "saveNavigationError": "无法保存导航栏设置：%v",
+      "captureTraffic": "采集流量",
+      "trayProxyInactive": "系统代理：未接管",
+      "trayProxyActive": "系统代理：已接管",
+      "trayListenOn": "监听于 ",
+      "trayProxySettings": "代理设置…",
+      "trayCopyAddress": "复制代理地址",
+      "trayConnectAgent": "接入 Agent…",
+      "trayExtensions": "扩展管理…",
+      "trayHelp": "帮助",
+      "trayManual": "使用文档…",
+      "trayFeedback": "反馈问题…",
+      "trayEnableProxy": "启用系统代理…",
+      "trayDisableProxy": "关闭系统代理",
+      "trayHandleProxy": "处理代理设置…",
+      "trayProxyModified": "部分网络设置与 aicat 接管时不一致；恢复时会保留这些修改。",
     },
     "en": {
       "general": "General",
@@ -1636,6 +1732,7 @@ const catalog = createCatalog<Messages>({
       "quitAicat": "Quit aicat",
       "aicatCapturing": "aicat · Capturing",
       "resumeCapture": "Resume capture",
+      "startCapture": "Start capture",
       "aicatCapturePaused": "aicat · Capture paused",
       "capturePausedProxyForwardingContinues": "Capture paused; proxy forwarding continues",
       "trafficIsDisabled": "Traffic is disabled",
@@ -1691,6 +1788,21 @@ const catalog = createCatalog<Messages>({
       "pinToNavigation": "Pin to navigation",
       "unpinFromNavigation": "Unpin from navigation",
       "saveNavigationError": "Unable to save navigation settings: %v",
+      "captureTraffic": "Record Traffic",
+      "trayProxyInactive": "System Proxy: Not Overridden",
+      "trayProxyActive": "System Proxy: Overridden",
+      "trayListenOn": "Listen on ",
+      "trayProxySettings": "Proxy Settings…",
+      "trayCopyAddress": "Copy Proxy Address",
+      "trayConnectAgent": "Connect Agent…",
+      "trayExtensions": "Manage Extensions…",
+      "trayHelp": "Help",
+      "trayManual": "Manual…",
+      "trayFeedback": "Send Feedback…",
+      "trayEnableProxy": "Enable System Proxy…",
+      "trayDisableProxy": "Disable System Proxy",
+      "trayHandleProxy": "Review Proxy Settings…",
+      "trayProxyModified": "Some network settings no longer match aicat’s configuration. These changes will be preserved during restoration.",
     },
   },
 });

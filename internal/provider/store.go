@@ -182,6 +182,16 @@ func (s *Store) find(id string) int {
 	return slices.IndexFunc(s.entries, func(e entry) bool { return e.ID == id })
 }
 
+// Name is the name of the provider with the ID, "" when there is none.
+func (s *Store) Name(id string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if i := s.find(id); i >= 0 {
+		return s.entries[i].Name
+	}
+	return ""
+}
+
 func (s *Store) List() []Provider {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

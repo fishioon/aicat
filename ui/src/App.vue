@@ -10,6 +10,7 @@ import {
   run,
   menu,
   proxyAddress,
+  toggleSystemProxy,
   theme,
   type Route,
 } from "./state/desktop";
@@ -192,7 +193,13 @@ onUnmounted(() => {
   document.removeEventListener("pointerdown", outside, true);
   window.removeEventListener("focus", focused);
 });
-window.desktop = { navigate, problem, refresh, state: () => state.value };
+window.desktop = {
+  navigate,
+  problem,
+  refresh,
+  toggleSystemProxy,
+  state: () => state.value,
+};
 </script>
 <template>
   <header class="titlebar" id="titlebar">

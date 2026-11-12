@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>aicat · 手动舒展卷尾</title>
+  <style>
+    :root { color-scheme:light dark; --ink:light-dark(#202720,#edf1e9); --paper:light-dark(#fafbf8,#1c231f); --panel:light-dark(#f0f3ed,#29312c); --line:light-dark(#d5ddd2,#48534b); --note:light-dark(#526758,#b1c2b5); --accent:light-dark(#087d70,#81d5bd); }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:15px/1.5 -apple-system,"PingFang SC",sans-serif; }
+    main { max-width:960px; margin:0 auto; padding:32px 24px; }
+    header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:24px; }
+    h1 { font-size:24px; font-weight:500; margin:0; }
+    h2 { font-size:15px; font-weight:500; margin:0 0 16px; }
+    p { margin:6px 0 0; color:var(--note); }
+    .preview-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+    .preview { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:24px; }
+    .stage { min-height:220px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px; }
+    .logo { width:180px; max-width:100%; height:auto; overflow:visible; display:block; }
+    .actual { display:flex; align-items:center; gap:12px; color:var(--note); font-size:12px; }
+    .actual svg { display:block; color:var(--ink); height:18px; width:auto; overflow:visible; }
+    .manual-control { margin:28px 0 20px; }
+    .control-heading, .range-ends { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    .control-heading { margin-bottom:12px; }
+    .range-ends { color:var(--note); font-size:13px; }
+    output { font-variant-numeric:tabular-nums; color:var(--note); }
+    input[type="range"] { width:100%; margin:0; accent-color:var(--accent); min-height:44px; }
+    button, select, textarea { font:inherit; }
+    button, select { color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:7px; padding:8px 12px; }
+    .actions { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+    #status { min-height:24px; margin-top:12px; font-size:13px; }
+    .parameters { margin-top:24px; padding-top:20px; border-top:1px solid var(--line); }
+    .parameters label { display:block; margin-bottom:12px; color:var(--note); }
+    textarea { display:block; width:100%; min-height:116px; resize:vertical; padding:12px; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:7px; font:13px/1.5 ui-monospace,monospace; }
+    .note { font-size:13px; }
+    .definitions { position:absolute; width:0; height:0; overflow:hidden; }
+    @media(max-width:620px) { main { padding:20px 16px; } .preview { padding:16px 8px; } .preview-grid { gap:12px; } .logo { width:116px; } .stage { min-height:180px; gap:20px; } h2 { font-size:14px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div><h1>手动舒展卷尾</h1><p>往左拉，慢慢舒展；往右拉，重新卷起。停在哪里，就保持在哪里。</p></div>
+      <label>外观 <select id="theme"><option value="auto">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
+    </header>
+    <svg class="definitions" aria-hidden="true"><defs>
+      <path id="body-original" d="M134 198H87C51 198 27 177 27 147C27 127 36 112 52 101L57 86C59 78 63 77 70 81L81 84C86 85 89 82 94 76C105 64 119 57 136 57C164 57 184 73 192 98C215 108 230 125 230 147C230 165 222 181 205 190L195 176C206 169 212 158 212 147C212 131 202 119 185 112C180 110 177 107 176 102C170 85 155 75 137 75C123 75 113 81 103 93C96 101 89 104 79 101L72 99L70 108C69 112 67 114 63 116C51 123 45 134 45 147C45 167 61 181 87 181H134C145 181 145 198 134 198Z"/>
+      <path id="tail-original" d="M205 190C194 196 181 199 170 195C159 191 154 182 155 172C156 162 162 154 173 150C178 148 184 150 186 155C188 160 184 165 179 166C174 168 172 170 172 173C172 178 176 180 181 180C186 181 191 179 195 176Z"/>
+      <path id="tail-adjusted"/>
+      <path id="tail-centerline" fill="none" stroke="none"/>
+    </defs></svg>
+    <div class="preview-grid">
+      <section class="preview"><h2>原始卷尾 · 固定对照</h2><div class="stage">
+        <svg class="logo" viewBox="20 50 220 158" role="img" aria-label="原始私云图标"><g fill="currentColor"><use href="#body-original"/><use href="#tail-original"/></g></svg>
+        <div class="actual"><svg viewBox="20 50 220 158" role="img" aria-label="原始图标，18 像素"><g fill="currentColor"><use href="#body-original"/><use href="#tail-original"/></g></svg><span>18 px</span></div>
+      </div></section>
+      <section class="preview" id="manual-preview"><h2>手动舒展 · 当前位置</h2><div class="stage">
+        <svg class="logo" viewBox="20 50 220 158" role="img" aria-label="手动调整后的私云图标"><g fill="currentColor"><use href="#body-original"/><use href="#tail-adjusted"/></g></svg>
+        <div class="actual"><svg viewBox="20 50 220 158" role="img" aria-label="调整后的图标，18 像素"><g fill="currentColor"><use href="#body-original"/><use href="#tail-adjusted"/></g></svg><span>18 px</span></div>
+      </div></section>
+    </div>
+    <div class="manual-control">
+      <div class="control-heading"><label for="curl">卷曲程度</label><output id="curl-value" for="curl">100%</output></div>
+      <input id="curl" type="range" min="0" max="100" step="0.1" value="100" aria-describedby="range-directions">
+      <div class="range-ends" id="range-directions"><span>← 舒展</span><span>卷起 →</span></div>
+    </div>
+    <div class="actions">
+      <button id="uncurl-step" type="button">← 舒展一点</button>
+      <button id="curl-step" type="button">卷起一点 →</button>
+      <button id="selected" type="button">选定位置：卷曲 30%</button>
+      <button id="preview-round-trip" type="button">预览往返一次</button>
+      <button id="reset" type="button">恢复原始卷尾</button>
+      <button id="copy" type="button">复制当前位置</button>
+    </div>
+    <p id="status" role="status" aria-live="polite">拖动滑杆，或用键盘左右箭头微调。</p>
+    <div class="parameters">
+      <label for="parameters">当前位置</label>
+      <textarea id="parameters" readonly spellcheck="false" aria-label="当前位置参数"></textarea>
+      <p class="note">只舒展卷尾末段，猫身、左侧底线和尾根保持固定。保留原 SVG 的卷尖与线条粗细，尾巴长度不变。当前位置会自动保存。</p>
+    </div>
+  </main>
+  <script>
+    (() => {
+      const get = id => document.getElementById(id);
+      const key = 'aicat-tail-manual-v1';
+      const selectedCurl = 30;
+      const state = { curl:selectedCurl, theme:'auto' };
+      try {
+        const saved = JSON.parse(localStorage.getItem(key));
+        if (saved && Number.isFinite(saved.curl) && saved.curl >= 0 && saved.curl <= 100) state.curl = saved.curl;
+        if (saved && ['auto','light','dark'].includes(saved.theme)) state.theme = saved.theme;
+      } catch {}
+      const originalTail = get('tail-original').getAttribute('d');
+      // The original SVG's corresponding outer and inner cubic boundaries.
+      // Their midpoint describes the line; each cross-section keeps its width.
+      const outer = [
+        [[205,190],[194,196],[181,199],[170,195]],
+        [[170,195],[159,191],[154,182],[155,172]],
+        [[155,172],[156,162],[162,154],[173,150]]
+      ];
+      const inner = [
+        [[195,176],[191,179],[186,181],[181,180]],
+        [[181,180],[176,180],[172,178],[172,173]],
+        [[172,173],[172,170],[174,168],[179,166]]
+      ];
+      const cap = [
+        [[173,150],[178,148],[184,150],[186,155]],
+        [[186,155],[188,160],[184,165],[179,166]]
+      ];
+      const steps = 80;
+      const pivot = steps;
+      const cubic = (curve, t) => [0,1].map(axis => (1-t)**3*curve[0][axis] + 3*(1-t)**2*t*curve[1][axis] + 3*(1-t)*t*t*curve[2][axis] + t**3*curve[3][axis]);
+      const original = [];
+      for (let segment = 0; segment < 3; segment++) {
+        for (let i = segment === 0 ? 0 : 1; i <= steps; i++) {
+          const a = cubic(outer[segment], i / steps), b = cubic(inner[segment], i / steps);
+          original.push({ middle:[(a[0]+b[0])/2, (a[1]+b[1])/2], half:[(a[0]-b[0])/2, (a[1]-b[1])/2] });
+        }
+      }
+      const edges = [];
+      let previousAngle;
+      for (let i = 0; i < original.length - 1; i++) {
+        const a = original[i].middle, b = original[i+1].middle;
+        let angle = Math.atan2(b[1]-a[1], b[0]-a[0]);
+        if (previousAngle !== undefined) {
+          while (angle - previousAngle > Math.PI) angle -= 2*Math.PI;
+          while (angle - previousAngle < -Math.PI) angle += 2*Math.PI;
+        }
+        edges.push({ dx:b[0]-a[0], dy:b[1]-a[1], length:Math.hypot(b[0]-a[0],b[1]-a[1]), angle });
+        previousAngle = angle;
+      }
+      const rotate = (point, angle) => [point[0]*Math.cos(angle)-point[1]*Math.sin(angle), point[0]*Math.sin(angle)+point[1]*Math.cos(angle)];
+      const pair = point => point[0].toFixed(6) + ' ' + point[1].toFixed(6);
+      function renderTail() {
+        const coil = state.curl / 100;
+        const anchorAngle = edges[pivot].angle;
+        const middle = [original[0].middle.slice()], changes = [];
+        edges.forEach((edge, i) => {
+          const angle = i < pivot ? edge.angle : anchorAngle + coil*(edge.angle-anchorAngle);
+          const change = angle - edge.angle;
+          changes.push(change);
+          const delta = i < pivot || coil === 1 ? [edge.dx,edge.dy] : [Math.cos(angle)*edge.length,Math.sin(angle)*edge.length];
+          const before = middle[middle.length-1];
+          middle.push([before[0]+delta[0],before[1]+delta[1]]);
+        });
+        const outside = [], inside = [];
+        original.forEach((point, i) => {
+          const change = i === 0 ? changes[0] : i === original.length-1 ? changes[changes.length-1] : (changes[i-1]+changes[i])/2;
+          const offset = rotate(point.half, change);
+          outside.push([middle[i][0]+offset[0],middle[i][1]+offset[1]]);
+          inside.push([middle[i][0]-offset[0],middle[i][1]-offset[1]]);
+        });
+        const points = ['M' + pair(outside[0])];
+        outside.slice(1).forEach(point => points.push('L' + pair(point)));
+        const end = middle[middle.length-1], oldEnd = original[original.length-1].middle;
+        const endAngle = changes[changes.length-1];
+        cap.forEach(curve => {
+          for (let i = 1; i <= 32; i++) {
+            const point = cubic(curve, i / 32);
+            const delta = rotate([point[0]-oldEnd[0],point[1]-oldEnd[1]], endAngle);
+            points.push('L' + pair([end[0]+delta[0],end[1]+delta[1]]));
+          }
+        });
+        inside.slice(0,-1).reverse().forEach(point => points.push('L' + pair(point)));
+        points.push('Z');
+        get('tail-adjusted').setAttribute('d', state.curl === 100 ? originalTail : points.join(''));
+        get('tail-centerline').setAttribute('d', middle.map((point,i) => (i ? 'L' : 'M') + pair(point)).join(''));
+        get('manual-preview').dataset.curl = String(state.curl);
+      }
+      function render() {
+        renderTail();
+        get('curl').value = String(state.curl);
+        get('curl-value').value = Number(state.curl.toFixed(1)) + '%';
+        get('theme').value = state.theme;
+        document.documentElement.style.colorScheme = state.theme === 'auto' ? 'light dark' : state.theme;
+        get('parameters').value = JSON.stringify({ model:'tail-tip-uncurl', curlPercent:state.curl, unfoldPercent:Number((100-state.curl).toFixed(1)) },null,2);
+      }
+      function save() { try { localStorage.setItem(key,JSON.stringify(state)); } catch {} }
+      let animationFrame, previewStart = null;
+      function cancelPreview(restore = false) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = undefined;
+        if (restore && previewStart !== null) { state.curl = previewStart; render(); }
+        previewStart = null;
+      }
+      function setCurl(value) {
+        cancelPreview();
+        state.curl = Number(Math.max(0,Math.min(100,value)).toFixed(1));
+        render(); save();
+        get('status').textContent = '已停在卷曲 ' + state.curl + '%，可继续左右微调。';
+      }
+      get('curl').addEventListener('input', event => setCurl(Number(event.target.value)));
+      get('uncurl-step').addEventListener('click', () => setCurl(state.curl-1));
+      get('curl-step').addEventListener('click', () => setCurl(state.curl+1));
+      get('selected').addEventListener('click', () => setCurl(selectedCurl));
+      get('preview-round-trip').addEventListener('click', () => {
+        cancelPreview(true);
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          get('status').textContent = '系统已开启减少动态效果，当前位置保持不变。';
+          return;
+        }
+        const startCurl = state.curl;
+        const otherCurl = startCurl === 100 ? selectedCurl : 100;
+        previewStart = startCurl;
+        const startTime = performance.now();
+        const duration = 600;
+        get('status').textContent = '正在预览 ' + startCurl + '% → ' + otherCurl + '% → ' + startCurl + '%';
+        function tick(now) {
+          const progress = Math.min(1,(now-startTime)/duration);
+          state.curl = Number((startCurl+(otherCurl-startCurl)*Math.sin(Math.PI*progress)**2).toFixed(1));
+          render();
+          if (progress < 1) animationFrame = requestAnimationFrame(tick);
+          else {
+            state.curl = startCurl; render(); previewStart = null; animationFrame = undefined;
+            get('status').textContent = '已完成往返，回到卷曲 ' + startCurl + '%。';
+          }
+        }
+        animationFrame = requestAnimationFrame(tick);
+      });
+      get('reset').addEventListener('click', () => setCurl(100));
+      get('theme').addEventListener('change', event => { state.theme = event.target.value; render(); save(); });
+      get('copy').addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(get('parameters').value); get('status').textContent = '当前位置参数已复制。'; }
+        catch { get('parameters').focus(); get('parameters').select(); get('status').textContent = '参数已选中，可按 ⌘C 复制。'; }
+      });
+      document.addEventListener('visibilitychange', () => { if (document.hidden) cancelPreview(true); });
+      render();
+    })();
+  </script>
+</body>
+</html>

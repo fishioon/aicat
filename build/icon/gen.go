@@ -5,8 +5,8 @@
 // logo's own outline at any size, drawn the same on any machine, and the tray
 // glyph is black and alpha alone, which the menu bar tints.
 //
-//	go run ./build/icon/gen.go tray assets/logo.svg assets/tray.png
-//	go run ./build/icon/gen.go app assets/logo.svg 256 assets/icon.png
+//	go run ./build/icon/*.go tray-motion assets/logo.svg assets
+//	go run ./build/icon/*.go app assets/logo.svg 256 assets/icon.png
 package main
 
 import (
@@ -34,6 +34,14 @@ var paper = color.NRGBA{R: 0xf5, G: 0xf2, B: 0xed, A: 0xff}
 
 func main() {
 	switch {
+	case (len(os.Args) == 4 || len(os.Args) == 5) && os.Args[1] == "tray-motion":
+		frames := ""
+		if len(os.Args) == 5 {
+			frames = os.Args[4]
+		}
+		if err := trayMotion(os.Args[2], os.Args[3], frames); err != nil {
+			fail(err)
+		}
 	case len(os.Args) == 4 && os.Args[1] == "tray":
 		picture, err := tray(os.Args[2])
 		if err != nil {
@@ -56,7 +64,7 @@ func main() {
 			fail(err)
 		}
 	default:
-		fmt.Fprintln(os.Stderr, "usage: gen tray <logo.svg> <out.png> | gen app <logo.svg> <size> <out.png>")
+		fmt.Fprintln(os.Stderr, "usage: gen tray-motion <logo.svg> <out-dir> | gen tray <logo.svg> <out.png> | gen app <logo.svg> <size> <out.png>")
 		os.Exit(2)
 	}
 }

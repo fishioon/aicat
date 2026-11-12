@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/fishioon/aicat/internal/traffic"
+	"github.com/fishioon/aicat/internal/usage"
 )
 
 // credentialHeaders are dropped from what an agent sends, so a placeholder or
@@ -31,6 +32,7 @@ type Handler struct {
 	store     *Store
 	recorder  *traffic.Recorder
 	recording func() bool
+	usage     *usage.Store
 	transport http.RoundTripper
 }
 
@@ -44,8 +46,10 @@ var direct = &http.Transport{
 	IdleConnTimeout:     90 * time.Second,
 }
 
-func NewHandler(store *Store, recorder *traffic.Recorder, recording func() bool) *Handler {
-	return &Handler{store: store, recorder: recorder, recording: recording, transport: direct}
+// NewHandler serves the model endpoint; usage, when set, gets a record of
+// every call forwarded to a provider.
+func NewHandler(store *Store, recorder *traffic.Recorder, recording func() bool, calls *usage.Store) *Handler {
+	return &Handler{store: store, recorder: recorder, recording: recording, usage: calls, transport: direct}
 }
 
 // Path is where the model endpoint is served on aicat's listener.
@@ -68,6 +72,9 @@ func apiOf(path string) string {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	agent := usage.AgentOf(r.Header)
+	r.Header.Del(usage.AgentHeader)
 	if r.Method == http.MethodGet && r.URL.Path == "/v1/models" {
 		h.models(w, r)
 		return
@@ -99,8 +106,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The provider knows the model without its prefix; a request that named
-	// it bare goes on byte for byte.
-	if name != model {
+	// it bare, and needs nothing added, goes on byte for byte.
+	counted := api == "chat" && askUsage(q)
+	if name != model || counted {
 		q["model"], _ = json.Marshal(name)
 		var b bytes.Buffer
 		enc := json.NewEncoder(&b)
@@ -119,7 +127,31 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if api != "anthropic" {
 		rest = strings.TrimPrefix(rest, "/v1")
 	}
-	h.forward(w, r, e, rest)
+	meter := h.usage.Begin(usage.Record{Agent: agent, Provider: e.ID, Model: name, API: api}, start)
+	h.forward(w, r, e, rest, meter)
+}
+
+// askUsage asks a streamed Chat Completions call to end with its usage,
+// which OpenAI-style vendors leave out of streams by default. It reports
+// whether the request changed.
+func askUsage(q map[string]json.RawMessage) bool {
+	var stream bool
+	if json.Unmarshal(q["stream"], &stream) != nil || !stream {
+		return false
+	}
+	var options map[string]json.RawMessage
+	if raw, ok := q["stream_options"]; ok && json.Unmarshal(raw, &options) != nil {
+		return false
+	}
+	if options == nil {
+		options = map[string]json.RawMessage{}
+	}
+	if _, set := options["include_usage"]; set {
+		return false
+	}
+	options["include_usage"] = json.RawMessage("true")
+	q["stream_options"], _ = json.Marshal(options)
+	return true
 }
 
 // models answers the model list: every model of the providers serving the
@@ -167,10 +199,11 @@ func writeError(w http.ResponseWriter, status int, message string) {
 }
 
 // forward sends r to the provider's endpoint at rest, with the saved key.
-func (h *Handler) forward(w http.ResponseWriter, r *http.Request, e entry, rest string) {
+func (h *Handler) forward(w http.ResponseWriter, r *http.Request, e entry, rest string, meter *usage.Meter) {
 	k := protocols[e.Protocol]
 	target, err := url.Parse(e.BaseURL + rest)
 	if err != nil {
+		meter.Fail(err)
 		writeError(w, http.StatusBadGateway, "供应商的接口地址无效")
 		return
 	}
@@ -193,9 +226,11 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, e entry, rest 
 		},
 		ModifyResponse: func(res *http.Response) error {
 			res.Body = rec.Response(res)
+			res.Body = meter.Response(res)
 			return nil
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			meter.Fail(err)
 			state := traffic.Failed
 			if errors.Is(err, context.Canceled) {
 				state = traffic.Canceled

@@ -46,7 +46,7 @@
   --desk:#121214; --chrome:#252527; --surface:#202022; --sunken:#272729;
   --ink:#E9E9ED; --ink-2:#C4C4CC; --ink-3:#A6A6B0;
   --line:#37373B; --line-strong:#7C7C86; --hover:#303033;
-  --mark:#00BBA7; --mark-line:#00BBA7; --mark-soft:#123B38; --on-mark:#111827;
+  --mark-line:#00BBA7; --mark-soft:#123B38; --on-mark:#111827;
   --logo:#16325C; --logo-bg:#F5F2ED; --float:#303033;
   --ok:#79CBA5; --warn:#F2BD5C; --bad:#FF8A7A; --warn-soft:#33280F; --bad-soft:#2C1918;
   --syn-key:#9EB9EF; --syn-str:#C8A6F5; --syn-num:#F2BD5C;
@@ -57,7 +57,7 @@ html,body{height:100%;margin:0}
 body{background:var(--desk);color:var(--ink);font:var(--t13)/1.5 var(--ui);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;align-items:center;padding:16px}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
-:focus-visible{outline:2px solid var(--mark-line);outline-offset:2px;border-radius:var(--r1)}
+:focus-visible{outline:2px solid var(--mark-line);outline-offset:2px}
 h1,h2,h3,p,ul,ol{margin:0;padding:0}
 ul,ol{list-style:none}
 .num{font-family:var(--num);font-variant-numeric:tabular-nums;letter-spacing:.01em}
@@ -71,8 +71,8 @@ svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .preview .grow{flex:1}
 
 /* 控件 */
-.btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--r2);background:var(--surface);white-space:nowrap}
-.btn:hover{background:var(--sunken)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:1px solid var(--line);border-radius:var(--r2);background:var(--surface);white-space:nowrap}
+.btn:hover{border-color:var(--line-strong);background:var(--sunken)}
 .btn.primary{background:var(--mark);border-color:var(--mark-line);color:var(--on-mark);font-weight:600}
 .btn.primary:hover{filter:brightness(.95)}
 .btn.danger{color:var(--bad)}
@@ -87,7 +87,9 @@ svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .seg button[aria-pressed="true"],.seg button[aria-checked="true"]{background:var(--ink);color:var(--surface);font-weight:600}
 .seg button:focus-visible{outline-offset:-3px}
 .seg button[aria-pressed="true"]:focus-visible,.seg button[aria-checked="true"]:focus-visible{outline-color:var(--surface)}
-.field{height:28px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r2);background:var(--surface);min-width:0}
+.field{height:28px;padding:0 8px;border:1px solid var(--line);border-radius:var(--r2);background:var(--surface);min-width:0}
+.field:hover{border-color:var(--line-strong)}
+.field:focus{border-color:var(--line-strong);outline:none}
 .field::placeholder{color:var(--ink-3)}
 .switch{position:relative;width:36px;height:20px;flex:none;border:1px solid var(--line-strong);border-radius:10px;background:var(--sunken);padding:0}
 .switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--ink-3);transition:transform .15s}
@@ -128,7 +130,6 @@ svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .split{display:grid;grid-template-columns:224px minmax(0,1fr);height:100%}
 .side{background:var(--chrome);border-right:1px solid var(--line);overflow:auto;padding:12px 8px;display:flex;flex-direction:column;gap:4px;min-height:0}
 .main{min-width:0;min-height:0;overflow:auto}
-.side .search{flex:none}
 .side-title{padding:12px 8px 4px;font-size:var(--t12);color:var(--ink-3);display:flex;justify-content:space-between}
 .side-item{position:relative;display:flex;align-items:center;gap:6px;width:100%;min-height:28px;padding:2px 8px;border:0;border-radius:var(--r1);background:none;text-align:left}
 .side-item:hover{background:var(--sunken)}
@@ -258,7 +259,7 @@ table.list{width:100%;border-collapse:collapse;table-layout:fixed;font-size:var(
 .empty h2{font-size:var(--t20);font-weight:600}
 .empty p{color:var(--ink-2)}
 .empty .copyline{width:100%}
-.insp{display:grid;grid-template-rows:auto minmax(0,1fr);border-top:1px solid var(--line-strong);min-height:0}
+.insp{display:grid;grid-template-rows:auto minmax(0,1fr);border-top:1px solid var(--line);min-height:0}
 .sum{display:flex;align-items:baseline;gap:12px;padding:8px var(--gutter);border-bottom:1px solid var(--line);min-width:0}
 .sum .m{font-weight:700}
 .sum .url{flex:1;min-width:0;font:var(--t12)/1.5 var(--code);overflow-wrap:anywhere;max-height:3em;overflow:auto;user-select:text}
@@ -330,7 +331,7 @@ pre.body{margin:0;font:var(--t12)/1.6 var(--code);white-space:pre-wrap;overflow-
 .xbtn{height:24px;padding:0 10px;border:0;border-radius:var(--r1);background:var(--hover);font-size:var(--t12);white-space:nowrap}
 .xbtn:hover{background:var(--line)}
 .xbtn.primary{background:var(--mark);color:var(--on-mark);font-weight:600}
-.xbtn.primary:hover{background:var(--mark);filter:brightness(.95)}
+.xbtn.primary:hover{filter:brightness(.95)}
 .xd-acts .icon-btn{width:24px;height:24px;border-radius:var(--r1)}
 .xd-status{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:var(--t12);color:var(--ink-2)}
 .xd-status svg{color:var(--ink-3)}
@@ -478,7 +479,7 @@ const icon=n=>`<svg class="i" viewBox="0 0 16 16" aria-hidden="true">${ICON[n]}<
 const dark=matchMedia('(prefers-color-scheme: dark)');
 const S={page:'overview',connect:false,connected:true,range:'today',metric:'token',dim:'model',prov:'anthropic',provSaved:new Set(),waiting:false,client:'claude',restart:true,drawn:false,
   themePref:'system',lang:'system',host:'127.0.0.1',port:'9981',
-  trafficOn:true,paused:false,q:'',sq:'',quick:'all',filter:null,sel:2231,reqTab:'header',resTab:'header',
+  trafficOn:true,paused:true,captureStarted:false,q:'',quick:'all',filter:null,sel:2231,reqTab:'header',resTab:'header',
   open:new Set(),pinned:['api.anthropic.com'],navPins:['traffic'],
   ext:'traffic',xq:'',xtab:'detail',xopen:{installed:true,rec:true},set:'general',sysProxy:false,cert:'trusted',hosts:['api.anthropic.com','api.openai.com','api.github.com','*.githubusercontent.com']};
 // 解密域名的匹配：精确相等，或 *.example.com 匹配任意层级的子域名（不含 example.com 本身）。
@@ -786,7 +787,7 @@ function trafficShell(){
     <div class="tools">
       <label class="search"><span class="sr">搜索 URL</span>${icon('search')}<input class="field" id="q" data-in="q" placeholder="搜索 URL" value="${esc(S.q)}" autocomplete="off" spellcheck="false"><kbd>⌘K</kbd></label>
       ${seg('quick',S.quick,[['all','全部'],['bad','出错'],['run','进行中']],'按状态筛选')}
-      <button type="button" class="btn" data-act="pause">${icon(S.paused?'play':'pause')}${S.paused?'继续采集':'暂停采集'}</button>
+      <button type="button" class="btn" data-act="pause">${icon(S.paused?'play':'pause')}${S.paused?(S.captureStarted?'继续采集':'开始采集'):'暂停采集'}</button>
       <button type="button" class="btn" data-act="clear">清空</button>
       <button type="button" class="icon-btn" data-act="export" aria-label="导出为 JSON" title="导出为 JSON">${icon('down')}</button>
     </div>
@@ -804,18 +805,14 @@ function tree(){
   ].map(([t,nodes])=>[t,nodes,cnt]);
 }
 function drawSide(){
-  const sq=S.sq.trim().toLowerCase();
-  const match=n=>!sq||n.label.toLowerCase().includes(sq)||(n.kids||[]).some(match);
   const node=(n,d,cnt)=>{
-    if(!match(n))return '';
-    const kids=n.kids&&n.kids.length,open=kids&&(S.open.has(n.id)||!!sq),cur=fkey(n.f)===fkey(S.filter)&&!!S.filter;
+    const kids=n.kids&&n.kids.length,open=kids&&S.open.has(n.id),cur=fkey(n.f)===fkey(S.filter)&&!!S.filter;
     return `<li><div class="trow" style="padding-left:${d*14}px">
       ${kids?`<button type="button" class="twist" data-act="twist" data-v="${esc(n.id)}" aria-expanded="${!!open}" aria-label="${open?'收起':'展开'} ${esc(n.label)}">${icon('chev')}</button>`:'<span class="twist none"></span>'}
       <button type="button" class="side-item" data-act="filter" data-v="${esc(JSON.stringify(n.f))}" ${n.host?`data-host="${esc(n.host)}"`:''} ${cur?'aria-current="true"':''} title="${esc(n.label)}"><span class="label">${esc(n.label)}</span><span class="count num">${cnt(n.f)}</span></button>
     </div>${open?`<ul>${n.kids.map(k=>node(k,d+1,cnt)).join('')}</ul>`:''}</li>`;
   };
-  $('#tside').innerHTML=`<label class="search" style="margin-bottom:4px"><span class="sr">查找应用或域名</span>${icon('search')}<input class="field" data-in="sq" placeholder="查找应用或域名" value="${esc(S.sq)}" autocomplete="off" spellcheck="false" style="padding-right:8px"></label>
-    <button type="button" class="side-item" data-act="filter" data-v="null" ${S.filter?'':'aria-current="true"'}><span class="label">全部请求</span><span class="count num">${R.length}</span></button>
+  $('#tside').innerHTML=`<button type="button" class="side-item" data-act="filter" data-v="null" ${S.filter?'':'aria-current="true"'}><span class="label">全部请求</span><span class="count num">${R.length}</span></button>
     ${tree().map(([t,nodes,cnt])=>`<div class="side-title"><span>${t}</span><span class="num">${nodes.length}</span></div><ul>${nodes.map(n=>node(n,0,cnt)).join('')}</ul>`).join('')}
     <div class="side-foot">在域名上点右键可以固定</div>`;
 }
@@ -833,9 +830,9 @@ function stCell(r){
 function drawList(focus){
   const box=$('#list'),top=box.scrollTop,rows=visible();
   if(S.sel!=null&&!rows.some(r=>r.id===S.sel))S.sel=null;
-  if(!R.length)box.innerHTML=`<div class="empty"><h2>${S.paused?'采集已暂停':'还没有请求经过网关'}</h2>
+  if(!R.length)box.innerHTML=`<div class="empty"><h2>${S.paused?(S.captureStarted?'采集已暂停':'尚未开始采集'):'还没有请求经过网关'}</h2>
     <p>${S.paused?'代理仍在转发请求，只是不再记录。':'让客户端使用 aicat 的代理地址，请求就会出现在这里。可以先用下面这条命令试一下。'}</p>
-    ${S.paused?`<button type="button" class="btn primary" data-act="pause">${icon('play')}继续采集</button>`:copyline(`curl --proxy ${base()} https://example.com`,'命令')+`<button type="button" class="link" data-act="connect">接入 Agent</button>`}</div>`;
+    ${S.paused?`<button type="button" class="btn primary" data-act="pause">${icon('play')}${S.captureStarted?'继续采集':'开始采集'}</button>`:copyline(`curl --proxy ${base()} https://example.com`,'命令')+`<button type="button" class="link" data-act="connect">接入 Agent</button>`}</div>`;
   else if(!rows.length)box.innerHTML=`<div class="empty"><h2>没有符合条件的请求</h2><p>共 ${R.length} 个请求，都被当前的搜索或筛选排除了。</p><button type="button" class="btn" data-act="reset">清除筛选</button></div>`;
   else box.innerHTML=`<table class="list"><colgroup><col style="width:32px"><col style="width:48px"><col><col class="opt" style="width:104px"><col style="width:84px"><col style="width:64px"><col class="opt" style="width:56px"><col class="opt" style="width:72px"><col class="opt" style="width:84px"></colgroup>
     <thead><tr><th><span class="sr">结果</span></th><th>#</th><th>URL</th><th class="opt">应用</th><th>方法</th><th>状态</th><th class="opt">类型</th><th class="opt r">耗时</th><th class="opt r">大小</th></tr></thead>
@@ -846,7 +843,7 @@ function drawList(focus){
       <td class="opt dim">${r.type}</td><td class="opt r num">${dur(r.ms)}</td><td class="opt r num">${r.size}</td></tr>`).join('')}</tbody></table>`;
   box.scrollTop=top;
   $('#tr').classList.toggle('open',S.sel!=null);
-  $('#foot').innerHTML=`<span class="state ${S.paused?'idle':'ok'}">${S.paused?'已暂停，代理继续转发':'正在采集'}</span>
+  $('#foot').innerHTML=`<span class="state ${S.paused?'idle':'ok'}">${S.paused?(S.captureStarted?'已暂停，代理继续转发':'未开始采集，代理继续转发'):'正在采集'}</span>
     <span><span class="num">${R.length}</span> 个请求${rows.length!==R.length?`，显示 <span class="num">${rows.length}</span> 个`:''}</span>
     <span class="grow"></span><span>${S.sel!=null?'Esc 取消选择':rows.length?'↑ ↓ 选择请求':''}</span>`;
   if(focus){const el=box.querySelector('tr[tabindex="0"]');if(el){el.focus({preventScroll:true});el.scrollIntoView({block:'nearest'});}}
@@ -1038,10 +1035,10 @@ const ACT={
   sim:()=>{S.connected=true;S.waiting=false;S.connect=false;S.drawn=false;draw();toast('已连接 '+CLIENTS[S.client].name);},
   restart:()=>{S.restart=false;draw();toast('已重启 aicat，新规则已生效');},
   quick:t=>{S.quick=t.dataset.v;draw();},
-  pause:()=>{S.paused=!S.paused;draw();},
+  pause:()=>{S.paused=!S.paused;S.captureStarted||=!S.paused;draw();},
   clear:()=>{if(!R.length)return;const keep=R,sel=S.sel,n=R.length;R=[];S.sel=null;S.filter=null;S.q='';S.quick='all';draw();
     toast(`已清空 ${n} 个请求`,'撤销',()=>{R=keep;S.sel=sel;draw();});},
-  reset:()=>{S.filter=null;S.q='';S.sq='';S.quick='all';draw();},
+  reset:()=>{S.filter=null;S.q='';S.quick='all';draw();},
   export:()=>toast('已导出 aicat-traffic.json（演示）'),
   filter:t=>{S.filter=JSON.parse(t.dataset.v);track();drawBar();drawSide();drawList();drawInsp();const el=document.querySelector('#tside [aria-current="true"]');el&&el.focus();},
   twist:t=>{const id=t.dataset.v;S.open.has(id)?S.open.delete(id):S.open.add(id);drawSide();const el=[...document.querySelectorAll('#tside .twist')].find(b=>b.dataset.v===id);el&&el.focus();},
@@ -1103,7 +1100,6 @@ document.addEventListener('input',e=>{
   const k=e.target.dataset.in;
   if(k==='q'){S.q=e.target.value;drawList();drawInsp();}
   if(k==='xq'){S.xq=e.target.value;const pos=e.target.selectionStart;drawExtSide();const el=$('#xside input');el.focus();el.setSelectionRange(pos,pos);}
-  if(k==='sq'){S.sq=e.target.value;const pos=e.target.selectionStart;drawSide();const el=$('#tside input');el.focus();el.setSelectionRange(pos,pos);}
 });
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&$('#menu .pop')){e.preventDefault();closeMenu();const b=$('#rail [data-act="more"]');b&&b.focus();return;}
@@ -1136,6 +1132,7 @@ document.addEventListener('keydown',e=>{
 // 截图入口：aicat-redesign.html#page=traffic&theme=dark&state=first&set=proxy&sel=2234&reqTab=body&resTab=events&connect=1
 const init=Object.assign({},window.AICAT_PREVIEW,Object.fromEntries(new URLSearchParams(location.hash.slice(1))));
 if(init.page)S.page=init.page;
+if(init.page==='traffic'){S.paused=false;S.captureStarted=true;}
 if(init.theme)S.themePref=init.theme;
 if(init.state==='first')S.connected=false;
 if(init.set)S.set=init.set;

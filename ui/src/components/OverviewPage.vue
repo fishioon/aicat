@@ -1,77 +1,31 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { state, navigate, proxyAddress } from "../state/desktop";
+import { computed, onMounted, onUnmounted, watch } from "vue";
+import { state, navigate } from "../state/desktop";
 import { providerId } from "../state/providers";
-import { records, appKey, failed, running, copy } from "../state/traffic";
-import { status } from "../state/format";
+import {
+  usage,
+  period,
+  loadUsage,
+  tokens,
+  hitRate,
+  count,
+  seconds,
+} from "../state/usage";
 import { t } from "../i18n";
 import Icon from "./Icon.vue";
+import Seg from "./Seg.vue";
+import UsageChart from "./UsageChart.vue";
 
 const gateway = computed(() => state.value!.gateway);
-const trafficOn = computed(() => !!state.value?.trafficEnabled);
-const base = computed(() => "http://" + proxyAddress());
 
-// Statistics cover the bounded traffic records currently kept in memory.
-const stats = computed(() => {
-  const rows = [...records.value.values()];
-  const http = rows.filter((row) => !row.tunnel);
-  const done = http.filter((row) => !running(row));
-  const bad = http.filter(failed);
-  const apps = new Map<
-    string,
-    {
-      key: string;
-      name: string;
-      requests: number;
-      failures: number;
-      last: number;
-    }
-  >();
-  const hosts = new Set<string>();
-  for (const row of rows) {
-    hosts.add(new URL(row.url).host);
-    const key = appKey(row);
-    if (!apps.has(key))
-      apps.set(key, {
-        key,
-        name: row.clientApp?.name ?? t("未知应用"),
-        requests: 0,
-        failures: 0,
-        last: 0,
-      });
-    const app = apps.get(key)!;
-    if (!row.tunnel) app.requests++;
-    if (failed(row)) app.failures++;
-    app.last = Math.max(app.last, Date.parse(row.startedAt) || 0);
-  }
-  return {
-    total: http.length,
-    running: http.length - done.length,
-    failures: bad.length,
-    success: done.length
-      ? Math.floor(((done.length - bad.length) / done.length) * 1000) / 10
-      : 100,
-    hosts: hosts.size,
-    tunnels: rows.length - http.length,
-    apps: [...apps.values()].sort((a, b) => b.last - a.last),
-  };
-});
-
-function ago(time: number) {
-  const seconds = Math.max(0, (Date.now() - time) / 1000);
-  if (seconds < 60) return t("刚刚");
-  if (seconds < 3600) return t("{n} 分钟前", { n: Math.floor(seconds / 60) });
-  if (seconds < 86400)
-    return t("{n} 小时前", { n: Math.floor(seconds / 3600) });
-  return t("{n} 天前", { n: Math.floor(seconds / 86400) });
-}
-
+// Only node-level problems the user has to act on; request failures of
+// individual apps stay on their app rows.
 interface Todo {
   id: string;
   title: string;
   detail: string;
   kind: "bad" | "warn";
-  action?: { label: string; run: () => void };
+  action: { label: string; run: () => void };
 }
 const todos = computed<Todo[]>(() => {
   const s = state.value!;
@@ -108,110 +62,80 @@ const todos = computed<Todo[]>(() => {
       kind: "bad",
       action: { label: "代理设置", run: () => navigate("proxy") },
     });
-  if (trafficOn.value) {
-    const groups = new Map<
-      string,
-      {
-        app: string | null;
-        name: string;
-        host: string;
-        count: number;
-        text: string;
-      }
-    >();
-    for (const row of records.value.values()) {
-      if (!failed(row) || row.tunnel) continue;
-      const host = new URL(row.url).host;
-      const key = appKey(row) + " " + host;
-      const group = groups.get(key) ?? {
-        app: appKey(row),
-        name: row.clientApp?.name ?? t("未知应用"),
-        host,
-        count: 0,
-        text: "",
-      };
-      group.count++;
-      group.text = row.statusCode
-        ? status(row).text + (row.error ? " · " + row.error : "")
-        : row.error || status(row).text;
-      groups.set(key, group);
-    }
-    for (const group of [...groups.values()]
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 4))
-      list.push({
-        id: "failed:" + group.app + group.host,
-        title: t("{app} 调用 {host} 失败", {
-          app: group.name,
-          host: group.host,
-        }),
-        detail:
-          t("{n} 次", { n: group.count }) + " · " + t("最近：") + group.text,
-        kind: "bad",
-        action: {
-          label: "查看请求",
-          run: () =>
-            navigate("traffic", {
-              app: group.app,
-              host: group.host,
-              query: "",
-            }),
-        },
-      });
+  // what the last model list sync said about a provider's endpoint and key
+  for (const p of s.providers) {
+    if (!p.models.error || p.syncing) continue;
+    list.push({
+      id: "provider:" + p.id,
+      title: t("供应商 {name} 不可用", { name: p.name }),
+      detail:
+        p.models.errorKind === "auth"
+          ? t("密钥无效")
+          : p.models.errorKind === "network"
+            ? t("连不上")
+            : t("没有模型列表"),
+      kind: "warn",
+      action: { label: "管理", run: () => openProvider(p.id) },
+    });
   }
   return list;
 });
-const providers = computed(() =>
-  (state.value?.providers ?? []).map((p) => ({
-    id: p.id,
-    name: p.name,
-    host: new URL(p.baseUrl).host,
-    // what the last model list sync said about the endpoint and key
-    problem: !p.models.error
-      ? ""
-      : p.models.errorKind === "auth"
-        ? t("密钥无效")
-        : p.models.errorKind === "network"
-          ? t("连不上")
-          : "",
-  })),
+const providerHost = computed(
+  () =>
+    new Map(
+      (state.value?.providers ?? []).map((p) => [
+        p.id,
+        new URL(p.baseUrl).host,
+      ]),
+    ),
 );
 function openProvider(id = "") {
   providerId.value = id;
   navigate("provider");
 }
-const endpoints = computed(() => [
-  ["MCP", base.value + "/mcp", t("MCP 地址")],
-  ["HTTP API", base.value + "/api/traffic", t("API 地址")],
-  [t("HTTP 代理"), base.value, t("代理地址")],
-]);
+const periods = [
+  ["today", "今天"],
+  ["7d", "7 天"],
+  ["30d", "30 天"],
+] as const;
+const total = computed(() => usage.value?.total);
+// The four largest models get a color slot each, in fixed order; the rest
+// share "other". A model keeps its slot while the period stays the same.
+const series = computed(() =>
+  (usage.value?.models ?? [])
+    .slice(0, 4)
+    .map((m, index) => ({ key: m.key, name: m.name, slot: index + 1 })),
+);
+const slotOf = (key: string) =>
+  series.value.find((s) => s.key === key)?.slot ?? 0;
+const modelTop = computed(() =>
+  Math.max(1, ...(usage.value?.models ?? []).map(tokens)),
+);
+const empty = computed(() => !total.value?.requests);
+// Calls keep arriving while the page is open; it rereads every 5 seconds.
+let timer: ReturnType<typeof setInterval> | undefined;
+onMounted(() => {
+  void loadUsage().catch(() => {});
+  timer = setInterval(() => void loadUsage().catch(() => {}), 5000);
+});
+onUnmounted(() => clearInterval(timer));
+watch(period, () => void loadUsage().catch(() => {}));
 </script>
 <template>
   <div class="main" id="overview">
     <div class="ov">
       <div class="ov-head">
-        <div>
-          <h1 id="gateway-state">
-            {{
-              t(
-                gateway.state === "ready"
-                  ? "网关运行中"
-                  : gateway.state === "failed"
-                    ? "网关没有在监听"
-                    : "网关正在启动",
-              )
-            }}
-          </h1>
-          <p>
-            {{ t("aicat 在后台监听") }}
-            <span class="num">{{ gateway.addr }}</span
-            >{{
-              trafficOn
-                ? t("。统计来自当前保留的流量记录。")
-                : t("。流量扩展已停用，这里不统计请求。")
-            }}
-          </p>
-        </div>
+        <h1 id="gateway-state" :class="'ov-state ' + gateway.state">
+          {{
+            t(
+              gateway.state === "ready"
+                ? "网关运行中"
+                : gateway.state === "failed"
+                  ? "网关没有在监听"
+                  : "网关正在启动",
+            )
+          }}
+        </h1>
         <span class="grow"></span>
         <button id="connect-provider" class="btn" @click="openProvider()">
           <Icon name="plus" />{{ t("接入供应商") }}
@@ -220,136 +144,184 @@ const endpoints = computed(() => [
           <Icon name="plus" />{{ t("接入 Agent") }}
         </button>
       </div>
-      <section v-if="trafficOn" class="card tiles" :aria-label="t('请求摘要')">
+      <ul v-if="todos.length" class="ov-todos" id="overview-todos">
+        <li v-for="todo in todos" :key="todo.id" :class="todo.kind">
+          <div>
+            <strong>{{ todo.title }}</strong>
+            <span>{{ todo.detail }}</span>
+          </div>
+          <button class="btn" @click="todo.action.run">
+            {{ t(todo.action.label) }}
+          </button>
+        </li>
+      </ul>
+      <div class="ov-bar">
+        <Seg
+          v-model="period"
+          :options="periods"
+          label="时间范围"
+          id-prefix="usage-period-"
+        />
+        <span class="muted">{{
+          t("统计经过 aicat 供应商入口的模型调用")
+        }}</span>
+      </div>
+      <section
+        class="ov-tiles"
+        :aria-label="t('用量摘要')"
+        v-if="total && !empty"
+      >
+        <div class="tile">
+          <h2>Token</h2>
+          <div class="v num" id="usage-tokens">{{ count(tokens(total)) }}</div>
+          <div class="s">
+            {{ t("输入") }} <span class="num">{{ count(total.input) }}</span> ·
+            {{ t("输出") }} <span class="num">{{ count(total.output) }}</span> ·
+            {{ t("缓存") }}
+            <span class="num">{{
+              count(total.cacheRead + total.cacheWrite)
+            }}</span>
+          </div>
+        </div>
         <div class="tile">
           <h2>{{ t("请求") }}</h2>
-          <div class="v num" id="stat-requests">{{ stats.total }}</div>
+          <div class="v num" id="usage-requests">{{ total.requests }}</div>
           <div class="s">
-            {{ t("进行中") }} <span class="num">{{ stats.running }}</span>
+            <b v-if="total.failures" class="bad"
+              ><span class="num">{{ total.failures }}</span>
+              {{ t("次失败") }}</b
+            ><template v-else>{{ t("没有失败") }}</template>
           </div>
         </div>
         <div class="tile">
-          <h2>{{ t("失败") }}</h2>
-          <div class="v num">{{ stats.failures }}</div>
-          <div class="s">
-            {{ t("成功") }}
-            <span class="num">{{ stats.success.toFixed(1) }}%</span>
+          <h2>{{ t("缓存命中率") }}</h2>
+          <div class="v num">{{ (hitRate(total) * 100).toFixed(1) }}%</div>
+          <div class="meter" aria-hidden="true">
+            <i :style="{ width: hitRate(total) * 100 + '%' }"></i>
           </div>
         </div>
         <div class="tile">
-          <h2>{{ t("应用", {}, "column") }}</h2>
-          <div class="v num">{{ stats.apps.length }}</div>
-          <div class="s">{{ t("直接连接代理的本机进程") }}</div>
-        </div>
-        <div class="tile">
-          <h2>{{ t("域名") }}</h2>
-          <div class="v num">{{ stats.hosts }}</div>
+          <h2>{{ t("响应") }}</h2>
+          <div class="v num">
+            {{ seconds(total.avgMs) }}<small>{{ t("平均耗时") }}</small>
+          </div>
           <div class="s">
-            {{ t("未解密隧道") }} <span class="num">{{ stats.tunnels }}</span>
+            {{ t("首字") }} <span class="num">{{ seconds(total.ttftMs) }}</span>
+            <template v-if="total.speed">
+              · {{ t("输出") }}
+              <span class="num">{{ Math.round(total.speed) }}</span>
+              token/s</template
+            >
           </div>
         </div>
       </section>
-      <div class="ov-cols">
-        <section>
-          <h2>{{ t("已接入") }}</h2>
-          <p class="sub">{{ t("供应商，以及经过网关的应用") }}</p>
-          <ul class="conn" id="overview-apps">
-            <li
-              v-for="provider in providers"
-              :key="'provider:' + provider.id"
-              class="provider"
-            >
-              <div>
-                <strong>{{ provider.name }}</strong
-                ><span class="who"
-                  >{{ t("供应商") }} · {{ provider.host }} ·
-                  <span v-if="provider.problem" class="bad">{{
-                    provider.problem
-                  }}</span
-                  ><template v-else>{{
-                    t("密钥由 aicat 保管")
-                  }}</template></span
-                >
+      <section v-if="usage && !empty" class="ov-card ov-usage">
+        <div class="ov-chart">
+          <h2>{{ t("Token 用量") }}</h2>
+          <UsageChart
+            :buckets="usage.buckets"
+            :series="series"
+            :hourly="usage.period === 'today'"
+          />
+        </div>
+        <div class="ov-models">
+          <h2>{{ t("按模型") }}</h2>
+          <ul>
+            <li v-for="m in usage.models.slice(0, 6)" :key="m.key">
+              <div class="head">
+                <i :class="'s' + slotOf(m.key)"></i>
+                <strong>{{ m.name }}</strong>
+                <b class="num">{{ count(tokens(m)) }}</b>
               </div>
-              <button class="btn" @click="openProvider(provider.id)">
-                {{ t("管理") }}
-              </button>
+              <div class="share">
+                <i
+                  :class="'s' + slotOf(m.key)"
+                  :style="{ width: (tokens(m) / modelTop) * 100 + '%' }"
+                ></i>
+              </div>
+              <span class="who"
+                ><span class="num">{{ m.requests }}</span> {{ t("次请求") }} ·
+                {{ t("命中率") }}
+                <span class="num">{{ Math.round(hitRate(m) * 100) }}%</span>
+                <template v-if="m.failures">
+                  ·
+                  <b class="bad"
+                    ><span class="num">{{ m.failures }}</span>
+                    {{ t("次失败") }}</b
+                  ></template
+                ></span
+              >
             </li>
-            <li v-for="app in stats.apps.slice(0, 8)" :key="app.key">
-              <div>
-                <strong>{{ app.name }}</strong
-                ><span class="who"
-                  ><span class="num">{{ app.requests }}</span> {{ t("次请求")
-                  }}<template v-if="app.failures">
+          </ul>
+        </div>
+      </section>
+      <section v-else class="ov-card ov-empty">
+        <strong>{{
+          state!.providers.length
+            ? t("这段时间还没有模型调用")
+            : t("还没有接入供应商")
+        }}</strong>
+        <span>{{
+          state!.providers.length
+            ? t(
+                "让 Agent 使用 aicat 的模型入口后，这里会显示 Token 与请求统计。",
+              )
+            : t(
+                "接入供应商并让 Agent 使用 aicat 的模型入口后，这里会显示用量。",
+              )
+        }}</span>
+        <button
+          class="btn primary"
+          @click="
+            state!.providers.length ? navigate('connect') : openProvider()
+          "
+        >
+          {{ state!.providers.length ? t("接入 Agent") : t("接入供应商") }}
+        </button>
+      </section>
+      <div class="ov-cols" v-if="usage && !empty">
+        <section>
+          <h2>{{ t("按供应商") }}</h2>
+          <ul class="ov-list" id="overview-providers">
+            <li v-for="p in usage.providers" :key="p.key">
+              <button class="ov-row provider" @click="openProvider(p.key)">
+                <strong>{{ p.name }}</strong>
+                <b class="num">{{ count(tokens(p)) }}</b>
+                <span class="who"
+                  >{{ providerHost.get(p.key) }} ·
+                  <span class="num">{{ p.requests }}</span> {{ t("次请求") }}
+                  <template v-if="p.failures">
                     ·
                     <b class="bad"
-                      ><span class="num">{{ app.failures }}</span>
+                      ><span class="num">{{ p.failures }}</span>
                       {{ t("次失败") }}</b
                     ></template
                   >
-                  · {{ ago(app.last) }}</span
+                  · {{ t("平均") }}
+                  <span class="num">{{ seconds(p.avgMs) }}</span></span
                 >
-              </div>
-              <button
-                class="btn"
-                @click="
-                  navigate('traffic', { app: app.key, host: '', path: '' })
-                "
-              >
-                {{ t("查看") }}
               </button>
             </li>
-            <li v-if="!stats.apps.length && !providers.length">
-              <div>
-                <span class="empty-line">{{
-                  t("还没有请求经过网关。让客户端使用下面的代理地址。")
-                }}</span>
+          </ul>
+        </section>
+        <section>
+          <h2>{{ t("按 Agent") }}</h2>
+          <ul class="ov-list" id="overview-agents">
+            <li v-for="a in usage.agents" :key="a.key">
+              <div class="ov-row">
+                <strong>{{ a.name }}</strong>
+                <b class="num">{{ count(tokens(a)) }}</b>
+                <span class="who"
+                  ><span class="num">{{ a.requests }}</span> {{ t("次请求") }} ·
+                  {{ t("命中率") }}
+                  <span class="num"
+                    >{{ Math.round(hitRate(a) * 100) }}%</span
+                  ></span
+                >
               </div>
             </li>
           </ul>
         </section>
-        <div>
-          <section>
-            <h2>{{ t("需要处理") }}</h2>
-            <p class="sub">{{ t("连接异常和等待你确认的事项") }}</p>
-            <ul class="conn" id="overview-todos">
-              <li v-for="todo in todos" :key="todo.id">
-                <div>
-                  <strong>{{ todo.title }}</strong
-                  ><span class="who" :class="todo.kind">{{ todo.detail }}</span>
-                </div>
-                <button v-if="todo.action" class="btn" @click="todo.action.run">
-                  {{ t(todo.action.label) }}
-                </button>
-              </li>
-              <li v-if="!todos.length">
-                <div>
-                  <span class="empty-line">{{ t("没有需要处理的事项") }}</span>
-                </div>
-              </li>
-            </ul>
-          </section>
-          <section style="margin-top: 24px">
-            <h2>{{ t("接入地址") }}</h2>
-            <p class="sub">{{ t("MCP 和 HTTP API 只接受本机请求") }}</p>
-            <div class="endpoints">
-              <div v-for="[label, value, what] in endpoints" :key="value">
-                <label>{{ label }}</label>
-                <div class="copyline">
-                  <code>{{ value }}</code
-                  ><button
-                    class="icon-btn"
-                    :aria-label="t('复制') + what"
-                    :title="t('复制') + what"
-                    @click="copy('endpoint:' + value, value, ' ' + what)"
-                  >
-                    <Icon name="copy" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
       </div>
     </div>
   </div>

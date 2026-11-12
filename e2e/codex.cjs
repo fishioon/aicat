@@ -195,8 +195,35 @@ function collect(resolve) {
         return res.end(
           JSON.stringify({
             models: [
-              { slug: "gpt-native", display_name: "Native", priority: 1 },
+              {
+                slug: "gpt-native",
+                display_name: "Native",
+                priority: 1,
+                default_reasoning_level: "medium",
+                supported_reasoning_levels: [
+                  { effort: "low" },
+                  { effort: "medium" },
+                  { effort: "high" },
+                  { effort: "xhigh" },
+                  { effort: "max" },
+                ],
+              },
             ],
+          }),
+        );
+      }
+      if (
+        req.method === "POST" &&
+        req.url === "/backend-api/codex/responses" &&
+        JSON.parse(text).reasoning?.effort === "none"
+      ) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        return res.end(
+          JSON.stringify({
+            error: {
+              message:
+                "Unsupported value: none. Supported values: low, medium, high, xhigh, max",
+            },
           }),
         );
       }
@@ -280,7 +307,7 @@ function collect(resolve) {
   await new Promise((r) => temp.close(r));
   fs.writeFileSync(
     path.join(home, "aicat.yaml"),
-    `gateway:\n  addr: 127.0.0.1:${port}\nui:\n  language: zh-Hans\n  theme: light\n`,
+    `traffic:\n  recording: true\nextensions:\n  traffic:\n    enabled: true\ngateway:\n  addr: 127.0.0.1:${port}\nui:\n  language: zh-Hans\n  theme: light\n`,
   );
   fs.writeFileSync(
     stateFile,
@@ -577,7 +604,7 @@ function collect(resolve) {
 
     // ChatGPT's own turn goes on as it came, and its X-Models-Etag carries
     // aicat's tag like the list does.
-    const nativeBody = turn("gpt-native");
+    const nativeBody = turn("gpt-native", { reasoning: { effort: "medium" } });
     const native = await call(port, "/backend-api/codex/responses", {
       method: "POST",
       headers: codexHeaders,
@@ -588,9 +615,34 @@ function collect(resolve) {
     assert.equal(backendSeen.at(-1).headers["chatgpt-account-id"], "acct-1");
     assert.equal(native.headers["x-models-etag"], models.headers.etag);
     check("ChatGPT turn passed through unchanged, X-Models-Etag tagged");
+    assert.equal(listed[0].default_reasoning_level, "medium");
+    assert.deepEqual(
+      listed[0].supported_reasoning_levels.map((x) => x.effort),
+      ["low", "medium", "high", "xhigh", "max"],
+    );
+    const rejectedBody = turn("gpt-native", { reasoning: { effort: "none" } });
+    for (const send of [
+      (options) => call(port, "/backend-api/codex/responses", options),
+    ]) {
+      const rejected = await send({
+        method: "POST",
+        headers: codexHeaders,
+        body: rejectedBody,
+      });
+      assert.equal(rejected.status, 400);
+      assert.match(
+        JSON.parse(rejected.text).error.message,
+        /Unsupported value: none/,
+      );
+      assert.equal(backendSeen.at(-1).body, rejectedBody);
+    }
+    check(
+      "native catalog does not add none; direct entry preserves explicit none and relays the upstream rejection without selecting another effort",
+    );
 
     // The provider namespace never falls through to ChatGPT.
     const vendorBefore = vendorSeen.length;
+    const backendBeforeRefusals = backendSeen.length;
     for (const model of ["compat/nope", "foo/bar", "compat/chat-only"]) {
       const r = await call(port, "/backend-api/codex/responses", {
         method: "POST",
@@ -616,7 +668,7 @@ function collect(resolve) {
     assert.equal(trigger.status, 400);
     assert.match(JSON.parse(trigger.text).error.message, /压缩/);
     assert.equal(vendorSeen.length, vendorBefore);
-    assert.equal(backendSeen.length, before + 1);
+    assert.equal(backendSeen.length, backendBeforeRefusals);
     check("unknown, chat-only and compacting provider turns refused locally");
 
     const ws = await call(port, "/backend-api/codex/responses", {
@@ -693,6 +745,24 @@ function collect(resolve) {
     check(
       "gateway entry: list merged, provider and ChatGPT turns routed, WebSocket 426",
     );
+    const rejectedViaProxy = await viaGateway(
+      aicatCA,
+      "/backend-api/codex/responses",
+      {
+        method: "POST",
+        headers: codexHeaders,
+        body: rejectedBody,
+      },
+    );
+    assert.equal(rejectedViaProxy.status, 400);
+    assert.equal(backendSeen.at(-1).body, rejectedBody);
+    assert.match(
+      JSON.parse(rejectedViaProxy.text).error.message,
+      /Unsupported value: none/,
+    );
+    check(
+      "decrypted proxy also preserves native none and relays the rejection unchanged",
+    );
 
     // Traffic: provider turns by the provider's URL, the key masked; the
     // decrypted ChatGPT turn captured by the ordinary pipeline.
@@ -732,7 +802,6 @@ function collect(resolve) {
       .locator("#provider-models li", { hasText: "late-model" })
       .waitFor();
     check("manual sync updates the list");
-
     // The extension reports what Codex is offered.
     await page.locator("#nav-extensions").click();
     await page.locator("#extension-codex").click();

@@ -50,6 +50,13 @@ const options = computed(() =>
   ),
 );
 const current = computed(() => clients.value[client.value]);
+const base = computed(() => "http://" + proxyAddress());
+const endpoints = computed(() => [
+  ["MCP", base.value + "/mcp", t("MCP 地址")],
+  [t("模型入口"), base.value + "/v1", t("模型入口地址")],
+  [t("HTTP 代理"), base.value, t("代理地址")],
+  ["HTTP API", base.value + "/api", t("API 地址")],
+]);
 </script>
 <template>
   <div class="main" id="connect">
@@ -112,6 +119,32 @@ const current = computed(() => clients.value[client.value]);
           </div>
         </li>
       </ol>
+      <section class="connect-endpoints">
+        <h2>{{ t("接入地址") }}</h2>
+        <p class="sub">
+          {{
+            t(
+              "都在同一个监听地址上，只接受本机请求。HTTP API 提供 /api/traffic 与 /api/usage。",
+            )
+          }}
+        </p>
+        <dl class="ov-endpoints" id="connect-endpoints">
+          <template v-for="[label, value, what] in endpoints" :key="value">
+            <dt>{{ label }}</dt>
+            <dd>
+              <code>{{ value }}</code
+              ><button
+                class="icon-btn"
+                :aria-label="t('复制') + what"
+                :title="t('复制') + what"
+                @click="copy('endpoint:' + value, value, ' ' + what)"
+              >
+                <Icon name="copy" />
+              </button>
+            </dd>
+          </template>
+        </dl>
+      </section>
     </div>
   </div>
 </template>

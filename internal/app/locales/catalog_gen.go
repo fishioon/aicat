@@ -1926,6 +1926,16 @@ func (msgs Messages) ResumeCapture() string {
 	return Catalog.Format(msgs.locale, "resumeCapture", nil)
 }
 
+// StartCapture says "开始采集"
+// in the language the app shows.
+func StartCapture() string { return In(i18n.Locale()).StartCapture() }
+
+// StartCapture says "开始采集"
+// in the language of msgs.
+func (msgs Messages) StartCapture() string {
+	return Catalog.Format(msgs.locale, "startCapture", nil)
+}
+
 // AicatCapturePaused says "aicat · 已暂停采集"
 // in the language the app shows.
 func AicatCapturePaused() string { return In(i18n.Locale()).AicatCapturePaused() }
@@ -2486,4 +2496,154 @@ func SaveNavigationError() string { return In(i18n.Locale()).SaveNavigationError
 // in the language of msgs.
 func (msgs Messages) SaveNavigationError() string {
 	return Catalog.Format(msgs.locale, "saveNavigationError", nil)
+}
+
+// CaptureTraffic says "采集流量"
+// in the language the app shows.
+func CaptureTraffic() string { return In(i18n.Locale()).CaptureTraffic() }
+
+// CaptureTraffic says "采集流量"
+// in the language of msgs.
+func (msgs Messages) CaptureTraffic() string {
+	return Catalog.Format(msgs.locale, "captureTraffic", nil)
+}
+
+// TrayProxyInactive says "系统代理：未接管"
+// in the language the app shows.
+func TrayProxyInactive() string { return In(i18n.Locale()).TrayProxyInactive() }
+
+// TrayProxyInactive says "系统代理：未接管"
+// in the language of msgs.
+func (msgs Messages) TrayProxyInactive() string {
+	return Catalog.Format(msgs.locale, "trayProxyInactive", nil)
+}
+
+// TrayProxyActive says "系统代理：已接管"
+// in the language the app shows.
+func TrayProxyActive() string { return In(i18n.Locale()).TrayProxyActive() }
+
+// TrayProxyActive says "系统代理：已接管"
+// in the language of msgs.
+func (msgs Messages) TrayProxyActive() string {
+	return Catalog.Format(msgs.locale, "trayProxyActive", nil)
+}
+
+// TrayListenOn says "监听于 "
+// in the language the app shows.
+func TrayListenOn() string { return In(i18n.Locale()).TrayListenOn() }
+
+// TrayListenOn says "监听于 "
+// in the language of msgs.
+func (msgs Messages) TrayListenOn() string {
+	return Catalog.Format(msgs.locale, "trayListenOn", nil)
+}
+
+// TrayProxySettings says "代理设置…"
+// in the language the app shows.
+func TrayProxySettings() string { return In(i18n.Locale()).TrayProxySettings() }
+
+// TrayProxySettings says "代理设置…"
+// in the language of msgs.
+func (msgs Messages) TrayProxySettings() string {
+	return Catalog.Format(msgs.locale, "trayProxySettings", nil)
+}
+
+// TrayCopyAddress says "复制代理地址"
+// in the language the app shows.
+func TrayCopyAddress() string { return In(i18n.Locale()).TrayCopyAddress() }
+
+// TrayCopyAddress says "复制代理地址"
+// in the language of msgs.
+func (msgs Messages) TrayCopyAddress() string {
+	return Catalog.Format(msgs.locale, "trayCopyAddress", nil)
+}
+
+// TrayConnectAgent says "接入 Agent…"
+// in the language the app shows.
+func TrayConnectAgent() string { return In(i18n.Locale()).TrayConnectAgent() }
+
+// TrayConnectAgent says "接入 Agent…"
+// in the language of msgs.
+func (msgs Messages) TrayConnectAgent() string {
+	return Catalog.Format(msgs.locale, "trayConnectAgent", nil)
+}
+
+// TrayExtensions says "扩展管理…"
+// in the language the app shows.
+func TrayExtensions() string { return In(i18n.Locale()).TrayExtensions() }
+
+// TrayExtensions says "扩展管理…"
+// in the language of msgs.
+func (msgs Messages) TrayExtensions() string {
+	return Catalog.Format(msgs.locale, "trayExtensions", nil)
+}
+
+// TrayHelp says "帮助"
+// in the language the app shows.
+func TrayHelp() string { return In(i18n.Locale()).TrayHelp() }
+
+// TrayHelp says "帮助"
+// in the language of msgs.
+func (msgs Messages) TrayHelp() string {
+	return Catalog.Format(msgs.locale, "trayHelp", nil)
+}
+
+// TrayManual says "使用文档…"
+// in the language the app shows.
+func TrayManual() string { return In(i18n.Locale()).TrayManual() }
+
+// TrayManual says "使用文档…"
+// in the language of msgs.
+func (msgs Messages) TrayManual() string {
+	return Catalog.Format(msgs.locale, "trayManual", nil)
+}
+
+// TrayFeedback says "反馈问题…"
+// in the language the app shows.
+func TrayFeedback() string { return In(i18n.Locale()).TrayFeedback() }
+
+// TrayFeedback says "反馈问题…"
+// in the language of msgs.
+func (msgs Messages) TrayFeedback() string {
+	return Catalog.Format(msgs.locale, "trayFeedback", nil)
+}
+
+// TrayEnableProxy says "启用系统代理…"
+// in the language the app shows.
+func TrayEnableProxy() string { return In(i18n.Locale()).TrayEnableProxy() }
+
+// TrayEnableProxy says "启用系统代理…"
+// in the language of msgs.
+func (msgs Messages) TrayEnableProxy() string {
+	return Catalog.Format(msgs.locale, "trayEnableProxy", nil)
+}
+
+// TrayDisableProxy says "关闭系统代理"
+// in the language the app shows.
+func TrayDisableProxy() string { return In(i18n.Locale()).TrayDisableProxy() }
+
+// TrayDisableProxy says "关闭系统代理"
+// in the language of msgs.
+func (msgs Messages) TrayDisableProxy() string {
+	return Catalog.Format(msgs.locale, "trayDisableProxy", nil)
+}
+
+// TrayHandleProxy says "处理代理设置…"
+// in the language the app shows.
+func TrayHandleProxy() string { return In(i18n.Locale()).TrayHandleProxy() }
+
+// TrayHandleProxy says "处理代理设置…"
+// in the language of msgs.
+func (msgs Messages) TrayHandleProxy() string {
+	return Catalog.Format(msgs.locale, "trayHandleProxy", nil)
+}
+
+// TrayProxyModified says "部分网络设置与 aicat 接管时不一致；恢复时会保留这些修改。"
+// in the language the app shows.
+func TrayProxyModified() string { return In(i18n.Locale()).TrayProxyModified() }
+
+// TrayProxyModified says "部分网络设置与 aicat 接管时不一致；恢复时会保留这些修改。"
+// in the language of msgs.
+func (msgs Messages) TrayProxyModified() string {
+	return Catalog.Format(msgs.locale, "trayProxyModified", nil)
 }

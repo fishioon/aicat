@@ -104,7 +104,7 @@ func (m *Manager) Status() Status {
 	}
 	status.Enabled = len(status.Services) > 0
 	if len(status.Services) != len(saved.Changes) {
-		status.Problem = "部分网络设置已在 aicat 外修改；恢复时会保留这些修改。"
+		status.Problem = "部分网络设置与 aicat 接管时不一致；恢复时会保留这些修改。"
 		if interrupted {
 			status.Problem = "系统代理操作未完成，已保留逐命令恢复记录，请恢复原设置。"
 		}
@@ -229,7 +229,7 @@ func (m *Manager) restoreLocked() error {
 		}
 	}
 	if len(conflicts) > 0 {
-		return fmt.Errorf("以下网络服务已被其它应用修改，保留现状与恢复记录：%s", strings.Join(conflicts, "、"))
+		return fmt.Errorf("以下网络服务的代理设置已变更，保留现状与恢复记录：%s", strings.Join(conflicts, "、"))
 	}
 	if err := os.Remove(m.path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err

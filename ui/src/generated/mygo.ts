@@ -18,6 +18,14 @@ export interface BodySnapshot {
   data: string;
 }
 
+/** Bucket is an hour of today or a day of a longer period. */
+export interface Bucket {
+  start: string;
+  requests: number;
+  /** Tokens per model. */
+  tokens: Record<string, number>;
+}
+
 export interface CertificateStatus {
   name: string;
   fingerprint: string;
@@ -42,6 +50,7 @@ export interface DesktopState {
   trafficEnabled: boolean;
   extensions: ExtensionState[];
   recording: boolean;
+  captureStarted: boolean;
   navigationPins: string[];
   pinnedDomains: string[];
   gateway: Status;
@@ -96,6 +105,26 @@ export interface ExtensionState {
    */
   restart?: string;
   enabled: boolean;
+}
+
+/** Group sums the calls sharing a key: a model, a provider ID or an agent. */
+export interface Group {
+  key: string;
+  name: string;
+  requests: number;
+  failures: number;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  /**
+   * AvgMs and TTFTMs average the answered calls; Speed is output tokens
+   * per second after the first token, over streamed answers that have
+   * one. Each is 0 when no call counts.
+   */
+  avgMs: number;
+  ttftMs: number;
+  speed: number;
 }
 
 export type Header = Record<string, string[]>;
@@ -182,6 +211,15 @@ export interface Provider {
   enabled: string[];
   picked: boolean;
   syncing: boolean;
+}
+
+export interface Report {
+  period: string;
+  total: Group;
+  buckets: Bucket[];
+  models: Group[];
+  providers: Group[];
+  agents: Group[];
 }
 
 export interface Request {
@@ -378,6 +416,10 @@ export const Desktop = {
    */
   syncProviderModels(id: string): Promise<void> {
     return call("Desktop.SyncProviderModels", id);
+  },
+  /** Usage sums the model calls of a period: "today", "7d" or "30d". */
+  usage(period: string): Promise<Report> {
+    return call("Desktop.Usage", period);
   },
   /** WatchTraffic owns one cancellable MyGo channel and atomic Watch snapshot. */
   watchTraffic(updates: Channel<TrafficBatch>): Promise<void> {

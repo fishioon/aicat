@@ -1,6 +1,6 @@
 // Failure modes: domains leaking between apps, duplicate selection highlights,
-// collapse dropping app filters, shared expansion keys, and search hiding apps
-// whose domain/path matches, or sidebar rows clearing the URL search. Double clicks must toggle once, keep app filters,
+// collapse dropping app filters, shared expansion keys, a sidebar search input
+// remaining, or sidebar rows clearing the URL search. Double clicks must toggle once, keep app filters,
 // leave leaves closed, and avoid duplicate navigation history entries.
 // Use real proxy requests from two live processes.
 const assert = require("node:assert/strict");
@@ -250,19 +250,15 @@ c.close()
       }
     }
 
-    for (const query of [
-      "localhost",
-      "python-only",
-      first.clientApp?.name ?? "未知应用",
-    ]) {
-      await page.locator("#domain-search").fill(query);
-      assert(
-        (await apps.locator("button[data-app]:not([data-host])").count()) > 0,
-      );
-    }
-    await page.locator("#domain-search").fill("no-such-app-or-domain");
-    assert.equal(await apps.locator(".tree-item").count(), 0);
-    await page.locator("#domain-search").fill("");
+    assert.equal(await page.locator("#traffic-sidebar input").count(), 0);
+    assert.equal(
+      await page.locator("#traffic-sidebar > :first-child").getAttribute("id"),
+      "all-domains",
+    );
+    assert.equal(
+      await apps.locator("button[data-app]:not([data-host])").count(),
+      2,
+    );
     await item(domain, "/app-tree/v1/a").click();
     await page.screenshot({ path: path.join(root, "app-tree-light.png") });
     await page.locator("#theme").click();
@@ -281,6 +277,12 @@ c.close()
         await evaluate(
           `!!document.querySelector(${JSON.stringify(nativeRoot)})`,
         ),
+    );
+    assert.equal(
+      await evaluate(
+        'document.querySelectorAll("#traffic-sidebar input").length',
+      ),
+      0,
     );
     await nativeClick(nativeRoot, true);
     assert.equal(

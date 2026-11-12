@@ -18,16 +18,6 @@ function toggle(key: string) {
 </script>
 <template>
   <aside id="traffic-sidebar" class="side" :aria-label="t('筛选')">
-    <label class="search"
-      ><span class="sr">{{ t("查找应用或域名") }}</span
-      ><Icon name="search" /><input
-        id="domain-search"
-        v-model="shell.sideQuery"
-        class="field"
-        :placeholder="t('查找应用或域名')"
-        autocomplete="off"
-        spellcheck="false"
-    /></label>
     <button
       id="all-domains"
       class="side-item all-requests"

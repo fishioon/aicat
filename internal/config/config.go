@@ -29,6 +29,8 @@ type Config struct {
 		BufferedBodyLimit int64    `yaml:"bufferedBodyLimit"`
 	} `yaml:"gateway"`
 	Traffic struct {
+		// Recording sets the initial capture state; UI toggles are session-only.
+		Recording         bool     `yaml:"recording"`
 		PinnedDomains     []string `yaml:"pinnedDomains,omitempty"`
 		MaxRecords        int      `yaml:"maxRecords"`
 		MaxBodyBytes      int64    `yaml:"maxBodyBytes"`
@@ -38,8 +40,7 @@ type Config struct {
 
 // Extension is an extension's section in aicat.yaml.
 type Extension struct {
-	// Enabled is off unless the user turns it on; traffic alone is on by
-	// default.
+	// Enabled is off by default except for the traffic extension.
 	Enabled bool `yaml:"enabled"`
 }
 
@@ -73,7 +74,6 @@ func Load(home string) (Config, error) {
 		return c, fmt.Errorf("read %s: %w", path, err)
 	}
 	if _, ok := c.Extensions["traffic"]; !ok {
-		// an empty extensions section still leaves traffic on
 		if c.Extensions == nil {
 			c.Extensions = map[string]Extension{}
 		}

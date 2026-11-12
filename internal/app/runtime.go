@@ -14,6 +14,7 @@ import (
 	"github.com/fishioon/aicat/internal/rewrite"
 	"github.com/fishioon/aicat/internal/systemproxy"
 	"github.com/fishioon/aicat/internal/traffic"
+	"github.com/fishioon/aicat/internal/usage"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 	"log"
 	"net/http"
@@ -36,12 +37,14 @@ type runtime struct {
 	home                  string
 	interception          *interception
 	initialTrafficEnabled bool
+	initialRecording      bool
 	initialPreferences    config.Preferences
 	initialNavigationPins []string
 	initialPins           []string
 	connection            *connection
 	rules                 *rewrite.Service
 	providers             *provider.Store
+	usage                 *usage.Store
 	extensions            *extension.Host
 }
 
@@ -87,18 +90,25 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 		service.Close()
 		return nil, err
 	}
-	models := provider.NewHandler(providers, service.Recorder(), addon.Recording)
+	calls, err := usage.Open(o.Home)
+	if err != nil {
+		service.Close()
+		return nil, err
+	}
+	models := provider.NewHandler(providers, service.Recorder(), addon.Recording, calls)
 	endpoints.Handle(provider.Path, models)
+	endpoints.Handle(usage.Path, usage.Handler(calls, providers.Name))
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	extensions, err := extension.New(runCtx, extension.Env{Home: o.Home, Providers: providers, Forward: models, Recorder: service.Recorder(), Recording: addon.Recording}, builtins)
 	if err != nil {
 		cancel()
 		service.Close()
+		calls.Close()
 		return nil, err
 	}
 	extensions.Mount(endpoints)
 	endpoints.Handle("/", api.Handler(service))
-	addon.SetRecording(cfg.ExtensionEnabled("traffic"))
+	addon.SetRecording(cfg.ExtensionEnabled("traffic") && cfg.Traffic.Recording)
 	policy := newInterception(o.Home, cfg.Gateway.InterceptHosts)
 	intercept := func(req *http.Request) bool {
 		return ca.Available() && (policy.shouldIntercept(req) || extensions.Intercepts(req))
@@ -110,9 +120,10 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 	if err != nil {
 		cancel()
 		service.Close()
+		calls.Close()
 		return nil, err
 	}
-	r := &runtime{traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.ExtensionEnabled("traffic"), rules: rules, providers: providers, extensions: extensions}
+	r := &runtime{traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.ExtensionEnabled("traffic"), initialRecording: cfg.Traffic.Recording, rules: rules, providers: providers, usage: calls, extensions: extensions}
 	providers.SyncMissing()
 	for id, section := range cfg.Extensions {
 		if known, _ := extensions.Known(id); known && section.Enabled {
@@ -138,11 +149,13 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 	case <-r.done:
 		cancel()
 		service.Close()
+		calls.Close()
 		return nil, r.err
 	case <-ctx.Done():
 		cancel()
 		<-r.done
 		service.Close()
+		calls.Close()
 		return nil, errors.Join(ctx.Err(), r.err)
 	}
 }
@@ -160,7 +173,7 @@ func (r *runtime) close() error {
 	case <-time.After(time.Second):
 		err = errors.Join(err, errors.New("traffic capture did not drain"))
 	}
-	return errors.Join(restoreErr, err, r.traffic.Close())
+	return errors.Join(restoreErr, err, r.traffic.Close(), r.usage.Close())
 }
 func Serve(ctx context.Context, o Options) error {
 	r, err := start(ctx, o)

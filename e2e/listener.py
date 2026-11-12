@@ -23,7 +23,7 @@ def main():
     def free_port():
         with socket.socket() as sock:sock.bind(('127.0.0.1',0));return sock.getsockname()[1]
     endpoint={'host':'127.0.0.1','port':free_port(),'bind':'127.0.0.1'}
-    cfg=home/'aicat.yaml';cfg.write_text(f'ui:\n  language: zh-Hans\n  theme: light\ngateway:\n  addr: 127.0.0.1:{endpoint["port"]}\n  interceptHosts: [localhost]\n# listener-fixture-preserve\n')
+    cfg=home/'aicat.yaml';cfg.write_text(f'traffic:\n  recording: true\nextensions:\n  traffic:\n    enabled: true\nui:\n  language: zh-Hans\n  theme: light\ngateway:\n  addr: 127.0.0.1:{endpoint["port"]}\n  interceptHosts: [localhost]\n# listener-fixture-preserve\n')
     original=[{'id':'wifi','name':'Wi-Fi','proxies':{'HTTPEnable':0,'HTTPProxy':'','HTTPPort':0,'HTTPSEnable':0,'HTTPSProxy':'','HTTPSPort':0,'ExceptionsList':['localhost'],'CustomValue':'keep'}}]
     os_state=root/'os-state.json';os_state.write_text(json.dumps({'services':original,'trusted':False,'recordProxyWrites':True}));os_state.chmod(0o600)
     def os_fixture(**updates):

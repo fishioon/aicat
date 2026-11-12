@@ -7,3 +7,5 @@ import "github.com/egoist/mygo"
 func automationMenus(*application) []*mygo.MenuItem { return nil }
 
 func backgroundRun() bool { return false }
+
+func trayMotionObserver(*application) func(int, uint64) { return nil }

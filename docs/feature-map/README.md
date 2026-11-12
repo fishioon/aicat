@@ -28,9 +28,8 @@ aicat 的产品方向是用户节点上的常驻 Agent Gateway：用户主要在
 | 多密钥、失败切换与协议转换 | 尚未实现；[供应商接入](providers.md)每种只保管一把密钥，[Codex 扩展](codex.md)只按 `供应商/模型` 分流到支持 Responses 的供应商 |
 | MCP 服务聚合 | 尚未实现；现有 `/mcp` 是 aicat 自身管理服务 |
 | Skill 分发与消息渠道 | 尚未实现；消息扩展的设计见 [草案](../message-extension-design.md) |
-| Token、费用、缓存命中率等用量统计与趋势图 | 概览已显示网关状态、接入地址、待处理事项和按流量记录统计的请求；模型用量需要解析模型响应，尚未实现 |
+| 费用、用量热力图、请求明细与导出、读取 Agent 会话日志 | 概览已按供应商入口的调用显示 Token、请求、缓存命中率与耗时；费用与这些视图尚未实现 |
 | Agent 任务名称、进度、产物及 Skill 实际使用情况 | 需要 Agent 另行上报，不能从代理记录推断；上报能力尚未实现 |
-| 流量检查默认关闭 | 设计目标；当前 `extensions.traffic.enabled` 缺省仍为 `true` |
 | 规则与插件管理界面 | 后端与 MCP 已有，桌面编辑页尚未实现 |
 | 编辑与重放请求 | 尚未实现；复制 cURL 不等于内置重放 |
 | 私云登录、社区扩展安装/更新 | 当前仅有状态说明或占位；脚本插件不属于社区扩展列表 |
@@ -51,8 +50,11 @@ npm --prefix e2e ci
 
 | 范围 | 命令 |
 | --- | --- |
+| 托盘菜单模型、采集对号与代理两态（无头） | `node e2e/tray.cjs bin/aicat-e2e build/feature-map-tray-<run>` |
+| 流量入口默认可用、采集默认暂停及手动采集 | `node e2e/traffic-default.cjs bin/aicat-e2e build/feature-map-traffic-default-<run>` |
 | 侧边栏顺序、中英文标签和 Domain 计数 | `node e2e/desktop.cjs bin/aicat-e2e build/feature-map-sidebar-<run> sidebar` |
 | 滚动后首次选中、右键、历史与筛选滚动重置 | `node e2e/desktop.cjs bin/aicat-e2e build/feature-map-list-selection-<run> list-selection` |
+| CONNECT 双栏及响应侧解密提示 | `node e2e/tunnel.cjs bin/aicat-e2e build/feature-map-tunnel-<run>` |
 | 图标布局 | `node e2e/desktop.cjs bin/aicat-e2e build/feature-map-icons-<run> icons` |
 | HTTP/TLS 接入 | `python3 e2e/prototype.py --only transport --output build/feature-map-transport-<run>` |
 | 规则、插件与 MCP | `python3 e2e/prototype.py --only rules --output build/feature-map-rules-<run>` |
@@ -60,7 +62,7 @@ npm --prefix e2e ci
 | 供应商密钥与转发 | `node e2e/provider.cjs bin/aicat-e2e build/feature-map-provider-<run>` |
 | 整组桌面验收 | `python3 e2e/prototype.py --only desktop --output build/feature-map-desktop-<run>` |
 
-`<run>` 换成本次运行的唯一名称。日常只验证受影响的流程；整组桌面包含设计稿比较，不应用它代替每个小流程的定向验证。当前桌面脚本有独立的 `sidebar`、`app-tree`、`list-selection` 与 `icons` 场景，其余功能文件中的配方用于定向操作，不能给脚本传入不存在的场景名。需要新增自动场景时先提供独立入口。全套 `make e2e` 留到整轮开发结束统一验收。
+`<run>` 换成本次运行的唯一名称。日常只验证受影响的流程；整组桌面包含设计稿比较，不应用它代替每个小流程的定向验证。`traffic-default.cjs` 与 `tunnel.cjs` 是无头浏览器与后台应用的独立入口；桌面脚本对 `traffic-default` 保留兼容转发，对旧 `tunnel` 参数在启动应用前退出并提示新命令。`desktop.cjs` 的独立原生场景有 `sidebar`、`app-tree`、`list-selection` 与 `icons`，其余功能文件中的配方用于定向操作，不能给脚本传入不存在的场景名。需要新增自动场景时先提供独立入口。全套 `make e2e` 留到整轮开发结束统一验收。
 
 ## 驱动约定
 

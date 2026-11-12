@@ -4,6 +4,14 @@
  * listener disruption, and closing the window stopping the gateway.
  * Same embedded frontend: real Chromium pointer/keyboard plus actual WKWebView.
  */
+// Keep the former focused command safe: this scenario now uses only preview.
+if (process.argv[4] === "traffic-default") {
+  require("./traffic-default.cjs").run().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+  return;
+}
 const fs = require("node:fs"),
   path = require("node:path"),
   http = require("node:http"),
@@ -28,6 +36,13 @@ async function wait(fn, ms = 15000) {
     await sleep(40);
   }
   throw new Error("timeout " + (last?.stack || ""));
+}
+// Fail before starting any native app for the retired tunnel entry.
+if (process.argv[4] === "tunnel") {
+  console.error(
+    "Use: node e2e/tunnel.cjs <binary> <fresh-output-directory> (headless/background)",
+  );
+  process.exit(1);
 }
 const root = path.resolve(
     process.argv[3] || fs.mkdtempSync("build/desktop-e2e-"),
@@ -168,17 +183,24 @@ async function stop() {
 async function launch() {
   fs.rmSync(previewFile, { force: true });
   fs.rmSync(sockFile, { force: true });
-  proc = spawn(binary, ["--home", home], {
-    env: {
-      ...process.env,
-      MYGO_AUTOMATION: sockFile,
-      AICAT_E2E_OS_STATE: stateFile,
-      AICAT_E2E_PREVIEW: previewFile,
-      MYGO_ENV: "development",
-      MYGO_DEV_URL: "http://127.0.0.1:1/must-not-load",
+  proc = spawn(
+    binary,
+    [
+      "--home",
+      home,
+    ],
+    {
+      env: {
+        ...process.env,
+        MYGO_AUTOMATION: sockFile,
+        AICAT_E2E_OS_STATE: stateFile,
+        AICAT_E2E_PREVIEW: previewFile,
+        MYGO_ENV: "development",
+        MYGO_DEV_URL: "http://127.0.0.1:1/must-not-load",
+      },
+      stdio: ["ignore", log, log],
     },
-    stdio: ["ignore", log, log],
-  });
+  );
   await wait(() => fs.existsSync(previewFile) && fs.existsSync(sockFile));
   auto = await connectAuto();
   await wait(async () => await evaluate("!!window.desktop?.state()"));
@@ -329,7 +351,7 @@ async function verifyListSelection() {
     await new Promise((r) => temp.close(r));
     fs.writeFileSync(
       path.join(home, "aicat.yaml"),
-      `# keep-comment\nfutureSetting: keep\ngateway:\n  addr: 127.0.0.1:${proxyPort}\nui:\n  language: zh-Hans\n  theme: light\ntraffic:\n  maxRecords: 2000\n  maxBodyBytes: 65536\n  maxTotalBodyBytes: 67108864\n`,
+      `# keep-comment\nfutureSetting: keep\nextensions:\n  traffic:\n    enabled: true\ngateway:\n  addr: 127.0.0.1:${proxyPort}\nui:\n  language: zh-Hans\n  theme: light\ntraffic:\n  recording: true\n  maxRecords: 2000\n  maxBodyBytes: 65536\n  maxTotalBodyBytes: 67108864\n`,
     );
     const original = [
       {
@@ -613,9 +635,7 @@ async function verifyListSelection() {
     );
     await expandBranch("/tree");
     await page.waitForFunction(() => window.trafficView.state().visible === 4);
-    await page.locator("#domain-search").fill("no-such-domain");
-    assert.equal(await page.locator("#domains button[data-host]").count(), 0);
-    await page.locator("#domain-search").fill("");
+    assert.equal(await page.locator("#traffic-sidebar input").count(), 0);
     await page
       .locator('#domains button[data-app]:not([data-app=""])')
       .first()
@@ -623,7 +643,7 @@ async function verifyListSelection() {
     assert((await page.evaluate(() => window.trafficView.state().visible)) > 0);
     await navigate("traffic");
     check(
-      "domain/path segment boundaries, ancestor collapse, sidebar search, application filter and request history",
+      "domain/path segment boundaries, ancestor collapse, search-free sidebar, application filter and request history",
     );
     await search.fill("");
     await page.locator("#rows-viewport").hover();

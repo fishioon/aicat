@@ -135,7 +135,6 @@ export async function clearTraffic() {
     shell.path = "";
     shell.app = null;
     shell.query = "";
-    shell.sideQuery = "";
     clearSelection();
   } catch (error) {
     problem(error);
