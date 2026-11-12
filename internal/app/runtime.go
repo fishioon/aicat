@@ -3,10 +3,13 @@ package app
 import (
 	"context"
 	"errors"
+	"github.com/fishioon/aicat/internal/catalog"
 	"github.com/fishioon/aicat/internal/certificate"
+	"github.com/fishioon/aicat/internal/codex"
 	"github.com/fishioon/aicat/internal/config"
 	"github.com/fishioon/aicat/internal/gateway"
 	"github.com/fishioon/aicat/internal/gateway/addons/api"
+	codexdoor "github.com/fishioon/aicat/internal/gateway/addons/codex"
 	capture "github.com/fishioon/aicat/internal/gateway/addons/traffic"
 	"github.com/fishioon/aicat/internal/mcpserver"
 	"github.com/fishioon/aicat/internal/provider"
@@ -41,6 +44,8 @@ type runtime struct {
 	connection            *connection
 	rules                 *rewrite.Service
 	providers             *provider.Store
+	codex                 *codex.Handler
+	catalog               *catalog.Catalog
 }
 
 func start(ctx context.Context, o Options) (*runtime, error) {
@@ -90,16 +95,36 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 		endpoints.Handle(mount, models)
 		endpoints.Handle(mount+"/", models)
 	}
+	modelsDev := catalog.Open(filepath.Join(o.Home, "cache", "models-dev.json"), modelsDevURL())
+	codexHandler, err := codex.New(codex.Options{Backend: codexBackend(), Providers: providers, Forward: models, Catalog: modelsDev, Recorder: service.Recorder(), Recording: addon.Recording})
+	if err != nil {
+		service.Close()
+		return nil, err
+	}
+	codexHandler.SetEnabled(cfg.Features.Codex)
+	codexAddon := codexdoor.New(codexHandler)
+	endpoints.Handle(codex.Path+"/", codexHandler)
 	endpoints.Handle("/", api.Handler(service))
 	addon.SetRecording(cfg.Features.Traffic)
 	policy := newInterception(o.Home, cfg.Gateway.InterceptHosts)
-	gw, err := gateway.New(gateway.Options{Addr: cfg.Gateway.Addr, CA: ca, ShouldIntercept: func(req *http.Request) bool { return ca.Available() && policy.shouldIntercept(req) }, BufferedBodyLimit: cfg.Gateway.BufferedBodyLimit, AddressAddons: func(address string) []proxy.Addon { return []proxy.Addon{api.New(address, endpoints), addon} }})
+	intercept := func(req *http.Request) bool {
+		return ca.Available() && (policy.shouldIntercept(req) || codexAddon.Intercepts(req))
+	}
+	gw, err := gateway.New(gateway.Options{Addr: cfg.Gateway.Addr, CA: ca, ShouldIntercept: intercept, BufferedBodyLimit: cfg.Gateway.BufferedBodyLimit, AddressAddons: func(address string) []proxy.Addon {
+		// codex answers the requests it serves before capture sees them
+		return []proxy.Addon{api.New(address, endpoints), codexAddon, addon}
+	}})
 	if err != nil {
 		service.Close()
 		return nil, err
 	}
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	r := &runtime{traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.Features.Traffic, rules: rules, providers: providers}
+	r := &runtime{traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.Features.Traffic, rules: rules, providers: providers, codex: codexHandler, catalog: modelsDev}
+	providers.SyncMissing()
+	if cfg.Features.Codex {
+		modelsDev.Refresh()
+	}
+	go modelsDev.KeepFresh(runCtx, codexHandler.Enabled)
 	r.initialPreferences = cfg.UI
 	r.initialNavigationPins = cfg.Navigation.Pinned
 	r.initialPins = append([]string(nil), cfg.Traffic.PinnedDomains...)

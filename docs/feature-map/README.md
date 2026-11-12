@@ -9,12 +9,13 @@ aicat 的产品方向是用户节点上的常驻 Agent Gateway：用户主要在
 | 功能 | 用户想完成的事 | 当前入口 |
 | --- | --- | --- |
 | [桌面与偏好](desktop.md) | 打开或隐藏窗口，找到设置，切换语言和主题 | 导航栏（概览、设置）、快捷键、托盘 |
-| [扩展与导航固定](extensions.md) | 启停流量功能，固定常用入口 | 扩展 → 已安装 → 流量；更多 |
+| [扩展与导航固定](extensions.md) | 启停流量与 Codex 扩展，固定常用入口 | 扩展 → 已安装；更多 |
 | [代理接入](proxy.md) | 让客户端经过 aicat，修改监听，接管或恢复系统代理 | 设置 → 代理；CLI `serve` |
 | [证书与 HTTPS 解密](https.md) | 信任、查看、导出或删除证书，选择需要解密的域名 | 设置 → 代理；CONNECT 详情 |
 | [查找流量](traffic-browse.md) | 实时查看、搜索、按域名/路径/应用筛选，固定域名 | 流量 → 侧边栏与请求列表 |
 | [检查与导出请求](traffic-inspect.md) | 阅读请求/响应，复制 URL、cURL 或正文，导出结果 | 请求行、右键菜单、详情、标题栏 |
-| [供应商接入](providers.md) | 让 aicat 保管供应商密钥，Agent 经 aicat 调用模型 | 概览 → 接入供应商；同一监听地址的 `/anthropic`、`/openai/v1`、`/compat/v1` |
+| [供应商接入](providers.md) | 让 aicat 保管供应商密钥并同步模型列表，Agent 经 aicat 调用模型 | 概览 → 接入供应商；同一监听地址的 `/anthropic`、`/openai/v1`、`/compat/v1` |
+| [Codex 扩展](codex.md) | 在 Codex 的模型列表中使用供应商的模型，保留 ChatGPT 登录 | 扩展 → 已安装 → Codex；解密 `chatgpt.com` 或 `openai_base_url` 指向 `/backend-api/codex` |
 | [Agent 查询接口](agent-access.md) | 通过 HTTP 或 MCP 查询实际经过网关的请求 | 同一监听地址的 `/api/*` 与 `/mcp` |
 | [规则与脚本插件](rewrite.md) | 让 Agent 编写改写、离线试运行并检查实际效果 | MCP；当前无桌面编辑页 |
 
@@ -24,7 +25,7 @@ aicat 的产品方向是用户节点上的常驻 Agent Gateway：用户主要在
 
 | 能力 | 当前边界 |
 | --- | --- |
-| 按模型路由、多密钥、失败切换与协议转换 | 尚未实现；当前的[供应商接入](providers.md)只保管一把密钥并原样转发 |
+| 多密钥、失败切换与协议转换 | 尚未实现；[供应商接入](providers.md)每种只保管一把密钥，[Codex 扩展](codex.md)只按 `供应商/模型` 分流到支持 Responses 的供应商 |
 | MCP 服务聚合 | 尚未实现；现有 `/mcp` 是 aicat 自身管理服务 |
 | Skill 分发与消息渠道 | 尚未实现；不恢复历史 Claw 或消息连接器 |
 | Token、费用、缓存命中率等用量统计与趋势图 | 概览已显示网关状态、接入地址、待处理事项和按流量记录统计的请求；模型用量需要解析模型响应，尚未实现 |
@@ -55,6 +56,8 @@ npm --prefix e2e ci
 | 图标布局 | `node e2e/desktop.cjs bin/aicat-e2e build/feature-map-icons-<run> icons` |
 | HTTP/TLS 接入 | `python3 e2e/prototype.py --only transport --output build/feature-map-transport-<run>` |
 | 规则、插件与 MCP | `python3 e2e/prototype.py --only rules --output build/feature-map-rules-<run>` |
+| Codex 扩展、模型同步与两个入口 | `node e2e/codex.cjs bin/aicat-e2e build/feature-map-codex-<run>` |
+| 供应商密钥与转发 | `node e2e/provider.cjs bin/aicat-e2e build/feature-map-provider-<run>` |
 | 整组桌面验收 | `python3 e2e/prototype.py --only desktop --output build/feature-map-desktop-<run>` |
 
 `<run>` 换成本次运行的唯一名称。日常只验证受影响的流程；整组桌面包含设计稿比较，不应用它代替每个小流程的定向验证。当前桌面脚本有独立的 `sidebar`、`app-tree`、`list-selection` 与 `icons` 场景，其余功能文件中的配方用于定向操作，不能给脚本传入不存在的场景名。需要新增自动场景时先提供独立入口。全套 `make e2e` 留到整轮开发结束统一验收。

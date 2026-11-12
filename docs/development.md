@@ -14,7 +14,9 @@
 | `ui/src/host.ts` | 桌面通信适配，视图经此调用生成的服务客户端 |
 | `ui/src/generated/` | MyGo 从 Go 服务及语言目录生成的代码，不手改 |
 | `internal/app/` | 服务装配、typed Desktop 服务、MyGo 窗口/托盘/剪贴板/系统对话框 |
-| `internal/provider/` | 供应商密钥存储（Home 下 0600 的 `providers.json`）与带密钥的转发路由 |
+| `internal/provider/` | 供应商密钥存储（Home 下 0600 的 `providers.json`）、模型列表同步（`provider-models.json`）与带密钥的转发路由 |
+| `internal/codex/` | Codex 扩展：合并 Codex 模型列表、按模型分流 ChatGPT 与供应商；`internal/gateway/addons/codex/` 是它的解密入口 |
+| `internal/catalog/` | models.dev 目录的本地副本与按模型 ID 的查询 |
 | `internal/traffic/` 等业务包 | 业务模型与规则，不依赖 MyGo、Vue 或页面状态 |
 | `docs/design/aicat-redesign.html` | 当前 HTML 设计稿，含尚未交付的产品方向（用量图表、接入供应商）；不代表稿内全部功能已实现。`aicat-shell.html` 是旧稿 |
 
@@ -78,6 +80,8 @@ node e2e/desktop.cjs bin/aicat-e2e build/list-selection-e2e list-selection
 node e2e/redesign.cjs bin/aicat-e2e build/redesign-e2e
 # 仅验证接入供应商：密钥只进 0600 的 providers.json、带密钥转发与流式、流量记录不含凭据、移除后失效
 node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
+# 仅验证 Codex 扩展：证书提示与启停、模型列表同步、models.dev 补全、直连与解密两个入口的分流、426、流量记录不含密钥
+node e2e/codex.cjs bin/aicat-e2e build/codex-e2e
 # 仅验证图标在 WebView/浏览器、浅深色和不同宽度下的居中与边界
 node e2e/desktop.cjs bin/aicat-e2e build/icons-e2e icons
 ```

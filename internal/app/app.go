@@ -114,6 +114,8 @@ func Run(o Options) error {
 			}
 			a.r = r
 			a.enabled = r.initialTrafficEnabled
+			// model list syncs end on their own time
+			r.providers.OnChange(a.notifyState)
 			stop, err := desktopPreview(a.service)
 			result <- startupResult{runtime: r, stopPreview: stop, err: err}
 			if err != nil {

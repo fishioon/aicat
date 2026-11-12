@@ -989,6 +989,50 @@ select.field {
   -webkit-user-select: text;
 }
 
+.model-list {
+  margin-top: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+  overflow: hidden;
+}
+.model-list header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t12);
+}
+.model-list header span {
+  flex: 1;
+  color: var(--ink-2);
+}
+.model-list p {
+  margin: 8px 12px;
+  font-size: var(--t12);
+}
+.model-list p.bad {
+  color: var(--bad);
+}
+.model-list ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 2px 16px;
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px 12px;
+  list-style: none;
+  font: var(--t12) / 1.7 var(--code);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.model-list li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Traffic */
 .tr {
   display: flex;

@@ -22,6 +22,8 @@ type Config struct {
 	} `yaml:"systemProxy"`
 	Features struct {
 		Traffic bool `yaml:"traffic"`
+		// Codex: the built-in Codex extension, off unless the user turns it on.
+		Codex bool `yaml:"codex"`
 	} `yaml:"features"`
 	Gateway struct {
 		Addr              string   `yaml:"addr"`

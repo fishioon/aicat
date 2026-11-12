@@ -61,7 +61,7 @@ const crumbs = computed(() => {
   }
   if (settings.value)
     return [t("设置"), t(shell.route === "proxy" ? "代理" : "通用")];
-  return [t("扩展"), t("流量")];
+  return [t("扩展"), shell.extension === "codex" ? "Codex" : t("流量")];
 });
 const breadcrumb = computed(() => crumbs.value.join(" › "));
 

@@ -6,6 +6,8 @@ import {
   run,
   ask,
   say,
+  problem,
+  refresh,
   proxyAddress,
   providerChoice,
   providerKinds,
@@ -13,7 +15,7 @@ import {
 } from "../state/desktop";
 import { copy } from "../state/traffic";
 import { host } from "../host";
-import { t } from "../i18n";
+import { t, locale } from "../i18n";
 import Icon from "./Icon.vue";
 import Seg from "./Seg.vue";
 
@@ -25,8 +27,10 @@ const baseUrl = ref("");
 const key = ref("");
 // The form follows the chosen provider and what is saved for it. The key is
 // never sent back, so its field always starts empty.
+// Getters only: a shallowRef source makes Vue run the callback on every state
+// refresh, which would wipe an address being typed whenever a sync ends.
 watch(
-  [providerChoice, () => saved.value?.baseUrl],
+  [() => providerChoice.value, () => saved.value?.baseUrl],
   () => {
     baseUrl.value = saved.value?.baseUrl ?? kind.value.url;
     key.value = "";
@@ -63,6 +67,36 @@ function remove() {
     },
   );
 }
+// The model list is asked for when a provider is saved with a new endpoint or
+// key; a sync can also be asked for again here.
+const syncing = ref(false);
+async function sync() {
+  const id = providerChoice.value;
+  syncing.value = true;
+  try {
+    await host.syncProviderModels(id);
+    await refresh();
+    const n =
+      state.value?.providers.find((p) => p.id === id)?.models.models.length ??
+      0;
+    say(t("已同步 {n} 个模型", { n }));
+  } catch (error) {
+    await refresh().catch(() => {});
+    problem(error);
+  } finally {
+    syncing.value = false;
+  }
+}
+const modelStatus = computed(() => {
+  const p = saved.value;
+  if (!p) return "";
+  if (p.syncing || syncing.value) return t("正在同步…");
+  if (!p.models.syncedAt) return p.models.error ? "" : t("尚未同步");
+  return t("{n} 个模型 · {time} 同步", {
+    n: p.models.models.length,
+    time: new Date(p.models.syncedAt).toLocaleString(locale.value),
+  });
+});
 const snippet = computed(
   () => `export ${kind.value.env}=http://${proxyAddress()}${kind.value.mount}`,
 );
@@ -149,6 +183,44 @@ const snippet = computed(
                 {{ t("移除") }}
               </button>
             </div>
+            <section v-if="saved" class="model-list" id="provider-models">
+              <header>
+                <strong>{{ t("模型列表") }}</strong>
+                <span id="provider-models-status">{{ modelStatus }}</span>
+                <button
+                  id="provider-sync"
+                  class="btn"
+                  :disabled="saved.syncing || syncing"
+                  @click="sync"
+                >
+                  {{ t("重新同步") }}
+                </button>
+              </header>
+              <p
+                v-if="saved.models.error"
+                class="bad"
+                id="provider-models-error"
+              >
+                {{ t("同步失败：") }}{{ saved.models.error }}
+              </p>
+              <p v-if="!saved.responses">
+                {{
+                  t(
+                    "这个供应商不支持 Responses 接口，它的模型不会提供给 Codex。",
+                  )
+                }}
+              </p>
+              <ul v-if="saved.models.models.length">
+                <li
+                  v-for="m in saved.models.models"
+                  :key="m.id"
+                  class="code"
+                  :title="m.name || m.id"
+                >
+                  {{ m.id }}
+                </li>
+              </ul>
+            </section>
           </div>
         </li>
         <li class="step" :class="{ now: !!saved }">

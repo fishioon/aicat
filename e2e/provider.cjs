@@ -65,6 +65,9 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
   const report = { passed: false, checks: [] };
   const check = (name) => report.checks.push(name);
   const seen = [];
+  // Saving a provider also asks for its model list; these are the forwarded
+  // agent requests.
+  const messages = () => seen.filter((s) => s.url.startsWith("/v1/messages"));
   const upstream = http.createServer((req, res) => {
     const chunks = [];
     req.on("data", (b) => chunks.push(b));
@@ -166,14 +169,19 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     await page.locator("#provider-url").fill(`http://127.0.0.1:${fixture}/`);
     await page.locator("#provider-save").click();
     await wait(async () => (await state()).providers.length === 1);
-    assert.deepEqual((await state()).providers, [
+    // The model list fields are covered by e2e/codex.cjs.
+    const { id, baseUrl, mount, keyHint, responses } = (await state())
+      .providers[0];
+    assert.deepEqual(
+      { id, baseUrl, mount, keyHint, responses },
       {
         id: "anthropic",
         baseUrl: `http://127.0.0.1:${fixture}`,
         mount: "/anthropic",
         keyHint: "9f3a",
+        responses: false,
       },
-    ]);
+    );
     assert.equal(await page.locator("#provider-key").inputValue(), "");
     assert.match(
       await page.locator("#provider-snippet").innerText(),
@@ -200,7 +208,12 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
       answer.chunks.at(-1).at - answer.chunks[0].at >= 200,
       "streamed response was buffered",
     );
-    const sent = seen.at(-1);
+    const sent = messages().at(-1);
+    // The model list sync on save used the saved key the same way.
+    const listed = seen.find((s) => s.url === "/v1/models");
+    assert(listed, "saving did not sync the model list");
+    assert.equal(listed.headers["x-api-key"], KEY);
+    assert.equal(listed.headers.authorization, undefined);
     assert.equal(sent.url, "/v1/messages?beta=true");
     assert.equal(sent.headers["x-api-key"], KEY);
     assert.equal(sent.headers.authorization, undefined);
@@ -258,7 +271,7 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
         (await state()).providers[0].baseUrl === `http://localhost:${fixture}`,
     );
     assert.equal((await message()).status, 200);
-    assert.equal(seen.at(-1).headers["x-api-key"], KEY);
+    assert.equal(messages().at(-1).headers["x-api-key"], KEY);
     check("endpoint edit keeps the key");
 
     // Removing the provider stops forwarding and erases the key.
@@ -266,9 +279,9 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     await page.locator("#dialog button").filter({ hasText: "确定" }).click();
     await wait(async () => (await state()).providers.length === 0);
     assert(!fs.readFileSync(secrets, "utf8").includes(KEY));
-    const before = seen.length;
+    const before = messages().length;
     assert.equal((await message()).status, 503);
-    assert.equal(seen.length, before);
+    assert.equal(messages().length, before);
     check("remove erases the key and the route");
 
     assert.deepEqual(errors, []);

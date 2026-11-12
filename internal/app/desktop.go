@@ -31,6 +31,7 @@ type DesktopState struct {
 	Preferences      config.Preferences  `json:"preferences"`
 	Language         string              `json:"language"`
 	TrafficEnabled   bool                `json:"trafficEnabled"`
+	CodexEnabled     bool                `json:"codexEnabled"`
 	Recording        bool                `json:"recording"`
 	NavigationPins   []string            `json:"navigationPins"`
 	PinnedDomains    []string            `json:"pinnedDomains"`
@@ -69,7 +70,7 @@ func (d *Desktop) State(ctx context.Context) (DesktopState, error) {
 		a.checkedAt = time.Now()
 	}
 	addresses, _ := listenaddr.Addresses()
-	return DesktopState{Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, Recording: a.recording, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Providers: a.r.providers.List(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
+	return DesktopState{Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, CodexEnabled: a.r.codex.Enabled(), Recording: a.recording, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Providers: a.r.providers.List(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
 }
 func (d *Desktop) mutate(ctx context.Context, operation func() error) error {
 	a := d.app
@@ -117,6 +118,44 @@ func (d *Desktop) SetTrafficEnabled(ctx context.Context, enabled bool) error {
 		a.updateTray()
 		return nil
 	})
+}
+
+// SetCodexEnabled turns the Codex extension on or off. It decrypts Codex's
+// HTTPS to its backend, so it is turned on only once the root certificate is
+// trusted; Codex would otherwise refuse the connection.
+func (d *Desktop) SetCodexEnabled(ctx context.Context, enabled bool) error {
+	return d.mutate(ctx, func() error {
+		a := d.app
+		if enabled {
+			status, err := a.r.connection.inspect(ctx)
+			if err != nil {
+				return err
+			}
+			if !status.Trusted {
+				return errors.New("请先安装并信任本机证书")
+			}
+		}
+		if err := config.SetCodexEnabled(a.r.home, enabled); err != nil {
+			return err
+		}
+		a.r.codex.SetEnabled(enabled)
+		if enabled {
+			a.r.catalog.Refresh()
+		}
+		return nil
+	})
+}
+
+// SyncProviderModels asks a saved provider for its model list again and waits
+// for the answer. It holds no desktop lock while the vendor answers.
+func (d *Desktop) SyncProviderModels(ctx context.Context, id string) error {
+	a := d.app
+	if !a.ready.Load() || a.pending.Load() || a.quitting.Load() {
+		return errors.New("应用尚未就绪或正在退出")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 40*time.Second)
+	defer cancel()
+	return a.r.providers.Sync(ctx, id)
 }
 func (d *Desktop) SetRecording(ctx context.Context, enabled bool) error {
 	return d.mutate(ctx, func() error {

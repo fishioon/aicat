@@ -30,6 +30,7 @@ export const shell = reactive({
   sideQuery: "",
   selected: 0,
   extensionQuery: "",
+  extension: "traffic" as "traffic" | "codex",
   sidebarHidden: false,
   historyAt: -1,
   history: [] as Location[],

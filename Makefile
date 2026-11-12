@@ -60,6 +60,7 @@ frontend-check: ui/node_modules/.aicat-install bindings
 	node --check e2e/icons.cjs
 	node --check e2e/app-tree.cjs
 	node --check e2e/list-selection.cjs
+	node --check e2e/codex.cjs
 	node --check e2e/design-shots.cjs
 
 verify: frontend-check fmt-check vet build cli app

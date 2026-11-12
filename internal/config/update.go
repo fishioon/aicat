@@ -52,12 +52,20 @@ func update(home string, edit func(*yaml.Node) error) error {
 }
 
 func SetTrafficEnabled(home string, enabled bool) error {
+	return setFeature(home, "traffic", enabled)
+}
+
+func SetCodexEnabled(home string, enabled bool) error {
+	return setFeature(home, "codex", enabled)
+}
+
+func setFeature(home, name string, enabled bool) error {
 	return update(home, func(root *yaml.Node) error {
 		features := value(root, "features", yaml.MappingNode)
 		if features.Kind != yaml.MappingNode {
 			return fmt.Errorf("features must contain a mapping")
 		}
-		return value(features, "traffic", yaml.ScalarNode).Encode(enabled)
+		return value(features, name, yaml.ScalarNode).Encode(enabled)
 	})
 }
 

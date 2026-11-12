@@ -40,6 +40,7 @@ export interface DesktopState {
   preferences: Preferences;
   language: string;
   trafficEnabled: boolean;
+  codexEnabled: boolean;
   recording: boolean;
   navigationPins: string[];
   pinnedDomains: string[];
@@ -73,6 +74,43 @@ export type Header = Record<string, string[]>;
 
 export type ID = number;
 
+/**
+ * Model is one model a provider's own list says it serves. The list is the
+ * truth about what the vendor serves today; anything it leaves out (a name,
+ * a context window, reasoning levels) is filled in from the models.dev
+ * catalog where the models are offered, not here.
+ *
+ * The way a list is asked for and read follows Magpie (MIT,
+ * github.com/yetone/magpie internal/catalog/live.go).
+ */
+export interface Model {
+  id: string;
+  name?: string;
+  context?: number;
+  output?: number;
+  efforts?: string[];
+  /** Images is the vendor's answer on image input; nil when it didn't say. */
+  images?: boolean;
+  /**
+   * APIs are the APIs the vendor says the model is served on ("chat",
+   * "responses", "anthropic"); empty is not known.
+   */
+  apis?: string[];
+}
+
+/** ModelList is a provider's model list as last synced. */
+export interface ModelList {
+  models: Model[];
+  syncedAt?: string;
+  /** Source is the URL that answered. */
+  source?: string;
+  /**
+   * Error is why the last sync failed; the models are what an earlier one
+   * found, if any.
+   */
+  error?: string;
+}
+
 /** Preferences is the app-wide presentation state in the sole aicat.yaml config. */
 export interface Preferences {
   language: string;
@@ -88,6 +126,10 @@ export interface Provider {
   baseUrl: string;
   mount: string;
   keyHint: string;
+  /** Responses: the provider's models can be offered to Codex. */
+  responses: boolean;
+  models: ModelList;
+  syncing: boolean;
 }
 
 export interface Request {
@@ -220,6 +262,14 @@ export const Desktop = {
   requestCURL(id: ID): Promise<string> {
     return call("Desktop.RequestCURL", id);
   },
+  /**
+   * SetCodexEnabled turns the Codex extension on or off. It decrypts Codex's
+   * HTTPS to its backend, so it is turned on only once the root certificate is
+   * trusted; Codex would otherwise refuse the connection.
+   */
+  setCodexEnabled(enabled: boolean): Promise<void> {
+    return call("Desktop.SetCodexEnabled", enabled);
+  },
   setDecryptionDomain(host: string, enabled: boolean): Promise<void> {
     return call("Desktop.SetDecryptionDomain", host, enabled);
   },
@@ -255,6 +305,13 @@ export const Desktop = {
   /** State reads the current settings and OS status. It starts no services. */
   state(): Promise<DesktopState> {
     return call("Desktop.State");
+  },
+  /**
+   * SyncProviderModels asks a saved provider for its model list again and waits
+   * for the answer. It holds no desktop lock while the vendor answers.
+   */
+  syncProviderModels(id: string): Promise<void> {
+    return call("Desktop.SyncProviderModels", id);
   },
   /** WatchTraffic owns one cancellable MyGo channel and atomic Watch snapshot. */
   watchTraffic(updates: Channel<TrafficBatch>): Promise<void> {
