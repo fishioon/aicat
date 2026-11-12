@@ -1,0 +1,17 @@
+{
+  "name": "aicat-openclaw-channel-host-prototype",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "e2e": "node e2e.mjs"
+  },
+  "dependencies": {
+    "@tencent-weixin/openclaw-weixin": "2.4.10",
+    "@wecom/wecom-openclaw-plugin": "2026.10.30",
+    "openclaw": "file:./shim",
+    "ws": "8.22.2"
+  }
+}
