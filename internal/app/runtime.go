@@ -88,7 +88,7 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 		return nil, err
 	}
 	models := provider.NewHandler(providers, service.Recorder(), addon.Recording)
-	endpoints.Handle(provider.Mount, models)
+	endpoints.Handle(provider.Path, models)
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	extensions, err := extension.New(runCtx, extension.Env{Home: o.Home, Providers: providers, Forward: models, Recorder: service.Recorder(), Recording: addon.Recording}, builtins)
 	if err != nil {

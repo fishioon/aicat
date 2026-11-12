@@ -171,7 +171,6 @@ export interface Provider {
   preset: string;
   protocol: string;
   baseUrl: string;
-  mount: string;
   keyHint: string;
   /** Responses: the provider's models can be offered to Codex. */
   responses: boolean;

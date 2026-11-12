@@ -181,10 +181,16 @@ const status = computed(() => {
   return { kind: "ok", text: t("已连通，密钥有效。") };
 });
 const connected = computed(() => status.value?.kind === "ok");
+// Every provider is reached at the same address; the model's prefix picks
+// the provider. An OpenAI-style base URL ends in /v1, Anthropic's does not.
 const snippet = computed(
   () =>
-    `export ${protocolEnv[protocol.value]}=http://${proxyAddress()}${saved.value?.mount ?? "/p/…"}`,
+    `export ${protocolEnv[protocol.value]}=http://${proxyAddress()}${protocol.value === "anthropic" ? "" : "/v1"}`,
 );
+const modelExample = computed(() => {
+  const p = saved.value;
+  return p ? `${p.id}/${p.models.models[0]?.id ?? t("模型名")}` : "";
+});
 </script>
 <template>
   <div class="main" id="provider">
@@ -371,8 +377,7 @@ const snippet = computed(
             <p>
               {{
                 t(
-                  "把 Agent 的模型地址指向 aicat，请求会带上保管的密钥转发给 {name}。只接受本机请求。",
-                  { name: name.trim() || t("供应商") },
+                  "把 Agent 的模型地址指向 aicat，所有供应商共用这一个地址。aicat 按请求里的模型名选择供应商，带上保管的密钥转发。只接受本机请求。",
                 )
               }}
             </p>
@@ -389,6 +394,11 @@ const snippet = computed(
               </header>
               <pre id="provider-snippet">{{ snippet }}</pre>
             </div>
+            <p v-if="saved" id="provider-model-hint">
+              {{ t("模型名写作“供应商 ID/模型”，例如") }}
+              <code class="code">{{ modelExample }}</code
+              >{{ t("。只有一家供应商提供这个模型时，可以只写模型名。") }}
+            </p>
           </div>
         </li>
       </ol>

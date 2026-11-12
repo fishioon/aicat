@@ -38,10 +38,6 @@ var protocols = map[string]protocol{
 	"chat": {header: "Authorization", prefix: "Bearer "},
 }
 
-// Mount is the gateway path prefix of the provider routes: /p/<id> stands
-// for the provider's base URL.
-const Mount = "/p/"
-
 type entry struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -76,7 +72,6 @@ type Provider struct {
 	Preset   string `json:"preset"`
 	Protocol string `json:"protocol"`
 	BaseURL  string `json:"baseUrl"`
-	Mount    string `json:"mount"`
 	KeyHint  string `json:"keyHint"`
 	// Responses: the provider's models can be offered to Codex.
 	Responses bool      `json:"responses"`
@@ -185,7 +180,7 @@ func (s *Store) List() []Provider {
 		}
 		list := s.models[e.ID]
 		list.Models = slices.Clone(list.Models)
-		views = append(views, Provider{ID: e.ID, Name: e.Name, Preset: e.Preset, Protocol: e.Protocol, BaseURL: e.BaseURL, Mount: Mount + e.ID,
+		views = append(views, Provider{ID: e.ID, Name: e.Name, Preset: e.Preset, Protocol: e.Protocol, BaseURL: e.BaseURL,
 			KeyHint: hint, Responses: protocols[e.Protocol].responses, Models: list, Syncing: s.syncing[e.ID]})
 	}
 	return views
@@ -417,7 +412,6 @@ func (s *Store) changed() {
 type ResponsesModel struct {
 	Provider     string // the provider's ID
 	ProviderName string
-	Mount        string
 	// OpenAI: the provider is OpenAI itself, which takes a Codex request
 	// with its OpenAI-only fields.
 	OpenAI bool
@@ -440,7 +434,7 @@ func (s *Store) ResponsesModels() []ResponsesModel {
 			if len(m.APIs) > 0 && !slices.Contains(m.APIs, "responses") {
 				continue
 			}
-			out = append(out, ResponsesModel{Provider: e.ID, ProviderName: e.Name, Mount: Mount + e.ID, OpenAI: u != nil && u.Hostname() == "api.openai.com", Model: m})
+			out = append(out, ResponsesModel{Provider: e.ID, ProviderName: e.Name, OpenAI: u != nil && u.Hostname() == "api.openai.com", Model: m})
 		}
 	}
 	return out
@@ -508,22 +502,77 @@ func validateBaseURL(raw string) error {
 	return errors.New("接口地址需要使用 https；http 只允许本机地址")
 }
 
-// route finds the provider mounted at path and returns what follows the
-// mount; ok is false when no saved provider is mounted there.
-func (s *Store) route(path string) (e entry, rest string, ok bool) {
-	after, found := strings.CutPrefix(path, Mount)
-	if !found {
-		return entry{}, "", false
+// serves reports whether a provider of this protocol answers an API: the
+// Anthropic Messages API ("anthropic"), OpenAI Chat Completions ("chat") or
+// OpenAI Responses ("responses"). Nothing is translated between them.
+func serves(protocol, api string) bool {
+	switch api {
+	case "anthropic":
+		return protocol == "anthropic"
+	case "chat":
+		return protocol == "openai" || protocol == "chat"
+	case "responses":
+		return protocols[protocol].responses
 	}
-	id, rest, slash := strings.Cut(after, "/")
-	if slash {
-		rest = "/" + rest
+	return false
+}
+
+// resolve finds the provider a request's model names, and the model's name
+// as that provider knows it. "<provider ID>/<model>" names the provider; a
+// model without one goes to the provider whose synced list has it, when
+// exactly one serving this API does.
+func (s *Store) resolve(api, model string) (entry, string, error) {
+	if model == "" {
+		return entry{}, "", errors.New("请求里没有 model；aicat 按 model 选择供应商，写作“供应商 ID/模型”")
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	i := s.find(id)
-	if i < 0 {
-		return entry{}, "", false
+	if id, name, ok := strings.Cut(model, "/"); ok && name != "" {
+		if i := s.find(id); i >= 0 {
+			e := s.entries[i]
+			if !serves(e.Protocol, api) {
+				return entry{}, "", fmt.Errorf("供应商 %s 不提供这个接口（它的接口协议是 %s）；aicat 不做协议转换", id, e.Protocol)
+			}
+			return e, name, nil
+		}
 	}
-	return s.entries[i], rest, true
+	var found []entry
+	for _, e := range s.entries {
+		if serves(e.Protocol, api) && slices.ContainsFunc(s.models[e.ID].Models, func(m Model) bool { return m.ID == model }) {
+			found = append(found, e)
+		}
+	}
+	switch len(found) {
+	case 1:
+		return found[0], model, nil
+	case 0:
+		return entry{}, "", fmt.Errorf("没有供应商提供模型 %s。模型写作“供应商 ID/模型”，或先在 aicat 的“接入供应商”里接入并同步模型列表", model)
+	}
+	names := make([]string, len(found))
+	for i, e := range found {
+		names[i] = e.ID + "/" + model
+	}
+	return entry{}, "", fmt.Errorf("有多个供应商提供模型 %s，请写明供应商：%s", model, strings.Join(names, "、"))
+}
+
+// listed is a model as the unified model list names it.
+type listed struct {
+	ID, Name, Provider string
+}
+
+// catalog lists the models of the providers serving an API, each named
+// "<provider ID>/<model>".
+func (s *Store) catalog(api string) []listed {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := []listed{}
+	for _, e := range s.entries {
+		if !serves(e.Protocol, api) {
+			continue
+		}
+		for _, m := range s.models[e.ID].Models {
+			out = append(out, listed{ID: e.ID + "/" + m.ID, Name: firstOf(m.Name, m.ID), Provider: e.ID})
+		}
+	}
+	return out
 }

@@ -40,8 +40,8 @@ type Extension struct {
 type Env struct {
 	Home      string
 	Providers *provider.Store
-	// Forward serves the provider routes: a request sent through it goes to
-	// the provider with the provider's key.
+	// Forward is the model endpoint: a request sent through it goes to the
+	// provider its model names, with the provider's key.
 	Forward   http.Handler
 	Recorder  *traffic.Recorder
 	Recording func() bool

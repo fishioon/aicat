@@ -466,7 +466,6 @@
   "已保存 {name} 的密钥": "Saved the key for {name}",
   "已移除 {name}": "Removed {name}",
   "让 Agent 经 aicat 调用模型": "Have the Agent call models through aicat",
-  "把 Agent 的模型地址指向 aicat，请求会带上保管的密钥转发给 {name}。只接受本机请求。": "Point the Agent's model endpoint at aicat. Requests are forwarded to {name} with the saved key. Local requests only.",
   "在 Agent 的环境变量里设置": "Set in the Agent's environment",
   "供应商，以及经过网关的应用": "Providers, and apps going through the gateway",
   "密钥由 aicat 保管": "key held by aicat",
@@ -519,5 +518,9 @@
   "连不上": "Unreachable",
   "智谱 GLM": "Zhipu GLM",
   "阿里云百炼": "Alibaba Bailian",
-  "火山方舟": "Volcengine Ark"
+  "火山方舟": "Volcengine Ark",
+  "把 Agent 的模型地址指向 aicat，所有供应商共用这一个地址。aicat 按请求里的模型名选择供应商，带上保管的密钥转发。只接受本机请求。": "Point the agent's model endpoint at aicat. Every provider shares this one address: aicat picks the provider by the model named in the request and forwards it with the key it holds. Local requests only.",
+  "模型名写作“供应商 ID/模型”，例如": "Write a model as provider ID/model, for example",
+  "。只有一家供应商提供这个模型时，可以只写模型名。": ". When only one provider serves the model, the model name alone works.",
+  "模型名": "model"
 }

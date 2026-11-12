@@ -14,7 +14,7 @@ aicat 的产品方向是用户节点上的常驻 Agent Gateway：用户主要在
 | [证书与 HTTPS 解密](https.md) | 信任、查看、导出或删除证书，选择需要解密的域名 | 设置 → 代理；CONNECT 详情 |
 | [查找流量](traffic-browse.md) | 实时查看、搜索、按域名/路径/应用筛选，固定域名 | 流量 → 侧边栏与请求列表 |
 | [检查与导出请求](traffic-inspect.md) | 阅读请求/响应，复制 URL、cURL 或正文，导出结果 | 请求行、右键菜单、详情、标题栏 |
-| [供应商接入](providers.md) | 让 aicat 保管供应商密钥并同步模型列表，Agent 经 aicat 调用模型 | 概览 → 接入供应商；同一监听地址的 `/p/<供应商 ID>` |
+| [供应商接入](providers.md) | 让 aicat 保管供应商密钥并同步模型列表，Agent 经 aicat 调用模型 | 概览 → 接入供应商；同一监听地址的 `/v1/messages`、`/v1/chat/completions`、`/v1/responses`、`/v1/models` |
 | [Codex 扩展](codex.md) | 在 Codex 的模型列表中使用供应商的模型，保留 ChatGPT 登录 | 扩展 → 已安装 → Codex；解密 `chatgpt.com` 或 `openai_base_url` 指向 `/backend-api/codex` |
 | [Agent 查询接口](agent-access.md) | 通过 HTTP 或 MCP 查询实际经过网关的请求 | 同一监听地址的 `/api/*` 与 `/mcp` |
 | [规则与脚本插件](rewrite.md) | 让 Agent 编写改写、离线试运行并检查实际效果 | MCP；当前无桌面编辑页 |

@@ -7,7 +7,9 @@
  * responses buffered or not recorded; browser origins accepted; a providers.json
  * from before providers were named lost on upgrade; an address typed without
  * /v1 forwarding to the wrong path; a refused key shown as a working provider;
- * two providers answering on each other's path.
+ * a model's provider prefix reaching the vendor or picking the wrong provider;
+ * a provider of another protocol being sent a request it cannot read; an
+ * unknown model forwarded anywhere; the old per-provider paths still served.
  * Usage: node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
  */
 const fs = require("node:fs"),
@@ -148,10 +150,11 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
   });
   const errors = [];
   const secrets = path.join(home, "providers.json");
-  const message = () =>
-    call(port, "/p/anthropic/v1/messages?beta=true", {
+  // Every provider is reached at the one endpoint; the model names it.
+  const message = (model = "anthropic/claude-test") =>
+    call(port, "/v1/messages?beta=true", {
       method: "POST",
-      body: '{"model":"claude-test","stream":true}',
+      body: `{"model":"${model}","stream":true}`,
       headers: {
         "Content-Type": "application/json",
         "x-api-key": AGENT_KEY,
@@ -172,7 +175,7 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     const state = () => page.evaluate(() => window.desktop.state());
 
     // Nothing is routed before a provider is saved.
-    assert.equal((await message()).status, 503);
+    assert.equal((await message()).status, 400);
     assert.equal(messages().length, 0);
     check("unsaved provider is not routed");
 
@@ -183,37 +186,52 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     );
     const legacy = (await state()).providers[0];
     assert.deepEqual(
-      [legacy.id, legacy.name, legacy.protocol, legacy.baseUrl, legacy.mount],
-      [
-        "openai",
-        "OpenAI",
-        "openai",
-        `http://127.0.0.1:${fixture}/v1`,
-        "/p/openai",
-      ],
+      [legacy.id, legacy.name, legacy.protocol, legacy.baseUrl],
+      ["openai", "OpenAI", "openai", `http://127.0.0.1:${fixture}/v1`],
     );
     assert.equal(
       JSON.parse(fs.readFileSync(secrets)).providers[0].id,
       "openai",
     );
-    const chat = await call(port, "/p/openai/chat/completions", {
+    const chat = await call(port, "/v1/chat/completions", {
       method: "POST",
-      body: "{}",
+      body: '{"model":"openai/gpt-x","n":1}',
       headers: { Authorization: "Bearer " + AGENT_KEY },
     });
     assert.equal(chat.status, 200);
     assert.equal(seen.at(-1).url, "/v1/chat/completions");
+    // The provider is named by the prefix and never sees it.
+    assert.equal(seen.at(-1).body, '{"model":"gpt-x","n":1}');
     assert.equal(seen.at(-1).headers.authorization, "Bearer " + LEGACY_KEY);
     assert.equal(seen.at(-1).headers["x-api-key"], undefined);
-    // The paths of the three vendor kinds are gone.
-    const gone = seen.length;
-    assert.equal(
-      (await call(port, "/openai/v1/chat/completions", { method: "POST" }))
-        .status,
-      404,
-    );
-    assert.equal(seen.length, gone);
+    // Nothing is translated: an OpenAI provider is not sent Anthropic's API.
+    // A model no provider has goes nowhere, and neither does a request
+    // without one; the per-provider paths are gone.
+    const reached = seen.length;
+    const mismatch = await message("openai/claude-test");
+    assert.equal(mismatch.status, 400);
+    assert.match(JSON.parse(mismatch.text).error.message, /协议/);
+    assert.equal((await message("nobody-has-this")).status, 400);
+    for (const [url, status] of [
+      ["/v1/embeddings", 404],
+      ["/openai/v1/chat/completions", 404],
+      ["/p/openai/chat/completions", 404],
+    ])
+      assert.equal(
+        (
+          await call(port, url, {
+            method: "POST",
+            body: '{"model":"openai/gpt-x"}',
+          })
+        ).status,
+        status,
+        url,
+      );
+    assert.equal(seen.length, reached);
     check("legacy providers.json kept as a named provider, /v1 fixed");
+    check(
+      "routed by model; other protocols, unknown models and old paths refused",
+    );
 
     // A preset fills in the vendor's address; only the key is left.
     await page.locator("#connect-provider").click();
@@ -271,17 +289,16 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     await page.locator("#provider-status.ok").waitFor();
     await page.locator("li.step.now #provider-snippet").waitFor();
     // The model list fields are covered by e2e/codex.cjs.
-    const { id, name, preset, protocol, baseUrl, mount, keyHint, responses } =
+    const { id, name, preset, protocol, baseUrl, keyHint, responses } =
       await anthropic();
     assert.deepEqual(
-      { id, name, preset, protocol, baseUrl, mount, keyHint, responses },
+      { id, name, preset, protocol, baseUrl, keyHint, responses },
       {
         id: "anthropic",
         name: "Anthropic",
         preset: "anthropic",
         protocol: "anthropic",
         baseUrl: `http://127.0.0.1:${fixture}`,
-        mount: "/p/anthropic",
         keyHint: "9f3a",
         responses: false,
       },
@@ -289,9 +306,11 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     assert.equal(await page.locator("#provider-key").inputValue(), "");
     assert.match(
       await page.locator("#provider-snippet").innerText(),
-      new RegExp(
-        `ANTHROPIC_BASE_URL=http://127\\.0\\.0\\.1:${port}/p/anthropic`,
-      ),
+      new RegExp(`ANTHROPIC_BASE_URL=http://127\\.0\\.0\\.1:${port}$`),
+    );
+    assert.match(
+      await page.locator("#provider-model-hint").innerText(),
+      /anthropic\/claude-test/,
     );
     await shot("provider-saved-light");
 
@@ -325,12 +344,27 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     assert.equal(sent.headers.authorization, undefined);
     assert.equal(sent.headers["anthropic-version"], "2023-06-01");
     assert.equal(sent.body, '{"model":"claude-test","stream":true}');
-    check("request forwarded with the saved key, streamed");
+    // A model only one provider of this API lists needs no prefix: the
+    // OpenAI provider lists it too, and is not asked.
+    assert.equal((await message("claude-test")).status, 200);
+    assert.equal(messages().at(-1).headers["x-api-key"], KEY);
+    // The model list is every provider's, by the caller's API, prefixed.
+    const ids = async (headers) =>
+      JSON.parse((await call(port, "/v1/models", { headers })).text).data.map(
+        (m) => m.id,
+      );
+    assert.deepEqual(await ids({ "anthropic-version": "2023-06-01" }), [
+      "anthropic/claude-test",
+    ]);
+    assert.deepEqual(await ids({}), ["openai/claude-test"]);
+    check(
+      "request forwarded with the saved key, streamed; bare model and merged list",
+    );
 
     // Browser pages may not use the route.
     assert.equal(
       (
-        await call(port, "/p/anthropic/v1/messages", {
+        await call(port, "/v1/messages", {
           method: "POST",
           headers: { Origin: "https://evil.invalid" },
         })
@@ -392,7 +426,7 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     await page.locator("#overview").waitFor();
     assert(!fs.readFileSync(secrets, "utf8").includes(KEY));
     const before = messages().length;
-    assert.equal((await message()).status, 503);
+    assert.equal((await message()).status, 400);
     assert.equal(messages().length, before);
     check("remove erases the key and the route");
 

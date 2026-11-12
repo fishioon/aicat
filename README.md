@@ -46,7 +46,7 @@ curl --proxy http://127.0.0.1:9981 http://example.com
 
 - **系统代理**：在「设置 → 代理」开启，默认关闭；退出时恢复原设置。
 - **HTTPS 解密**：在「设置 → 代理」安装证书，再添加要解密的域名（支持 `*.example.com`）；也可在流量详情里对某个 CONNECT 记录直接启用。未列入的域名保持直通。
-- **模型供应商**：在「概览 → 接入供应商」选择供应商并保存密钥，然后让 Agent 指向页面给出的地址，例如 `http://127.0.0.1:9981/p/anthropic`。
+- **模型供应商**：在「概览 → 接入供应商」选择供应商并保存密钥，然后让 Agent 指向 aicat（`ANTHROPIC_BASE_URL=http://127.0.0.1:9981` 或 `OPENAI_BASE_URL=http://127.0.0.1:9981/v1`），模型名写作 `供应商 ID/模型`。
 - **MCP**：地址为 `http://127.0.0.1:9981/mcp`（Streamable HTTP），`Authorization: Bearer <token>`，token 在数据目录的 `mcp-token`。各客户端的配置片段见「概览 → 接入 Agent」。
 
 API、MCP 与模型转发只接受本机访问。查询流量：

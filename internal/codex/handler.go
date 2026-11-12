@@ -41,8 +41,8 @@ type Options struct {
 	// chatgpt.com.
 	Backend   string
 	Providers *provider.Store
-	// Forward serves the provider routes (provider.Handler): a provider's
-	// turn is sent through it, with its key, as any agent's request is.
+	// Forward is the model endpoint (provider.Handler): a provider's turn is
+	// sent through it, with its key, as any agent's request is.
 	Forward   http.Handler
 	Catalog   *catalog.Catalog
 	Recorder  *traffic.Recorder
@@ -154,8 +154,7 @@ func (h *Handler) vendor(w http.ResponseWriter, r *http.Request, rest string, bo
 		writeError(w, http.StatusBadRequest, "模型 "+model+" 不可用：供应商未在 aicat 中保存、不支持 Responses 接口，或模型不在已同步的列表里。请在 aicat 的“接入供应商”中重新同步模型列表。")
 		return
 	}
-	body, err := withModel(body, name)
-	if err != nil {
+	if _, err := withModel(body, name); err != nil {
 		writeError(w, http.StatusBadRequest, "请求不是有效的 JSON")
 		return
 	}
@@ -163,8 +162,9 @@ func (h *Handler) vendor(w http.ResponseWriter, r *http.Request, rest string, bo
 		body = forVendor(body)
 	}
 	// Fresh headers: never ChatGPT's bearer, cookies, account, attestation
-	// or backend-only metadata. The provider route adds its own key.
-	out, err := http.NewRequestWithContext(r.Context(), http.MethodPost, "http://aicat"+chosen.Mount+"/responses", bytes.NewReader(body))
+	// or backend-only metadata. The model endpoint finds the provider by the
+	// model's prefix, as it does for any agent, and adds the provider's key.
+	out, err := http.NewRequestWithContext(r.Context(), http.MethodPost, "http://aicat/v1/responses", bytes.NewReader(body))
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "无法构造供应商请求")
 		return
