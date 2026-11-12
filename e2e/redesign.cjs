@@ -110,6 +110,8 @@ function tunnel(port, authority) {
       ...process.env,
       AICAT_E2E_OS_STATE: stateFile,
       AICAT_E2E_PREVIEW: previewFile,
+      // Preview-only scenario: keep the native window out of the way.
+      AICAT_E2E_BACKGROUND: "1",
     },
     stdio: ["ignore", log, log],
   });

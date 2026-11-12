@@ -82,6 +82,8 @@ node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
 node e2e/desktop.cjs bin/aicat-e2e build/icons-e2e icons
 ```
 
+只经浏览器预览驱动的场景（`redesign.cjs`、`provider.cjs`、`codex.cjs`）以 `AICAT_E2E_BACKGROUND=1` 启动验收二进制：原生窗口保持隐藏、不抢焦点、不出现 Dock 图标，可在后台反复运行。该开关只存在于 `e2e` tag 构建。`desktop.cjs` 及 `prototype.py --only desktop` 要驱动并断言真实 WKWebView 窗口的显示/隐藏，仍会弹出窗口。
+
 `e2e/prototype.py` 不带 `--only` 时三组必须全部通过；`--output` 指定工件根目录，默认 `build/full-e2e-*/`。
 
 | 组 | 实际验证 |

@@ -2,7 +2,11 @@
 
 package app
 
-import "github.com/egoist/mygo"
+import (
+	"os"
+
+	"github.com/egoist/mygo"
+)
 
 // The official automation plugin can choose application menu items, but does
 // not expose status-bar items. This test-build-only entry opens the real native
@@ -16,3 +20,8 @@ func automationMenus(a *application) []*mygo.MenuItem {
 		{Label: "退出应用", Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	}}}
 }
+
+// Scenarios driven only through the loopback preview never look at the native
+// window. They set AICAT_E2E_BACKGROUND so a run neither shows a window, takes
+// focus nor adds a Dock icon while the developer works in other apps.
+func backgroundRun() bool { return os.Getenv("AICAT_E2E_BACKGROUND") != "" }

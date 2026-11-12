@@ -5,3 +5,5 @@ package app
 import "github.com/egoist/mygo"
 
 func automationMenus(*application) []*mygo.MenuItem { return nil }
+
+func backgroundRun() bool { return false }

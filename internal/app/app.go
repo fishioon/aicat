@@ -86,7 +86,12 @@ func Run(o Options) error {
 			a.tray.Destroy()
 		}
 	})
-	mygo.App.OnActivate(func(bool) { a.showWindow() })
+	background := backgroundRun()
+	if background {
+		mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
+	} else {
+		mygo.App.OnActivate(func(bool) { a.showWindow() })
+	}
 	type startupResult struct {
 		runtime     *runtime
 		stopPreview func()
@@ -132,8 +137,11 @@ func Run(o Options) error {
 					TitleBarStyle: mygo.TitleBarHidden, TitleBarHeight: 44,
 					TrafficLightPosition: &mygo.Point{X: 14, Y: 15},
 					URL:                  "/",
+					Hidden:               background,
 				})
-				a.win.OnReadyToShow(func() { a.win.Focus(); mygo.App.Focus() })
+				if !background {
+					a.win.OnReadyToShow(func() { a.win.Focus(); mygo.App.Focus() })
+				}
 				a.win.OnClose(func(e *mygo.CloseEvent) {
 					if !a.quitting.Load() {
 						e.PreventDefault()
