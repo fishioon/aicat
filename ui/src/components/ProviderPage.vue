@@ -84,23 +84,33 @@ const incomplete = computed(
     !baseUrl.value.trim() ||
     (!key.value.trim() && !saved.value),
 );
+// Saving a new endpoint or key first asks the vendor for its model list; a
+// provider that gives none is not saved, and why is shown under the form.
+const saving = ref(false);
+const saveError = ref("");
+watch([name, protocol, baseUrl, key], () => (saveError.value = ""));
 async function save() {
-  let id = "";
-  if (
-    await run(async () => {
-      id = await host.saveProvider({
-        id: saved.value?.id ?? "",
-        name: name.value,
-        preset: preset.value?.id ?? "",
-        protocol: protocol.value,
-        baseUrl: baseUrl.value,
-        key: key.value,
-      });
-    })
-  ) {
+  if (saving.value) return;
+  saving.value = true;
+  saveError.value = "";
+  try {
+    const id = await host.saveProvider({
+      id: saved.value?.id ?? "",
+      name: name.value,
+      preset: preset.value?.id ?? "",
+      protocol: protocol.value,
+      baseUrl: baseUrl.value,
+      key: key.value,
+    });
+    await refresh();
     providerId.value = id;
     key.value = "";
     say(t("已保存 {name} 的密钥", { name: name.value.trim() }));
+  } catch (error) {
+    await refresh().catch(() => {});
+    saveError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    saving.value = false;
   }
 }
 function remove() {
@@ -150,6 +160,9 @@ const modelStatus = computed(() => {
 // Whether the saved endpoint and key work, as far as asking the vendor for
 // its model list can tell.
 const status = computed(() => {
+  if (saving.value)
+    return { kind: "plain", text: t("正在验证接口地址和密钥…") };
+  if (saveError.value) return { kind: "bad", text: saveError.value };
   const p = saved.value;
   if (!p) return undefined;
   if (p.syncing || syncing.value)
@@ -172,9 +185,7 @@ const status = computed(() => {
     case "endpoint":
       return {
         kind: "warn",
-        text: t(
-          "没有在这个地址找到模型列表，接口地址可能不对。少数供应商不提供模型列表，这时请求仍然可以转发。",
-        ),
+        text: t("这次没有在这个地址找到模型列表，接口地址可能不对。"),
       };
   }
   if (!p.models.syncedAt) return undefined;
@@ -189,8 +200,41 @@ const snippet = computed(
 );
 const modelExample = computed(() => {
   const p = saved.value;
-  return p ? `${p.id}/${p.models.models[0]?.id ?? t("模型名")}` : "";
+  return p ? `${p.id}/${p.enabled[0] ?? t("模型名")}` : "";
 });
+// Ticked models are the ones agents are offered; a filter narrows a long list.
+const modelQuery = ref("");
+watch(providerId, () => (modelQuery.value = ""));
+const shownModels = computed(() => {
+  const q = modelQuery.value.trim().toLowerCase();
+  const all = saved.value?.models.models ?? [];
+  return q
+    ? all.filter((m) => (m.id + " " + (m.name ?? "")).toLowerCase().includes(q))
+    : all;
+});
+async function setModels(next: string[]) {
+  const id = providerId.value;
+  // the vendor's order, whatever order they were ticked in
+  const order = saved.value?.models.models.map((m) => m.id) ?? [];
+  await run(() =>
+    host.setProviderModels(
+      id,
+      order.filter((m) => next.includes(m)),
+    ),
+  );
+}
+function toggleModel(model: string, on: boolean) {
+  const enabled = saved.value?.enabled ?? [];
+  setModels(on ? [...enabled, model] : enabled.filter((m) => m !== model));
+}
+// All and None act on the models the filter shows.
+function tickShown(on: boolean) {
+  const shown = shownModels.value.map((m) => m.id);
+  const enabled = saved.value?.enabled ?? [];
+  setModels(
+    on ? [...enabled, ...shown] : enabled.filter((m) => !shown.includes(m)),
+  );
+}
 </script>
 <template>
   <div class="main" id="provider">
@@ -307,7 +351,7 @@ const modelExample = computed(() => {
                 id="provider-save"
                 class="btn"
                 :class="{ primary: !saved }"
-                :disabled="incomplete"
+                :disabled="incomplete || saving"
                 @click="save"
               >
                 {{ t(saved ? "重新保存" : "保存") }}
@@ -357,16 +401,62 @@ const modelExample = computed(() => {
               <p v-if="!saved.responses">
                 {{ t("这个供应商不支持 Responses 接口。") }}
               </p>
-              <ul v-if="saved.models.models.length">
-                <li
-                  v-for="m in saved.models.models"
-                  :key="m.id"
-                  class="code"
-                  :title="m.name || m.id"
-                >
-                  {{ m.id }}
-                </li>
-              </ul>
+              <template v-if="saved.models.models.length">
+                <div class="model-tools">
+                  <span id="provider-models-enabled">{{
+                    t("已启用 {n} / {total}", {
+                      n: saved.enabled.length,
+                      total: saved.models.models.length,
+                    })
+                  }}</span>
+                  <input
+                    id="provider-models-filter"
+                    v-model="modelQuery"
+                    class="field"
+                    :placeholder="t('筛选模型')"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                  <button
+                    id="provider-models-all"
+                    class="btn"
+                    @click="tickShown(true)"
+                  >
+                    {{ t("全选") }}
+                  </button>
+                  <button
+                    id="provider-models-none"
+                    class="btn"
+                    @click="tickShown(false)"
+                  >
+                    {{ t("全不选") }}
+                  </button>
+                </div>
+                <ul>
+                  <li
+                    v-for="m in shownModels"
+                    :key="m.id"
+                    :title="m.name || m.id"
+                  >
+                    <label class="code">
+                      <input
+                        type="checkbox"
+                        :value="m.id"
+                        :checked="saved.enabled.includes(m.id)"
+                        @change="
+                          toggleModel(
+                            m.id,
+                            ($event.target as HTMLInputElement).checked,
+                          )
+                        "
+                      />{{ m.id }}
+                    </label>
+                  </li>
+                </ul>
+                <p v-if="saved.picked">
+                  {{ t("供应商新增的模型不会自动启用。") }}
+                </p>
+              </template>
             </section>
           </div>
         </li>

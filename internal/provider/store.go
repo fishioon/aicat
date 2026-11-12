@@ -47,6 +47,15 @@ type entry struct {
 	Protocol string `json:"protocol"`
 	BaseURL  string `json:"baseUrl"`
 	Key      string `json:"key"`
+	// Enabled are the model IDs the user ticked; nil, before any was
+	// ticked, is every model the list has. Only these are offered to
+	// agents and matched by a bare model name.
+	Enabled *[]string `json:"enabled,omitempty"`
+}
+
+// offers reports whether a model of the synced list is one the user enabled.
+func (e entry) offers(id string) bool {
+	return e.Enabled == nil || slices.Contains(*e.Enabled, id)
 }
 
 type file struct {
@@ -76,7 +85,11 @@ type Provider struct {
 	// Responses: the provider's models can be offered to Codex.
 	Responses bool      `json:"responses"`
 	Models    ModelList `json:"models"`
-	Syncing   bool      `json:"syncing"`
+	// Enabled are the IDs of the listed models offered to agents; Picked
+	// is whether the user chose them, or they are every listed model.
+	Enabled []string `json:"enabled"`
+	Picked  bool     `json:"picked"`
+	Syncing bool     `json:"syncing"`
 }
 
 type Store struct {
@@ -180,8 +193,15 @@ func (s *Store) List() []Provider {
 		}
 		list := s.models[e.ID]
 		list.Models = slices.Clone(list.Models)
+		enabled := []string{}
+		for _, m := range list.Models {
+			if e.offers(m.ID) {
+				enabled = append(enabled, m.ID)
+			}
+		}
 		views = append(views, Provider{ID: e.ID, Name: e.Name, Preset: e.Preset, Protocol: e.Protocol, BaseURL: e.BaseURL,
-			KeyHint: hint, Responses: protocols[e.Protocol].responses, Models: list, Syncing: s.syncing[e.ID]})
+			KeyHint: hint, Responses: protocols[e.Protocol].responses, Models: list, Enabled: enabled, Picked: e.Enabled != nil,
+			Syncing: s.syncing[e.ID]})
 	}
 	return views
 }
@@ -189,7 +209,12 @@ func (s *Store) List() []Provider {
 // Save adds a provider or changes a saved one, and returns its ID. An empty
 // key keeps the one already saved, so the UI can change the endpoint without
 // the key ever travelling back to it.
-func (s *Store) Save(in Input) (string, error) {
+//
+// A provider is one whose model list can be had: a new one, or one saved
+// with another endpoint, protocol or key, is asked for its list first, and
+// is not saved when the vendor gives none. The vendor is asked holding no
+// lock.
+func (s *Store) Save(ctx context.Context, in Input) (string, error) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" || len([]rune(name)) > 40 {
 		return "", errors.New("供应商名称需要填写，且不超过 40 个字符")
@@ -213,37 +238,113 @@ func (s *Store) Save(in Input) (string, error) {
 		return "", errors.New("API Key 不能包含空白字符")
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	next := slices.Clone(s.entries)
 	e := entry{ID: in.ID, Name: name, Preset: in.Preset, Protocol: in.Protocol, BaseURL: baseURL, Key: key}
 	var old entry
+	if in.ID != "" {
+		i := s.find(in.ID)
+		if i < 0 {
+			s.mu.Unlock()
+			return "", fmt.Errorf("供应商 %s 尚未保存", in.ID)
+		}
+		old = s.entries[i]
+		if e.Key == "" {
+			e.Key = old.Key
+		}
+		e.Enabled = old.Enabled
+	}
+	if e.Key == "" {
+		s.mu.Unlock()
+		return "", errors.New("接口地址和 API Key 都要填")
+	}
+	if in.ID != "" && old.BaseURL == e.BaseURL && old.Key == e.Key && old.Protocol == e.Protocol {
+		defer s.mu.Unlock()
+		next := slices.Clone(s.entries)
+		next[s.find(in.ID)] = e
+		return e.ID, s.saveLocked(next)
+	}
+	// a background sync of the old endpoint still running is dropped
+	var gen uint64
+	if in.ID != "" {
+		gen = s.startLocked(in.ID)
+	}
+	s.mu.Unlock()
+	if in.ID != "" {
+		defer s.changed()
+	}
+
+	models, source, err := fetchModels(ctx, s.client, e.Protocol, e.BaseURL, e.Key)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if in.ID != "" {
+		if s.generation[in.ID] != gen {
+			return "", fmt.Errorf("供应商 %s 在保存期间被修改或移除，请重新保存", in.ID)
+		}
+		delete(s.syncing, in.ID)
+	}
+	if err != nil {
+		return "", saveError(err)
+	}
+	// The list answered only under /v1: the address was typed without it,
+	// and requests need it as much as the list does.
+	if e.Protocol != "anthropic" && source == e.BaseURL+"/v1/models" {
+		e.BaseURL += "/v1"
+	}
+	// Another endpoint serves other models: what was ticked for the old one
+	// does not carry over. A new key for the same endpoint keeps it.
+	if old.BaseURL != e.BaseURL || old.Protocol != e.Protocol {
+		e.Enabled = nil
+	}
+	next := slices.Clone(s.entries)
 	if in.ID == "" {
 		e.ID = s.newIDLocked(firstOf(in.Preset, name))
 		next = append(next, e)
 	} else {
-		i := s.find(in.ID)
-		if i < 0 {
-			return "", fmt.Errorf("供应商 %s 尚未保存", in.ID)
-		}
-		old = next[i]
-		if e.Key == "" {
-			e.Key = old.Key
-		}
-		next[i] = e
-	}
-	if e.Key == "" {
-		return "", errors.New("接口地址和 API Key 都要填")
+		next[s.find(in.ID)] = e
 	}
 	if err := s.saveLocked(next); err != nil {
 		return "", err
 	}
-	// Another endpoint, protocol or key may serve other models: the old list
-	// is forgotten and the new one asked for.
-	if old.BaseURL != e.BaseURL || old.Key != e.Key || old.Protocol != e.Protocol {
-		s.forgetModelsLocked(e.ID)
-		s.syncLocked(e.ID)
+	lists := make(map[string]ModelList, len(s.models)+1)
+	for k, v := range s.models {
+		lists[k] = v
+	}
+	lists[e.ID] = ModelList{Models: models, SyncedAt: time.Now(), Source: source}
+	if err := s.saveModelsLocked(lists); err != nil {
+		log.Printf("provider models: %v", err)
 	}
 	return e.ID, nil
+}
+
+// saveError says why a provider was not saved, by what the vendor answered.
+func saveError(err error) error {
+	why := "这个地址没有模型列表（/models），aicat 只接入能列出模型的供应商。请检查接口地址"
+	switch errorKind(err) {
+	case "auth":
+		why = "供应商拒绝了这把密钥，请确认密钥是这家供应商签发的"
+	case "network":
+		why = "连不上供应商，请检查接口地址和网络"
+	}
+	return fmt.Errorf("没有保存：%s。%s", why, err.Error())
+}
+
+// SetEnabled saves which of a provider's listed models are offered to agents.
+func (s *Store) SetEnabled(id string, models []string) error {
+	enabled := []string{}
+	for _, m := range models {
+		if m = strings.TrimSpace(m); m != "" && !slices.Contains(enabled, m) {
+			enabled = append(enabled, m)
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	i := s.find(id)
+	if i < 0 {
+		return fmt.Errorf("供应商 %s 尚未保存", id)
+	}
+	next := slices.Clone(s.entries)
+	next[i].Enabled = &enabled
+	return s.saveLocked(next)
 }
 
 // newIDLocked makes an unused ID from a preset or a name: the ID is the
@@ -418,9 +519,9 @@ type ResponsesModel struct {
 	Model
 }
 
-// ResponsesModels lists what Codex may be offered: the models of each saved
-// provider that speaks the Responses API, leaving out any its vendor says is
-// served on other APIs only.
+// ResponsesModels lists what Codex may be offered: the enabled models of each
+// saved provider that speaks the Responses API, leaving out any its vendor
+// says is served on other APIs only.
 func (s *Store) ResponsesModels() []ResponsesModel {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -431,7 +532,7 @@ func (s *Store) ResponsesModels() []ResponsesModel {
 		}
 		u, _ := url.Parse(e.BaseURL)
 		for _, m := range s.models[e.ID].Models {
-			if len(m.APIs) > 0 && !slices.Contains(m.APIs, "responses") {
+			if !e.offers(m.ID) || len(m.APIs) > 0 && !slices.Contains(m.APIs, "responses") {
 				continue
 			}
 			out = append(out, ResponsesModel{Provider: e.ID, ProviderName: e.Name, OpenAI: u != nil && u.Hostname() == "api.openai.com", Model: m})
@@ -519,8 +620,9 @@ func serves(protocol, api string) bool {
 
 // resolve finds the provider a request's model names, and the model's name
 // as that provider knows it. "<provider ID>/<model>" names the provider; a
-// model without one goes to the provider whose synced list has it, when
-// exactly one serving this API does.
+// model without one goes to the provider that enabled it in its synced list,
+// when exactly one serving this API does. A prefixed model is forwarded
+// whether or not it is enabled.
 func (s *Store) resolve(api, model string) (entry, string, error) {
 	if model == "" {
 		return entry{}, "", errors.New("请求里没有 model；aicat 按 model 选择供应商，写作“供应商 ID/模型”")
@@ -538,7 +640,7 @@ func (s *Store) resolve(api, model string) (entry, string, error) {
 	}
 	var found []entry
 	for _, e := range s.entries {
-		if serves(e.Protocol, api) && slices.ContainsFunc(s.models[e.ID].Models, func(m Model) bool { return m.ID == model }) {
+		if serves(e.Protocol, api) && e.offers(model) && slices.ContainsFunc(s.models[e.ID].Models, func(m Model) bool { return m.ID == model }) {
 			found = append(found, e)
 		}
 	}
@@ -560,7 +662,7 @@ type listed struct {
 	ID, Name, Provider string
 }
 
-// catalog lists the models of the providers serving an API, each named
+// catalog lists the enabled models of the providers serving an API, each named
 // "<provider ID>/<model>".
 func (s *Store) catalog(api string) []listed {
 	s.mu.RLock()
@@ -571,6 +673,9 @@ func (s *Store) catalog(api string) []listed {
 			continue
 		}
 		for _, m := range s.models[e.ID].Models {
+			if !e.offers(m.ID) {
+				continue
+			}
 			out = append(out, listed{ID: e.ID + "/" + m.ID, Name: firstOf(m.Name, m.ID), Provider: e.ID})
 		}
 	}

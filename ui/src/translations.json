@@ -512,7 +512,6 @@
   "正在验证接口地址和密钥…": "Checking the endpoint and key…",
   "{host} 拒绝了这把密钥。请确认密钥是这家供应商签发的，而不是别家的。": "{host} refused this key. Make sure the key was issued by this provider, not another one.",
   "连不上 {host}。请检查接口地址和网络。": "Can't reach {host}. Check the endpoint and your network.",
-  "没有在这个地址找到模型列表，接口地址可能不对。少数供应商不提供模型列表，这时请求仍然可以转发。": "No model list was found at this endpoint, so the endpoint may be wrong. A few providers don't offer a model list; requests are still forwarded in that case.",
   "已连通，密钥有效。": "Connected. The key works.",
   "密钥无效": "Key refused",
   "连不上": "Unreachable",
@@ -522,5 +521,11 @@
   "把 Agent 的模型地址指向 aicat，所有供应商共用这一个地址。aicat 按请求里的模型名选择供应商，带上保管的密钥转发。只接受本机请求。": "Point the agent's model endpoint at aicat. Every provider shares this one address: aicat picks the provider by the model named in the request and forwards it with the key it holds. Local requests only.",
   "模型名写作“供应商 ID/模型”，例如": "Write a model as provider ID/model, for example",
   "。只有一家供应商提供这个模型时，可以只写模型名。": ". When only one provider serves the model, the model name alone works.",
-  "模型名": "model"
+  "模型名": "model",
+  "这次没有在这个地址找到模型列表，接口地址可能不对。": "No model list was found at this endpoint this time, so the endpoint may be wrong.",
+  "已启用 {n} / {total}": "{n} / {total} enabled",
+  "筛选模型": "Filter models",
+  "全选": "All",
+  "全不选": "None",
+  "供应商新增的模型不会自动启用。": "Models the provider adds later are not enabled automatically."
 }

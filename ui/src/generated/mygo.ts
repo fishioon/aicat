@@ -175,6 +175,12 @@ export interface Provider {
   /** Responses: the provider's models can be offered to Codex. */
   responses: boolean;
   models: ModelList;
+  /**
+   * Enabled are the IDs of the listed models offered to agents; Picked
+   * is whether the user chose them, or they are every listed model.
+   */
+  enabled: string[];
+  picked: boolean;
   syncing: boolean;
 }
 
@@ -318,6 +324,9 @@ export const Desktop = {
   /**
    * SaveProvider adds a model vendor or changes a saved one, and returns its
    * ID. An empty key keeps the saved one; keys are never returned to the page.
+   *
+   * A new endpoint or key is checked by asking the vendor for its model list,
+   * holding no desktop lock while it answers; without a list it is not saved.
    */
   saveProvider(in_: Input): Promise<string> {
     return call("Desktop.SaveProvider", in_);
@@ -345,6 +354,13 @@ export const Desktop = {
   /** SetPreferences persists language and theme before applying either. */
   setPreferences(p: Preferences): Promise<void> {
     return call("Desktop.SetPreferences", p);
+  },
+  /**
+   * SetProviderModels saves which of a provider's listed models agents are
+   * offered: in the gateway's model list, Codex's and bare model names.
+   */
+  setProviderModels(id: string, models: string[]): Promise<void> {
+    return call("Desktop.SetProviderModels", id, models);
   },
   setRecording(enabled: boolean): Promise<void> {
     return call("Desktop.SetRecording", enabled);

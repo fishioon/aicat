@@ -182,9 +182,24 @@ func (d *Desktop) SetDecryptionDomain(ctx context.Context, host string, enabled 
 
 // SaveProvider adds a model vendor or changes a saved one, and returns its
 // ID. An empty key keeps the saved one; keys are never returned to the page.
-func (d *Desktop) SaveProvider(ctx context.Context, in provider.Input) (id string, err error) {
-	err = d.mutate(ctx, func() error { id, err = d.app.r.providers.Save(in); return err })
-	return id, err
+//
+// A new endpoint or key is checked by asking the vendor for its model list,
+// holding no desktop lock while it answers; without a list it is not saved.
+func (d *Desktop) SaveProvider(ctx context.Context, in provider.Input) (string, error) {
+	a := d.app
+	if !a.ready.Load() || a.pending.Load() || a.quitting.Load() {
+		return "", errors.New("应用尚未就绪或正在退出")
+	}
+	defer a.notifyState()
+	ctx, cancel := context.WithTimeout(ctx, 40*time.Second)
+	defer cancel()
+	return a.r.providers.Save(ctx, in)
+}
+
+// SetProviderModels saves which of a provider's listed models agents are
+// offered: in the gateway's model list, Codex's and bare model names.
+func (d *Desktop) SetProviderModels(ctx context.Context, id string, models []string) error {
+	return d.mutate(ctx, func() error { return d.app.r.providers.SetEnabled(id, models) })
 }
 
 // OpenLink opens a web page in the user's browser, such as the page where a

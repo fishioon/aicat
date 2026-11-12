@@ -408,7 +408,9 @@ function collect(resolve) {
     );
     assert.equal(catalogHits.length, 0);
     assert.ok(!fs.existsSync(path.join(home, "cache", "models-dev.json")));
-    check("off by default: local entry refused, chatgpt.com tunnelled, nothing downloaded");
+    check(
+      "off by default: local entry refused, chatgpt.com tunnelled, nothing downloaded",
+    );
 
     // Turning it on asks for the certificate first, then turns it on.
     await page.locator("#nav-extensions").click();
@@ -506,6 +508,30 @@ function collect(resolve) {
     assert.equal(asked.headers.authorization, CHATGPT);
     assert.equal(asked.headers["if-none-match"], undefined);
     check("model list merged with provider models filled in from models.dev");
+
+    // An unticked model is not offered to Codex.
+    const slugs = async () =>
+      JSON.parse(
+        (
+          await call(port, "/backend-api/codex/models?client_version=0.150.0", {
+            headers: { Authorization: CHATGPT },
+          })
+        ).text,
+      ).models.map((m) => m.slug);
+    await page
+      .locator("#provider-models input[type=checkbox]")
+      .nth(2)
+      .uncheck();
+    await wait(async () => !(await slugs()).includes("compat/vision-x"));
+    const unticked = await call(port, "/backend-api/codex/responses", {
+      method: "POST",
+      headers: { ...codexHeaders, "Content-Encoding": "zstd" },
+      body: zlib.zstdCompressSync(Buffer.from(turn("compat/vision-x"))),
+    });
+    assert.equal(unticked.status, 400);
+    await page.locator("#provider-models input[type=checkbox]").nth(2).check();
+    await wait(async () => (await slugs()).includes("compat/vision-x"));
+    check("an unticked provider model is left out of Codex's list and refused");
 
     // A provider turn: the provider's key, none of ChatGPT's credentials,
     // OpenAI-only fields gone, streamed as it arrives.

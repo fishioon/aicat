@@ -1058,7 +1058,7 @@ select.field {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 2px 16px;
-  max-height: 220px;
+  max-height: 320px;
   overflow: auto;
   margin: 0;
   padding: 8px 12px;
@@ -1071,6 +1071,31 @@ select.field {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.model-list li label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.model-list li input {
+  flex: none;
+  margin: 0;
+}
+.model-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t12);
+}
+.model-tools span {
+  flex: 1;
+  color: var(--ink-2);
+}
+.model-tools .field {
+  width: 180px;
 }
 
 /* Traffic */

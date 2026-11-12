@@ -9,7 +9,10 @@
  * /v1 forwarding to the wrong path; a refused key shown as a working provider;
  * a model's provider prefix reaching the vendor or picking the wrong provider;
  * a provider of another protocol being sent a request it cannot read; an
- * unknown model forwarded anywhere; the old per-provider paths still served.
+ * unknown model forwarded anywhere; the old per-provider paths still served;
+ * a provider saved whose key is refused or that lists no models; an
+ * unticked model still offered in the list or matched by its bare name, or
+ * refused when named with its prefix.
  * Usage: node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
  */
 const fs = require("node:fs"),
@@ -98,7 +101,11 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
         res.writeHead(found ? 200 : 404, {
           "Content-Type": "application/json",
         });
-        res.end(found ? '{"data":[{"id":"claude-test"}]}' : "{}");
+        res.end(
+          found
+            ? '{"data":[{"id":"claude-test"},{"id":"claude-other"}]}'
+            : "{}",
+        );
         return;
       }
       res.writeHead(200, { "Content-Type": "text/event-stream" });
@@ -182,7 +189,7 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     // The old file is read as a named provider; its model list answered
     // under /v1 only, so the address gains it and requests follow.
     await wait(
-      async () => (await state()).providers[0]?.models.models.length === 1,
+      async () => (await state()).providers[0]?.models.models.length === 2,
     );
     const legacy = (await state()).providers[0];
     assert.deepEqual(
@@ -252,40 +259,33 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     await page.locator("#provider-url").fill("http://example.com");
     await page.locator("#provider-key").fill(KEY);
     await page.locator("#provider-save").click();
-    await page.locator("#notice.bad").waitFor();
+    await page.locator("#provider-status.bad", { hasText: "https" }).waitFor();
     assert(!fs.readFileSync(secrets, "utf8").includes(KEY));
     assert.equal((await state()).providers.length, 1);
     check("plain http endpoint rejected");
 
-    // A key the vendor refuses is saved, and said to be refused: the agent
-    // step is not offered as ready.
+    // A provider is one whose model list can be had: a key the vendor
+    // refuses, or an address without a list, is not saved, and says why.
     const anthropic = async () =>
       (await state()).providers.find((p) => p.id === "anthropic");
-    await page.locator("#provider-url").fill(`http://127.0.0.1:${fixture}/`);
-    await page.locator("#provider-key").fill(WRONG_KEY);
-    await page.locator("#provider-save").click();
-    await wait(async () => (await anthropic())?.models.errorKind === "auth");
-    await page.locator("#provider-status.bad").waitFor();
-    assert.equal(
-      await page.locator("li.step.now #provider-snippet").count(),
-      0,
-    );
-    assert.equal((await message()).status, 401);
+    const refused = async (url, key, why) => {
+      await page.locator("#provider-url").fill(url);
+      await page.locator("#provider-key").fill(key);
+      await page.locator("#provider-save").click();
+      await page.locator("#provider-status.bad", { hasText: why }).waitFor();
+      assert.equal((await state()).providers.length, 1);
+      assert(!fs.readFileSync(secrets, "utf8").includes(key));
+      assert.equal((await message()).status, 400);
+    };
+    await refused(`http://127.0.0.1:${fixture}/`, WRONG_KEY, "拒绝了这把密钥");
     await shot("provider-refused-light");
-    await page.locator("#nav-overview").click();
-    await page
-      .locator("#overview-apps .provider .bad", { hasText: "密钥无效" })
-      .waitFor();
-    await page
-      .locator("#overview-apps .provider")
-      .filter({ hasText: "Anthropic" })
-      .getByText("管理")
-      .click();
-    check("refused key reported, agent step held back");
+    await refused(`http://127.0.0.1:${fixture}/nolist`, KEY, "没有模型列表");
+    check("refused key and an address without a model list are not saved");
 
+    await page.locator("#provider-url").fill(`http://127.0.0.1:${fixture}/`);
     await page.locator("#provider-key").fill(KEY);
     await page.locator("#provider-save").click();
-    await wait(async () => (await anthropic()).models.models.length === 1);
+    await wait(async () => (await anthropic())?.models.models.length === 2);
     await page.locator("#provider-status.ok").waitFor();
     await page.locator("li.step.now #provider-snippet").waitFor();
     // The model list fields are covered by e2e/codex.cjs.
@@ -355,11 +355,56 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
       );
     assert.deepEqual(await ids({ "anthropic-version": "2023-06-01" }), [
       "anthropic/claude-test",
+      "anthropic/claude-other",
     ]);
-    assert.deepEqual(await ids({}), ["openai/claude-test"]);
+    assert.deepEqual(await ids({}), [
+      "openai/claude-test",
+      "openai/claude-other",
+    ]);
     check(
       "request forwarded with the saved key, streamed; bare model and merged list",
     );
+
+    // Every listed model starts ticked. An unticked one leaves the list and
+    // its bare name, and still answers to its prefix.
+    const ticks = page.locator("#provider-models input[type=checkbox]");
+    assert.equal(await ticks.count(), 2);
+    assert.match(
+      await page.locator("#provider-models-enabled").innerText(),
+      /已启用 2 \/ 2/,
+    );
+    await ticks.first().uncheck();
+    await wait(
+      async () => (await anthropic()).enabled.join() === "claude-other",
+    );
+    assert.equal((await anthropic()).picked, true);
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(secrets)).providers.find(
+        (p) => p.id === "anthropic",
+      ).enabled,
+      ["claude-other"],
+    );
+    assert.deepEqual(await ids({ "anthropic-version": "2023-06-01" }), [
+      "anthropic/claude-other",
+    ]);
+    assert.equal((await message("claude-test")).status, 400);
+    assert.equal((await message("anthropic/claude-test")).status, 200);
+    await page.locator("#provider-models-none").click();
+    await wait(async () => (await anthropic()).enabled.length === 0);
+    assert.deepEqual(await ids({ "anthropic-version": "2023-06-01" }), []);
+    // All ticks what the filter shows.
+    await page.locator("#provider-models-filter").fill("other");
+    assert.equal(await ticks.count(), 1);
+    await page.locator("#provider-models-all").click();
+    await wait(
+      async () => (await anthropic()).enabled.join() === "claude-other",
+    );
+    await page.locator("#provider-models-filter").fill("");
+    await shot("provider-models-picked-light");
+    await page.locator("#provider-models-all").click();
+    await wait(async () => (await anthropic()).enabled.length === 2);
+    assert.equal((await message("claude-test")).status, 200);
+    check("ticked models are offered; unticked ones only by their prefix");
 
     // Browser pages may not use the route.
     assert.equal(
@@ -405,11 +450,11 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
 
     // Changing the endpoint keeps the saved key.
     await page.locator("#nav-overview").click();
-    await page
-      .locator("#overview-apps .provider")
-      .filter({ hasText: "Anthropic" })
-      .getByText("管理")
-      .click();
+    // The overview row opens the provider, by its own button or a 管理 one.
+    const row = page.locator(".provider").filter({ hasText: "Anthropic" });
+    await row.first().waitFor();
+    const manage = row.getByText("管理");
+    await ((await manage.count()) ? manage : row).first().click();
     await page.locator("#provider-url").fill(`http://localhost:${fixture}`);
     await page.locator("#provider-save").click();
     await wait(
