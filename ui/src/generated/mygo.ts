@@ -75,6 +75,19 @@ export type Header = Record<string, string[]>;
 export type ID = number;
 
 /**
+ * Input is a provider as the page saves it. An empty ID adds one; an empty
+ * Key keeps the saved key.
+ */
+export interface Input {
+  id: string;
+  name: string;
+  preset: string;
+  protocol: string;
+  baseUrl: string;
+  key: string;
+}
+
+/**
  * Model is one model a provider's own list says it serves. The list is the
  * truth about what the vendor serves today; anything it leaves out (a name,
  * a context window, reasoning levels) is filled in from the models.dev
@@ -106,9 +119,12 @@ export interface ModelList {
   source?: string;
   /**
    * Error is why the last sync failed; the models are what an earlier one
-   * found, if any.
+   * found, if any. ErrorKind sorts it for the page: "auth" (the vendor
+   * refused the key), "network" (the vendor was not reached) or "endpoint"
+   * (no model list at this address).
    */
   error?: string;
+  errorKind?: string;
 }
 
 /** Preferences is the app-wide presentation state in the sole aicat.yaml config. */
@@ -123,6 +139,9 @@ export interface Preferences {
  */
 export interface Provider {
   id: string;
+  name: string;
+  preset: string;
+  protocol: string;
   baseUrl: string;
   mount: string;
   keyHint: string;
@@ -253,6 +272,13 @@ export const Desktop = {
   openKeychain(): Promise<void> {
     return call("Desktop.OpenKeychain");
   },
+  /**
+   * OpenLink opens a web page in the user's browser, such as the page where a
+   * vendor issues keys.
+   */
+  openLink(link: string): Promise<void> {
+    return call("Desktop.OpenLink", link);
+  },
   recheckCertificate(): Promise<void> {
     return call("Desktop.RecheckCertificate");
   },
@@ -261,6 +287,13 @@ export const Desktop = {
   },
   requestCURL(id: ID): Promise<string> {
     return call("Desktop.RequestCURL", id);
+  },
+  /**
+   * SaveProvider adds a model vendor or changes a saved one, and returns its
+   * ID. An empty key keeps the saved one; keys are never returned to the page.
+   */
+  saveProvider(in_: Input): Promise<string> {
+    return call("Desktop.SaveProvider", in_);
   },
   /**
    * SetCodexEnabled turns the Codex extension on or off. It decrypts Codex's
@@ -285,13 +318,6 @@ export const Desktop = {
   /** SetPreferences persists language and theme before applying either. */
   setPreferences(p: Preferences): Promise<void> {
     return call("Desktop.SetPreferences", p);
-  },
-  /**
-   * SetProvider saves a model vendor's endpoint and API key. An empty key keeps
-   * the saved one; keys are never returned to the page.
-   */
-  setProvider(id: string, baseURL: string, key: string): Promise<void> {
-    return call("Desktop.SetProvider", id, baseURL, key);
   },
   setRecording(enabled: boolean): Promise<void> {
     return call("Desktop.SetRecording", enabled);

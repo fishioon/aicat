@@ -35,33 +35,6 @@ export const shell = reactive({
   historyAt: -1,
   history: [] as Location[],
 });
-// The model vendors aicat can hold a key for. Mounts and defaults mirror
-// internal/provider; env is what an agent sets to reach the mount.
-export const providerKinds = {
-  anthropic: {
-    name: "Anthropic",
-    url: "https://api.anthropic.com",
-    env: "ANTHROPIC_BASE_URL",
-    mount: "/anthropic",
-    placeholder: "sk-ant-…",
-  },
-  openai: {
-    name: "OpenAI",
-    url: "https://api.openai.com/v1",
-    env: "OPENAI_BASE_URL",
-    mount: "/openai/v1",
-    placeholder: "sk-…",
-  },
-  compat: {
-    name: "兼容 OpenAI 的服务",
-    url: "",
-    env: "OPENAI_BASE_URL",
-    mount: "/compat/v1",
-    placeholder: "API Key",
-  },
-} as const;
-export type ProviderKind = keyof typeof providerKinds;
-export const providerChoice = shallowRef<ProviderKind>("anthropic");
 export const busy = shallowRef(false);
 export const notice = shallowRef("");
 export const noticeKind = shallowRef<"bad" | "">("");

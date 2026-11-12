@@ -1,6 +1,6 @@
 # aicat feature map
 
-这份地图说明当前 aicat 有哪些用户可用能力、从哪里进入、如何操作，以及什么可观察结果能证明功能正常。先读索引，再按对应功能文件验证。更新日期：2026-11-11。
+这份地图说明当前 aicat 有哪些用户可用能力、从哪里进入、如何操作，以及什么可观察结果能证明功能正常。先读索引，再按对应功能文件验证。
 
 aicat 的产品方向是用户节点上的常驻 Agent Gateway：用户主要在自己的 Agent 中交互，桌面负责接入、配置、授权与诊断。当前已经交付的是 HTTP/HTTPS 代理、流量检查、脚本改写和供 Agent 使用的 API/MCP。地图以当前实现为准，产品目标见 [CONTEXT.md](../../CONTEXT.md)。
 
@@ -14,7 +14,7 @@ aicat 的产品方向是用户节点上的常驻 Agent Gateway：用户主要在
 | [证书与 HTTPS 解密](https.md) | 信任、查看、导出或删除证书，选择需要解密的域名 | 设置 → 代理；CONNECT 详情 |
 | [查找流量](traffic-browse.md) | 实时查看、搜索、按域名/路径/应用筛选，固定域名 | 流量 → 侧边栏与请求列表 |
 | [检查与导出请求](traffic-inspect.md) | 阅读请求/响应，复制 URL、cURL 或正文，导出结果 | 请求行、右键菜单、详情、标题栏 |
-| [供应商接入](providers.md) | 让 aicat 保管供应商密钥并同步模型列表，Agent 经 aicat 调用模型 | 概览 → 接入供应商；同一监听地址的 `/anthropic`、`/openai/v1`、`/compat/v1` |
+| [供应商接入](providers.md) | 让 aicat 保管供应商密钥并同步模型列表，Agent 经 aicat 调用模型 | 概览 → 接入供应商；同一监听地址的 `/p/<供应商 ID>` |
 | [Codex 扩展](codex.md) | 在 Codex 的模型列表中使用供应商的模型，保留 ChatGPT 登录 | 扩展 → 已安装 → Codex；解密 `chatgpt.com` 或 `openai_base_url` 指向 `/backend-api/codex` |
 | [Agent 查询接口](agent-access.md) | 通过 HTTP 或 MCP 查询实际经过网关的请求 | 同一监听地址的 `/api/*` 与 `/mcp` |
 | [规则与脚本插件](rewrite.md) | 让 Agent 编写改写、离线试运行并检查实际效果 | MCP；当前无桌面编辑页 |
@@ -27,7 +27,7 @@ aicat 的产品方向是用户节点上的常驻 Agent Gateway：用户主要在
 | --- | --- |
 | 多密钥、失败切换与协议转换 | 尚未实现；[供应商接入](providers.md)每种只保管一把密钥，[Codex 扩展](codex.md)只按 `供应商/模型` 分流到支持 Responses 的供应商 |
 | MCP 服务聚合 | 尚未实现；现有 `/mcp` 是 aicat 自身管理服务 |
-| Skill 分发与消息渠道 | 尚未实现；不恢复历史 Claw 或消息连接器 |
+| Skill 分发与消息渠道 | 尚未实现；消息扩展的设计见 [草案](../message-extension-design.md) |
 | Token、费用、缓存命中率等用量统计与趋势图 | 概览已显示网关状态、接入地址、待处理事项和按流量记录统计的请求；模型用量需要解析模型响应，尚未实现 |
 | Agent 任务名称、进度、产物及 Skill 实际使用情况 | 需要 Agent 另行上报，不能从代理记录推断；上报能力尚未实现 |
 | 流量检查默认关闭 | 设计目标；当前 `features.traffic` 缺省仍为 `true` |

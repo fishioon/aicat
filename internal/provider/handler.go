@@ -43,15 +43,12 @@ func NewHandler(store *Store, recorder *traffic.Recorder, recording func() bool)
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	k, e, rest, saved := h.store.route(r.URL.Path)
-	if k.ID == "" {
-		http.NotFound(w, r)
-		return
-	}
+	e, rest, saved := h.store.route(r.URL.Path)
 	if !saved {
-		http.Error(w, "aicat: provider "+k.ID+" is not connected; add it in the aicat window", http.StatusServiceUnavailable)
+		http.Error(w, "aicat: no provider is connected at "+r.URL.Path+"; add it in the aicat window", http.StatusServiceUnavailable)
 		return
 	}
+	k := protocols[e.Protocol]
 	target, err := url.Parse(e.BaseURL + rest)
 	if err != nil {
 		http.Error(w, "aicat: invalid provider endpoint", http.StatusBadGateway)

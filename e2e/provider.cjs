@@ -4,7 +4,10 @@
  * echoed to the page or leaked into traffic records; the agent's own
  * credential reaching the vendor; plain-http endpoints accepted; routes
  * answering before a provider is saved or after it is removed; streamed
- * responses buffered or not recorded; browser origins accepted.
+ * responses buffered or not recorded; browser origins accepted; a providers.json
+ * from before providers were named lost on upgrade; an address typed without
+ * /v1 forwarding to the wrong path; a refused key shown as a working provider;
+ * two providers answering on each other's path.
  * Usage: node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
  */
 const fs = require("node:fs"),
@@ -37,6 +40,8 @@ const home = path.join(root, "home"),
   previewFile = path.join(root, "preview-url"),
   stateFile = path.join(root, "os-state.json");
 const KEY = "sk-ant-e2e-HELD-BY-AICAT-9f3a";
+const LEGACY_KEY = "sk-legacy-e2e-HELD-BY-AICAT-71c2";
+const WRONG_KEY = "nc_ai_another-vendors-key-0000";
 const AGENT_KEY = "agent-placeholder-must-not-leave";
 
 function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
@@ -77,9 +82,21 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
         headers: req.headers,
         body: Buffer.concat(chunks).toString(),
       });
-      if (req.headers["x-api-key"] !== KEY) {
+      if (
+        req.headers["x-api-key"] !== KEY &&
+        req.headers.authorization !== "Bearer " + LEGACY_KEY
+      ) {
         res.writeHead(401, { "Content-Type": "application/json" });
         res.end('{"error":{"message":"bad key"}}');
+        return;
+      }
+      // The model list lives under /v1 only.
+      if (req.method === "GET") {
+        const found = req.url === "/v1/models";
+        res.writeHead(found ? 200 : 404, {
+          "Content-Type": "application/json",
+        });
+        res.end(found ? '{"data":[{"id":"claude-test"}]}' : "{}");
         return;
       }
       res.writeHead(200, { "Content-Type": "text/event-stream" });
@@ -97,6 +114,15 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
   fs.writeFileSync(
     path.join(home, "aicat.yaml"),
     `gateway:\n  addr: 127.0.0.1:${port}\nui:\n  language: zh-Hans\n  theme: light\n`,
+  );
+  // A file from before providers were named: one entry per vendor kind, and
+  // an address typed without /v1.
+  fs.writeFileSync(
+    path.join(home, "providers.json"),
+    JSON.stringify({
+      openai: { baseUrl: `http://127.0.0.1:${fixture}`, key: LEGACY_KEY },
+    }),
+    { mode: 0o600 },
   );
   fs.writeFileSync(
     stateFile,
@@ -123,7 +149,7 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
   const errors = [];
   const secrets = path.join(home, "providers.json");
   const message = () =>
-    call(port, "/anthropic/v1/messages?beta=true", {
+    call(port, "/p/anthropic/v1/messages?beta=true", {
       method: "POST",
       body: '{"model":"claude-test","stream":true}',
       headers: {
@@ -147,11 +173,57 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
 
     // Nothing is routed before a provider is saved.
     assert.equal((await message()).status, 503);
-    assert.equal(seen.length, 0);
+    assert.equal(messages().length, 0);
     check("unsaved provider is not routed");
 
+    // The old file is read as a named provider; its model list answered
+    // under /v1 only, so the address gains it and requests follow.
+    await wait(
+      async () => (await state()).providers[0]?.models.models.length === 1,
+    );
+    const legacy = (await state()).providers[0];
+    assert.deepEqual(
+      [legacy.id, legacy.name, legacy.protocol, legacy.baseUrl, legacy.mount],
+      [
+        "openai",
+        "OpenAI",
+        "openai",
+        `http://127.0.0.1:${fixture}/v1`,
+        "/p/openai",
+      ],
+    );
+    assert.equal(
+      JSON.parse(fs.readFileSync(secrets)).providers[0].id,
+      "openai",
+    );
+    const chat = await call(port, "/p/openai/chat/completions", {
+      method: "POST",
+      body: "{}",
+      headers: { Authorization: "Bearer " + AGENT_KEY },
+    });
+    assert.equal(chat.status, 200);
+    assert.equal(seen.at(-1).url, "/v1/chat/completions");
+    assert.equal(seen.at(-1).headers.authorization, "Bearer " + LEGACY_KEY);
+    assert.equal(seen.at(-1).headers["x-api-key"], undefined);
+    // The paths of the three vendor kinds are gone.
+    const gone = seen.length;
+    assert.equal(
+      (await call(port, "/openai/v1/chat/completions", { method: "POST" }))
+        .status,
+      404,
+    );
+    assert.equal(seen.length, gone);
+    check("legacy providers.json kept as a named provider, /v1 fixed");
+
+    // A preset fills in the vendor's address; only the key is left.
     await page.locator("#connect-provider").click();
-    await page.locator("#provider").waitFor();
+    await page.locator("#provider-presets").waitFor();
+    await shot("provider-presets-light");
+    await page.locator("#preset-anthropic").click();
+    assert.equal(
+      await page.locator("#provider-name").inputValue(),
+      "Anthropic",
+    );
     assert.equal(
       await page.locator("#provider-url").inputValue(),
       "https://api.anthropic.com",
@@ -163,21 +235,53 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     await page.locator("#provider-key").fill(KEY);
     await page.locator("#provider-save").click();
     await page.locator("#notice.bad").waitFor();
-    assert.equal(fs.existsSync(secrets), false);
+    assert(!fs.readFileSync(secrets, "utf8").includes(KEY));
+    assert.equal((await state()).providers.length, 1);
     check("plain http endpoint rejected");
 
+    // A key the vendor refuses is saved, and said to be refused: the agent
+    // step is not offered as ready.
+    const anthropic = async () =>
+      (await state()).providers.find((p) => p.id === "anthropic");
     await page.locator("#provider-url").fill(`http://127.0.0.1:${fixture}/`);
+    await page.locator("#provider-key").fill(WRONG_KEY);
     await page.locator("#provider-save").click();
-    await wait(async () => (await state()).providers.length === 1);
+    await wait(async () => (await anthropic())?.models.errorKind === "auth");
+    await page.locator("#provider-status.bad").waitFor();
+    assert.equal(
+      await page.locator("li.step.now #provider-snippet").count(),
+      0,
+    );
+    assert.equal((await message()).status, 401);
+    await shot("provider-refused-light");
+    await page.locator("#nav-overview").click();
+    await page
+      .locator("#overview-apps .provider .bad", { hasText: "密钥无效" })
+      .waitFor();
+    await page
+      .locator("#overview-apps .provider")
+      .filter({ hasText: "Anthropic" })
+      .getByText("管理")
+      .click();
+    check("refused key reported, agent step held back");
+
+    await page.locator("#provider-key").fill(KEY);
+    await page.locator("#provider-save").click();
+    await wait(async () => (await anthropic()).models.models.length === 1);
+    await page.locator("#provider-status.ok").waitFor();
+    await page.locator("li.step.now #provider-snippet").waitFor();
     // The model list fields are covered by e2e/codex.cjs.
-    const { id, baseUrl, mount, keyHint, responses } = (await state())
-      .providers[0];
+    const { id, name, preset, protocol, baseUrl, mount, keyHint, responses } =
+      await anthropic();
     assert.deepEqual(
-      { id, baseUrl, mount, keyHint, responses },
+      { id, name, preset, protocol, baseUrl, mount, keyHint, responses },
       {
         id: "anthropic",
+        name: "Anthropic",
+        preset: "anthropic",
+        protocol: "anthropic",
         baseUrl: `http://127.0.0.1:${fixture}`,
-        mount: "/anthropic",
+        mount: "/p/anthropic",
         keyHint: "9f3a",
         responses: false,
       },
@@ -185,7 +289,9 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     assert.equal(await page.locator("#provider-key").inputValue(), "");
     assert.match(
       await page.locator("#provider-snippet").innerText(),
-      new RegExp(`ANTHROPIC_BASE_URL=http://127\\.0\\.0\\.1:${port}/anthropic`),
+      new RegExp(
+        `ANTHROPIC_BASE_URL=http://127\\.0\\.0\\.1:${port}/p/anthropic`,
+      ),
     );
     await shot("provider-saved-light");
 
@@ -210,10 +316,10 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     );
     const sent = messages().at(-1);
     // The model list sync on save used the saved key the same way.
-    const listed = seen.find((s) => s.url === "/v1/models");
+    const listed = seen.find(
+      (s) => s.url === "/v1/models" && s.headers["x-api-key"] === KEY,
+    );
     assert(listed, "saving did not sync the model list");
-    assert.equal(listed.headers["x-api-key"], KEY);
-    assert.equal(listed.headers.authorization, undefined);
     assert.equal(sent.url, "/v1/messages?beta=true");
     assert.equal(sent.headers["x-api-key"], KEY);
     assert.equal(sent.headers.authorization, undefined);
@@ -224,7 +330,7 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     // Browser pages may not use the route.
     assert.equal(
       (
-        await call(port, "/anthropic/v1/messages", {
+        await call(port, "/p/anthropic/v1/messages", {
           method: "POST",
           headers: { Origin: "https://evil.invalid" },
         })
@@ -235,7 +341,9 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
 
     // The exchange is in the traffic records, without either credential.
     const items = JSON.parse((await call(port, "/api/traffic")).text).items;
-    const item = items.find((row) => row.url.includes("/v1/messages"));
+    const item = items.find(
+      (row) => row.url.includes("/v1/messages") && row.statusCode === 200,
+    );
     assert(item, "forwarded request not recorded");
     assert.equal(item.statusCode, 200);
     assert.equal(item.state, "completed");
@@ -254,7 +362,7 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
       /message_stop/,
     );
     await page.locator("#nav-traffic").click();
-    await page.locator(".traffic-row", { hasText: "/v1/messages" }).click();
+    await page.locator(`.traffic-row[data-id="${item.id}"]`).click();
     await page.locator('[data-side="response"] [data-view="events"]').click();
     await page.locator(".events li").nth(1).waitFor();
     assert(!(await page.content()).includes(KEY));
@@ -263,12 +371,15 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
 
     // Changing the endpoint keeps the saved key.
     await page.locator("#nav-overview").click();
-    await page.locator("#overview-apps .provider").getByText("管理").click();
+    await page
+      .locator("#overview-apps .provider")
+      .filter({ hasText: "Anthropic" })
+      .getByText("管理")
+      .click();
     await page.locator("#provider-url").fill(`http://localhost:${fixture}`);
     await page.locator("#provider-save").click();
     await wait(
-      async () =>
-        (await state()).providers[0].baseUrl === `http://localhost:${fixture}`,
+      async () => (await anthropic()).baseUrl === `http://localhost:${fixture}`,
     );
     assert.equal((await message()).status, 200);
     assert.equal(messages().at(-1).headers["x-api-key"], KEY);
@@ -277,7 +388,8 @@ function call(port, url, { method = "GET", body = "", headers = {} } = {}) {
     // Removing the provider stops forwarding and erases the key.
     await page.locator("#provider-delete").click();
     await page.locator("#dialog button").filter({ hasText: "确定" }).click();
-    await wait(async () => (await state()).providers.length === 0);
+    await wait(async () => (await state()).providers.length === 1);
+    await page.locator("#overview").waitFor();
     assert(!fs.readFileSync(secrets, "utf8").includes(KEY));
     const before = messages().length;
     assert.equal((await message()).status, 503);

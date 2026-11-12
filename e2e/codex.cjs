@@ -429,7 +429,8 @@ function collect(resolve) {
     // Saving a provider syncs its list; non-chat models are left out.
     await page.locator("#nav-overview").click();
     await page.locator("#connect-provider").click();
-    await page.locator("#provider-compat").click();
+    await page.locator("#preset-custom").click();
+    await page.locator("#provider-name").fill("Compat");
     await page.locator("#provider-url").fill(`http://127.0.0.1:${vp}/v1`);
     await page.locator("#provider-key").fill(KEY);
     await page.locator("#provider-save").click();
@@ -482,7 +483,7 @@ function collect(resolve) {
     );
     const good = listed[1],
       vision = listed[2];
-    assert.equal(good.display_name, "Good Model · OpenAI-compatible");
+    assert.equal(good.display_name, "Good Model · Compat");
     assert.equal(good.context_window, 272000);
     assert.deepEqual(
       good.supported_reasoning_levels.map((l) => l.effort),
@@ -491,7 +492,7 @@ function collect(resolve) {
     assert.equal(good.default_reasoning_level, "medium");
     assert.deepEqual(good.input_modalities, ["text", "image"]);
     assert(good.base_instructions.startsWith("You are Codex"));
-    assert.equal(vision.display_name, "Vision X · OpenAI-compatible");
+    assert.equal(vision.display_name, "Vision X · Compat");
     assert.equal(vision.context_window, 64000);
     assert.equal(vision.default_reasoning_level, null);
     assert.deepEqual(vision.input_modalities, ["text", "image"]);

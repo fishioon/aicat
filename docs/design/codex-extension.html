@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aicat · Codex 扩展：开关语义与请求链路</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --panel: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e2e0da;
+    --codex: #2f6feb; --aicat: #c2410c; --chatgpt: #10a37f; --vendor: #7c3aed; --deny: #dc2626;
+    --soft-codex: #e8f0fe; --soft-aicat: #fdeee6; --soft-chatgpt: #e3f6f0; --soft-vendor: #f1eafe; --soft-deny: #fdecec;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#151517; --panel:#1e1e21; --ink:#ececee; --muted:#9a9aa2; --line:#33333a;
+      --soft-codex:#1b2a45; --soft-aicat:#3a2216; --soft-chatgpt:#123128; --soft-vendor:#2a1f42; --soft-deny:#3b1a1a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; padding: 48px 28px 96px; }
+  h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -.01em; }
+  h2 { font-size: 21px; margin: 56px 0 14px; padding-top: 8px; border-top: 1px solid var(--line); }
+  h3 { font-size: 16px; margin: 26px 0 8px; }
+  p, li { color: var(--ink); }
+  .lead { color: var(--muted); font-size: 16px; margin: 0 0 24px; }
+  code { font-family: var(--mono); font-size: .88em; background: color-mix(in srgb, var(--line) 55%, transparent);
+    padding: 1px 5px; border-radius: 4px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin: 14px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; margin-right: 6px; }
+  .t-off { background: var(--soft-deny); color: var(--deny); }
+  .t-on { background: var(--soft-chatgpt); color: var(--chatgpt); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  td:first-child { font-weight: 600; white-space: nowrap; }
+  .tldr { border-left: 4px solid var(--aicat); }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  svg { width: 100%; height: auto; display: block; }
+  svg text { font-family: -apple-system, "PingFang SC", sans-serif; fill: var(--ink); }
+  svg .mono { font-family: var(--mono); }
+  svg .muted { fill: var(--muted); }
+  .steps { counter-reset: s; list-style: none; padding: 0; margin: 0; }
+  .steps li { counter-increment: s; position: relative; padding: 6px 0 6px 38px; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 7px; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--soft-aicat); color: var(--aicat); font-weight: 700; font-size: 13px; text-align: center; line-height: 24px; }
+  .src { font-size: 13px; color: var(--muted); }
+  .warn li { margin: 4px 0; }
+  footer { margin-top: 64px; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Codex 扩展：开关语义与请求链路</h1>
+<p class="lead">基于提交 <code>aa7c9a3</code>（feat: 新增 Codex 内置扩展）的实现整理。目标一句话：<b>让 Codex 保留自己的 ChatGPT 登录，同时在模型菜单里多出 aicat 已接入供应商的模型</b>。</p>
+
+<div class="card tldr">
+  <b>TL;DR</b>
+  <ul>
+    <li>开关是 <code>aicat.yaml</code> 的 <code>features.codex</code>，缺省关闭；<b>根证书未被信任时不能启用</b>（因为要解密 Codex 到 chatgpt.com 的 HTTPS）。</li>
+    <li>启用 = aicat 在两个入口上「接管」Codex 的三类请求：<b>模型列表</b>（合并供应商模型）、<b>选了 <code>供应商/模型</code> 的回合</b>（换成供应商密钥转发）、<b>WebSocket 握手</b>（回 426 逼 Codex 走 HTTP/SSE）。其余请求——包括 ChatGPT 自带模型的回合——原样去 chatgpt.com。</li>
+    <li>停用 = 这一切全部消失：chatgpt.com 的 CONNECT 回到直通，直连入口返回 503，Codex 看到的就是原生 ChatGPT。</li>
+    <li>开关只影响<b>新连接</b>：切换后需要重启 Codex。</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2>1. 开启与关闭分别意味着什么</h2>
+
+<table class="card" style="padding:0">
+  <thead><tr><th>维度</th><th><span class="tag t-off">停用（默认）</span></th><th><span class="tag t-on">启用</span></th></tr></thead>
+  <tbody>
+    <tr><td>前置条件</td><td>无</td><td>本机根证书已被系统信任；否则界面弹「需要先安装证书」，安装成功后自动启用（<code>Desktop.SetCodexEnabled</code>）</td></tr>
+    <tr><td>持久化</td><td><code>features.codex: false</code></td><td><code>features.codex: true</code>，重启 aicat 保持</td></tr>
+    <tr><td>chatgpt.com:443 的 CONNECT</td><td>直通（除非用户自己把它加进解密名单）</td><td>额外解密，<b>但不写入</b>用户的解密域名名单（<code>codexAddon.Intercepts</code> 与名单做 OR）</td></tr>
+    <tr><td>直连入口<br><code>/backend-api/codex/*</code></td><td>503「Codex 扩展未启用」</td><td>可用，供 <code>openai_base_url</code> 直连，沿用本机 peer 限制</td></tr>
+    <tr><td>模型列表</td><td>ChatGPT 原样返回</td><td>ChatGPT 列表 + 供应商模型（<code>compat/deepseek-v4</code> 这种写法），ETag 带 <code>+aicat-&lt;tag&gt;</code></td></tr>
+    <tr><td>回合 <code>/responses</code></td><td>全部发往 ChatGPT</td><td>模型名含 <code>/</code> → 供应商；否则 → ChatGPT 原样</td></tr>
+    <tr><td>WebSocket</td><td>Codex 正常使用 WS</td><td>握手回 426，Codex 立即回落 HTTP/SSE</td></tr>
+    <tr><td>models.dev 目录</td><td>不下载、不刷新</td><td>按需下载到 <code>~/.aicat/cache/models-dev.json</code>，超过一天再下载</td></tr>
+    <tr><td>与开关<b>无关</b>的部分</td><td colspan="2">供应商的密钥保管与 <code>/models</code> 同步（<code>provider-models.json</code>）始终运行；<code>/openai/v1</code>、<code>/compat/v1</code> 等供应商路由也始终可用。Codex 开关只决定「要不要把这些模型喂给 Codex」。</td></tr>
+  </tbody>
+</table>
+
+<div class="card">
+  <svg viewBox="0 0 960 230" role="img" aria-label="开关状态机">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+    </defs>
+    <rect x="30" y="80" width="200" height="70" rx="12" fill="var(--soft-deny)" stroke="var(--deny)"/>
+    <text x="130" y="110" text-anchor="middle" font-weight="700">停用</text>
+    <text x="130" y="132" text-anchor="middle" class="muted" font-size="13">codex: false</text>
+
+    <rect x="380" y="20" width="200" height="70" rx="12" fill="var(--soft-aicat)" stroke="var(--aicat)"/>
+    <text x="480" y="50" text-anchor="middle" font-weight="700">证书检查</text>
+    <text x="480" y="72" text-anchor="middle" class="muted" font-size="13">connection.inspect()</text>
+
+    <rect x="380" y="140" width="200" height="70" rx="12" fill="var(--panel)" stroke="var(--line)"/>
+    <text x="480" y="170" text-anchor="middle" font-weight="700">提示安装证书</text>
+    <text x="480" y="192" text-anchor="middle" class="muted" font-size="13">取消 → 保持停用</text>
+
+    <rect x="730" y="80" width="200" height="70" rx="12" fill="var(--soft-chatgpt)" stroke="var(--chatgpt)"/>
+    <text x="830" y="110" text-anchor="middle" font-weight="700">启用</text>
+    <text x="830" y="132" text-anchor="middle" class="muted" font-size="13">codex: true · 刷新目录</text>
+
+    <path d="M230,100 C300,60 320,55 378,55" fill="none" stroke="var(--muted)" marker-end="url(#arr)"/>
+    <text x="270" y="62" class="muted" font-size="12">点「启用」</text>
+    <path d="M580,55 C650,55 680,80 728,100" fill="none" stroke="var(--muted)" marker-end="url(#arr)"/>
+    <text x="625" y="48" class="muted" font-size="12">已信任</text>
+    <path d="M480,90 L480,138" fill="none" stroke="var(--muted)" marker-end="url(#arr)"/>
+    <text x="490" y="120" class="muted" font-size="12">未信任</text>
+    <path d="M580,175 C660,175 700,160 740,150" fill="none" stroke="var(--muted)" marker-end="url(#arr)"/>
+    <text x="620" y="195" class="muted" font-size="12">安装成功 → 自动启用</text>
+    <path d="M730,135 C560,230 300,230 200,152" fill="none" stroke="var(--muted)" stroke-dasharray="4 4" marker-end="url(#arr)"/>
+    <text x="300" y="224" class="muted" font-size="12">点「停用」（无需检查）</text>
+  </svg>
+</div>
+
+<!-- ============================================================ -->
+<h2>2. 总体架构：两个入口，一个处理器</h2>
+<p>Codex 可以通过两种方式到达 aicat。两条路最终都落到同一个 <code>internal/codex.Handler</code>，因此行为一致；差别只在「ChatGPT 自带回合」由谁转发。</p>
+
+<div class="card">
+  <svg viewBox="0 0 980 470" role="img" aria-label="总体架构">
+    <defs>
+      <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--codex)"/></marker>
+      <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--chatgpt)"/></marker>
+      <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--vendor)"/></marker>
+      <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--aicat)"/></marker>
+    </defs>
+
+    <!-- Codex -->
+    <rect x="20" y="170" width="150" height="110" rx="12" fill="var(--soft-codex)" stroke="var(--codex)"/>
+    <text x="95" y="210" text-anchor="middle" font-weight="700">Codex</text>
+    <text x="95" y="232" text-anchor="middle" class="muted" font-size="12">保留 ChatGPT 登录</text>
+    <text x="95" y="252" text-anchor="middle" class="muted" font-size="12">Bearer + Account-Id</text>
+
+    <!-- aicat big box -->
+    <rect x="230" y="20" width="500" height="430" rx="16" fill="none" stroke="var(--aicat)" stroke-dasharray="6 5"/>
+    <text x="250" y="46" font-weight="700" fill="var(--aicat)">aicat（同一个 9981 监听）</text>
+
+    <!-- entry A -->
+    <rect x="260" y="70" width="200" height="120" rx="10" fill="var(--soft-aicat)" stroke="var(--aicat)"/>
+    <text x="360" y="96" text-anchor="middle" font-weight="700">入口 A：网关</text>
+    <text x="360" y="118" text-anchor="middle" font-size="12" class="muted">系统代理 → CONNECT</text>
+    <text x="360" y="136" text-anchor="middle" font-size="12" class="muted">解密 chatgpt.com</text>
+    <text x="360" y="160" text-anchor="middle" font-size="12" class="mono">addons/codex</text>
+    <text x="360" y="178" text-anchor="middle" font-size="11" class="muted">Takes() 决定接不接</text>
+
+    <!-- entry B -->
+    <rect x="260" y="270" width="200" height="120" rx="10" fill="var(--soft-aicat)" stroke="var(--aicat)"/>
+    <text x="360" y="296" text-anchor="middle" font-weight="700">入口 B：直连</text>
+    <text x="360" y="318" text-anchor="middle" font-size="12" class="muted">openai_base_url =</text>
+    <text x="360" y="336" text-anchor="middle" font-size="11" class="mono">http://127.0.0.1:9981</text>
+    <text x="360" y="352" text-anchor="middle" font-size="11" class="mono">/backend-api/codex</text>
+    <text x="360" y="376" text-anchor="middle" font-size="11" class="muted">仅本机 peer</text>
+
+    <!-- handler -->
+    <rect x="520" y="150" width="190" height="160" rx="10" fill="var(--panel)" stroke="var(--aicat)" stroke-width="2"/>
+    <text x="615" y="178" text-anchor="middle" font-weight="700">codex.Handler</text>
+    <text x="615" y="202" text-anchor="middle" font-size="12" class="mono">models()</text>
+    <text x="615" y="222" text-anchor="middle" font-size="12" class="mono">vendor()</text>
+    <text x="615" y="242" text-anchor="middle" font-size="12" class="mono">passthrough()</text>
+    <text x="615" y="262" text-anchor="middle" font-size="12" class="mono">426 / 400 / 503</text>
+    <text x="615" y="290" text-anchor="middle" font-size="11" class="muted">ETag 打 aicat 标记</text>
+
+    <!-- provider handler -->
+    <rect x="520" y="350" width="190" height="80" rx="10" fill="var(--soft-vendor)" stroke="var(--vendor)"/>
+    <text x="615" y="378" text-anchor="middle" font-weight="700">provider.Handler</text>
+    <text x="615" y="398" text-anchor="middle" font-size="12" class="mono">/openai/v1 · /compat/v1</text>
+    <text x="615" y="416" text-anchor="middle" font-size="11" class="muted">换上保管的密钥</text>
+
+    <!-- upstream -->
+    <rect x="790" y="90" width="170" height="110" rx="12" fill="var(--soft-chatgpt)" stroke="var(--chatgpt)"/>
+    <text x="875" y="132" text-anchor="middle" font-weight="700">chatgpt.com</text>
+    <text x="875" y="154" text-anchor="middle" font-size="12" class="mono">/backend-api/codex</text>
+    <text x="875" y="176" text-anchor="middle" font-size="12" class="muted">ChatGPT 自带模型</text>
+
+    <rect x="790" y="330" width="170" height="110" rx="12" fill="var(--soft-vendor)" stroke="var(--vendor)"/>
+    <text x="875" y="372" text-anchor="middle" font-weight="700">模型供应商</text>
+    <text x="875" y="394" text-anchor="middle" font-size="12" class="mono">…/responses</text>
+    <text x="875" y="416" text-anchor="middle" font-size="12" class="muted">OpenAI / 兼容 OpenAI</text>
+
+    <!-- arrows -->
+    <path d="M170,205 C210,180 220,135 258,130" fill="none" stroke="var(--codex)" stroke-width="2" marker-end="url(#a1)"/>
+    <path d="M170,250 C210,280 220,325 258,330" fill="none" stroke="var(--codex)" stroke-width="2" marker-end="url(#a1)"/>
+
+    <path d="M460,150 C490,170 495,195 518,200" fill="none" stroke="var(--aicat)" stroke-width="2" marker-end="url(#a4)"/>
+    <text x="466" y="200" font-size="11" fill="var(--aicat)">被接管的</text>
+    <path d="M460,310 C490,300 495,275 518,265" fill="none" stroke="var(--aicat)" stroke-width="2" marker-end="url(#a4)"/>
+    <text x="466" y="320" font-size="11" fill="var(--aicat)">全部</text>
+
+    <!-- gateway passthrough of ChatGPT turn -->
+    <path d="M460,95 C600,60 700,70 788,115" fill="none" stroke="var(--chatgpt)" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#a2)"/>
+    <text x="560" y="62" font-size="11" fill="var(--chatgpt)">ChatGPT 回合：网关普通采集/改写后原样转发</text>
+
+    <path d="M710,195 C740,175 755,160 788,150" fill="none" stroke="var(--chatgpt)" stroke-width="2" marker-end="url(#a2)"/>
+    <text x="716" y="222" font-size="11" fill="var(--chatgpt)">列表 / 直连透传</text>
+
+    <path d="M615,310 L615,348" fill="none" stroke="var(--vendor)" stroke-width="2" marker-end="url(#a3)"/>
+    <text x="622" y="334" font-size="11" fill="var(--vendor)">供应商回合</text>
+    <path d="M710,390 L788,388" fill="none" stroke="var(--vendor)" stroke-width="2" marker-end="url(#a3)"/>
+  </svg>
+  <div class="legend">
+    <span><i style="background:var(--codex)"></i>Codex 发出</span>
+    <span><i style="background:var(--aicat)"></i>aicat 内部</span>
+    <span><i style="background:var(--chatgpt)"></i>去 ChatGPT（带 Codex 原有登录）</span>
+    <span><i style="background:var(--vendor)"></i>去供应商（只带供应商密钥）</span>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h3 style="margin-top:0">入口 A · 经网关</h3>
+    <ul>
+      <li>Codex 走系统代理，CONNECT <code>chatgpt.com:443</code>；<code>ShouldIntercept = 名单 || codexAddon.Intercepts</code> 让它被解密。</li>
+      <li>Addon 顺序：<code>api → codex → traffic</code>。codex addon 在 <code>Requestheaders</code> 里调用 <code>Takes()</code>：接管就直接给 <code>f.Response</code>（经 <code>io.Pipe</code> 流式），不接管则交给后面的 traffic addon 按普通请求采集、改写、转发。</li>
+      <li><code>Responseheaders</code> 给 ChatGPT 原生回复的 <code>X-Models-Etag</code> 也打上 aicat 标记。</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">入口 B · 直连</h3>
+    <ul>
+      <li><code>~/.codex/config.toml</code> 设置 <code>openai_base_url</code>，Codex 直接打到 aicat 的 HTTP 监听。</li>
+      <li>不需要系统代理；但根证书仍是开关前提（开关本身统一检查）。</li>
+      <li>这里没有网关来转发 ChatGPT 回合，所以由 <code>passthrough()</code> 用 <code>ReverseProxy</code> 原样送往 chatgpt.com，并经 <code>traffic.Mirror</code> 记录。</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>3. 分流决策：一个请求进来后怎么走</h2>
+
+<div class="card">
+  <svg viewBox="0 0 980 520" role="img" aria-label="分流决策树">
+    <defs>
+      <marker id="d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+    </defs>
+    <g font-size="13">
+      <rect x="370" y="10" width="240" height="44" rx="22" fill="var(--soft-codex)" stroke="var(--codex)"/>
+      <text x="490" y="37" text-anchor="middle" font-weight="600">请求 /backend-api/codex/*</text>
+
+      <polygon points="490,80 590,115 490,150 390,115" fill="var(--panel)" stroke="var(--line)"/>
+      <text x="490" y="119" text-anchor="middle">扩展启用？</text>
+      <rect x="690" y="92" width="270" height="46" rx="8" fill="var(--soft-deny)" stroke="var(--deny)"/>
+      <text x="825" y="113" text-anchor="middle">网关：不解密/不接管</text>
+      <text x="825" y="130" text-anchor="middle" class="muted" font-size="12">直连：503 扩展未启用</text>
+
+      <polygon points="490,175 590,210 490,245 390,210" fill="var(--panel)" stroke="var(--line)"/>
+      <text x="490" y="214" text-anchor="middle">Upgrade: websocket？</text>
+      <rect x="690" y="188" width="270" height="44" rx="8" fill="var(--soft-aicat)" stroke="var(--aicat)"/>
+      <text x="825" y="215" text-anchor="middle">426 → Codex 改走 HTTP/SSE</text>
+
+      <polygon points="490,270 590,305 490,340 390,305" fill="var(--panel)" stroke="var(--line)"/>
+      <text x="490" y="309" text-anchor="middle">GET /models？</text>
+      <rect x="690" y="283" width="270" height="44" rx="8" fill="var(--soft-aicat)" stroke="var(--aicat)"/>
+      <text x="825" y="310" text-anchor="middle">models()：合并列表（见 §4）</text>
+
+      <polygon points="490,365 600,400 490,435 380,400" fill="var(--panel)" stroke="var(--line)"/>
+      <text x="490" y="397" text-anchor="middle">POST /responses[/compact]</text>
+      <text x="490" y="414" text-anchor="middle">且 model 含 “/”？</text>
+      <rect x="690" y="378" width="270" height="44" rx="8" fill="var(--soft-vendor)" stroke="var(--vendor)"/>
+      <text x="825" y="405" text-anchor="middle">vendor()：供应商回合（见 §5）</text>
+
+      <rect x="330" y="460" width="320" height="50" rx="8" fill="var(--soft-chatgpt)" stroke="var(--chatgpt)"/>
+      <text x="490" y="481" text-anchor="middle">其余一切 → ChatGPT 原样</text>
+      <text x="490" y="499" text-anchor="middle" class="muted" font-size="12">网关：traffic addon 普通转发｜直连：passthrough()</text>
+
+      <path d="M490,54 L490,78" stroke="var(--muted)" marker-end="url(#d)"/>
+      <path d="M590,115 L688,115" stroke="var(--muted)" marker-end="url(#d)"/><text x="620" y="108" class="muted" font-size="12">否</text>
+      <path d="M490,150 L490,173" stroke="var(--muted)" marker-end="url(#d)"/><text x="498" y="166" class="muted" font-size="12">是</text>
+      <path d="M590,210 L688,210" stroke="var(--muted)" marker-end="url(#d)"/><text x="620" y="203" class="muted" font-size="12">是</text>
+      <path d="M490,245 L490,268" stroke="var(--muted)" marker-end="url(#d)"/><text x="498" y="261" class="muted" font-size="12">否</text>
+      <path d="M590,305 L688,305" stroke="var(--muted)" marker-end="url(#d)"/><text x="620" y="298" class="muted" font-size="12">是</text>
+      <path d="M490,340 L490,363" stroke="var(--muted)" marker-end="url(#d)"/><text x="498" y="356" class="muted" font-size="12">否</text>
+      <path d="M600,400 L688,400" stroke="var(--muted)" marker-end="url(#d)"/><text x="625" y="393" class="muted" font-size="12">是</text>
+      <path d="M490,435 L490,458" stroke="var(--muted)" marker-end="url(#d)"/><text x="498" y="452" class="muted" font-size="12">否</text>
+    </g>
+    <text x="20" y="40" class="muted" font-size="12">判断模型需要读 body：</text>
+    <text x="20" y="58" class="muted" font-size="12">按 Content-Encoding 解 zstd/gzip，</text>
+    <text x="20" y="76" class="muted" font-size="12">上限 64 MiB，读完放回原字节，</text>
+    <text x="20" y="94" class="muted" font-size="12">不接管时可原样转发。</text>
+  </svg>
+  <p class="src">「<code>/</code> 命名空间归 aicat 所有」：带 <code>/</code> 的模型即使不可用也在本机返回 400，<b>绝不回落</b> ChatGPT——避免把 Codex 的对话误发给 OpenAI，也避免把 ChatGPT 凭据带给错误的上游。</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>4. 模型列表链路 <code>GET /backend-api/codex/models</code></h2>
+
+<div class="card">
+  <svg viewBox="0 0 980 400" role="img" aria-label="模型列表时序">
+    <defs>
+      <marker id="s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink)"/></marker>
+    </defs>
+    <g font-size="13">
+      <text x="90" y="24" text-anchor="middle" font-weight="700" fill="var(--codex)">Codex</text>
+      <text x="360" y="24" text-anchor="middle" font-weight="700" fill="var(--aicat)">codex.Handler</text>
+      <text x="620" y="24" text-anchor="middle" font-weight="700" fill="var(--chatgpt)">chatgpt.com</text>
+      <text x="870" y="24" text-anchor="middle" font-weight="700" fill="var(--vendor)">供应商 / models.dev 缓存</text>
+      <line x1="90" y1="34" x2="90" y2="390" stroke="var(--line)" stroke-width="2"/>
+      <line x1="360" y1="34" x2="360" y2="390" stroke="var(--line)" stroke-width="2"/>
+      <line x1="620" y1="34" x2="620" y2="390" stroke="var(--line)" stroke-width="2"/>
+      <line x1="870" y1="34" x2="870" y2="390" stroke="var(--line)" stroke-width="2"/>
+
+      <path d="M90,60 L356,60" stroke="var(--ink)" marker-end="url(#s)"/>
+      <text x="100" y="54">GET /models（带 ChatGPT 登录、If-None-Match）</text>
+
+      <path d="M360,100 L616,100" stroke="var(--ink)" marker-end="url(#s)"/>
+      <text x="370" y="94">原登录头照带；删掉条件请求与压缩头</text>
+      <text x="370" y="118" font-size="11" class="muted">If-None-Match / If-Modified-Since / Accept-Encoding</text>
+
+      <path d="M620,150 L364,150" stroke="var(--ink)" marker-end="url(#s)"/>
+      <text x="400" y="144">200 {models:[gpt-5.x …]}，ETag "abc"</text>
+      <text x="400" y="168" font-size="11" class="muted">非 200（如需重新登录）原样交还 Codex</text>
+
+      <rect x="300" y="190" width="680" height="120" rx="8" fill="var(--soft-aicat)" stroke="var(--aicat)" opacity=".95"/>
+      <text x="316" y="214" font-weight="600">合并 entries()</text>
+      <text x="316" y="236" font-size="12">• <tspan class="mono">providers.ResponsesModels()</tspan>：只取已保存、支持 Responses 的供应商（openai、compat），且模型的 APIs 未排除 responses</text>
+      <text x="316" y="256" font-size="12">• slug = <tspan class="mono">供应商/模型</tspan>，排在 ChatGPT 条目之后，同名 slug 跳过；内嵌 Codex 通用 system prompt</text>
+      <text x="316" y="276" font-size="12">• 名称/上下文窗口/推理强度/图片输入：先取供应商 /models，缺的从 models.dev 补；丢弃 Codex 不认的强度（如 max）</text>
+      <text x="316" y="296" font-size="12">• 默认强度优先 medium → high → 第一个</text>
+      <path d="M870,250 L984,250" stroke="none"/>
+
+      <path d="M360,345 L94,345" stroke="var(--ink)" marker-end="url(#s)"/>
+      <text x="110" y="338">200 合并后的列表</text>
+      <text x="110" y="364" font-size="12" class="mono">ETag: "abc+aicat-3f9c1e…"   Cache-Control: no-cache</text>
+    </g>
+  </svg>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">ETag 标记：让 Codex 在供应商模型变化时重新拉列表</h3>
+  <p>Codex 缓存列表并记住它的 ETag；每次回合的响应头 <code>X-Models-Etag</code> 与它不同时，Codex 就重新拉列表。aicat 的做法：</p>
+  <ol class="steps">
+    <li><code>tag()</code> = <code>sha256(json(entries(0)))</code> 的前 6 字节 hex——供应商增删、重新同步、models.dev 更新都会改变它。</li>
+    <li>列表 ETag 写成 <code>"&lt;后端 ETag&gt;+aicat-&lt;tag&gt;"</code>。</li>
+    <li>ChatGPT 回合的响应（经网关由 <code>Responseheaders</code>，直连由 <code>passthrough</code>）里的 <code>X-Models-Etag</code> 同样追加标记，于是两者一致，Codex 不会每轮都重拉；一旦供应商侧变了，标记不同，Codex 自动刷新。</li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<h2>5. 供应商回合链路 <code>POST /responses</code>，model = <code>compat/deepseek-v4</code></h2>
+
+<div class="card">
+  <svg viewBox="0 0 980 560" role="img" aria-label="供应商回合时序">
+    <defs>
+      <marker id="v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink)"/></marker>
+    </defs>
+    <g font-size="13">
+      <text x="70" y="24" text-anchor="middle" font-weight="700" fill="var(--codex)">Codex</text>
+      <text x="270" y="24" text-anchor="middle" font-weight="700" fill="var(--aicat)">网关 + codex addon</text>
+      <text x="520" y="24" text-anchor="middle" font-weight="700" fill="var(--aicat)">codex.Handler.vendor</text>
+      <text x="740" y="24" text-anchor="middle" font-weight="700" fill="var(--vendor)">provider.Handler</text>
+      <text x="910" y="24" text-anchor="middle" font-weight="700" fill="var(--vendor)">供应商</text>
+      <line x1="70" y1="34" x2="70" y2="550" stroke="var(--line)" stroke-width="2"/>
+      <line x1="270" y1="34" x2="270" y2="550" stroke="var(--line)" stroke-width="2"/>
+      <line x1="520" y1="34" x2="520" y2="550" stroke="var(--line)" stroke-width="2"/>
+      <line x1="740" y1="34" x2="740" y2="550" stroke="var(--line)" stroke-width="2"/>
+      <line x1="910" y1="34" x2="910" y2="550" stroke="var(--line)" stroke-width="2"/>
+
+      <path d="M70,62 L266,62" stroke="var(--ink)" marker-end="url(#v)"/>
+      <text x="80" y="55" font-size="12">CONNECT chatgpt.com:443</text>
+      <text x="80" y="80" font-size="11" class="muted">aicat CA 签发叶子证书，TLS 解密</text>
+
+      <path d="M70,110 L266,110" stroke="var(--ink)" marker-end="url(#v)"/>
+      <text x="80" y="103" font-size="12">POST /responses (zstd)</text>
+      <text x="80" y="128" font-size="11" class="muted">Bearer + ChatGPT-Account-Id</text>
+
+      <rect x="180" y="142" width="180" height="56" rx="6" fill="var(--soft-aicat)" stroke="var(--aicat)"/>
+      <text x="270" y="164" text-anchor="middle" font-size="12">Requestheaders → Takes()</text>
+      <text x="270" y="184" text-anchor="middle" font-size="11" class="muted">解压读 model，含 “/” → 接管</text>
+
+      <path d="M270,220 L516,220" stroke="var(--ink)" marker-end="url(#v)"/>
+      <text x="282" y="213" font-size="12">serve()：goroutine + io.Pipe</text>
+
+      <rect x="400" y="240" width="240" height="160" rx="6" fill="var(--soft-aicat)" stroke="var(--aicat)"/>
+      <text x="412" y="262" font-size="12" font-weight="600">本机校验与改写</text>
+      <text x="412" y="284" font-size="11">① /compact 或 compaction_trigger → 400</text>
+      <text x="412" y="302" font-size="11">② 不在 ResponsesModels() → 400</text>
+      <text x="412" y="320" font-size="11">③ withModel：去前缀 → deepseek-v4</text>
+      <text x="412" y="338" font-size="11">④ 非 openai：forVendor 去掉</text>
+      <text x="424" y="354" font-size="10" class="mono">stream_options.reasoning_summary_*</text>
+      <text x="424" y="368" font-size="10" class="mono">configuration_update / *_metadata_*</text>
+      <text x="412" y="388" font-size="11">⑤ 全新 header：只留 Content-Type/Accept</text>
+
+      <path d="M520,420 L736,420" stroke="var(--ink)" marker-end="url(#v)"/>
+      <text x="530" y="413" font-size="12">内部调用 POST /compat/v1/responses</text>
+
+      <rect x="660" y="432" width="160" height="40" rx="6" fill="var(--soft-vendor)" stroke="var(--vendor)"/>
+      <text x="740" y="450" text-anchor="middle" font-size="11">Authorization: Bearer &lt;保管密钥&gt;</text>
+      <text x="740" y="465" text-anchor="middle" font-size="11" class="muted">Mirror 记录（凭据 [aicat]）</text>
+
+      <path d="M740,490 L906,490" stroke="var(--ink)" marker-end="url(#v)"/>
+      <text x="752" y="484" font-size="12">直连出站（不走环境代理）</text>
+
+      <path d="M910,520 L74,520" stroke="var(--vendor)" stroke-width="2" stroke-dasharray="7 4" marker-end="url(#v)"/>
+      <text x="300" y="542" font-size="12" fill="var(--vendor)">SSE 事件边到边回流：ReverseProxy(FlushInterval=-1) → pipe → proxy.Response.BodyReader → Codex</text>
+    </g>
+  </svg>
+  <p class="src">直连入口（入口 B）省略前两步：请求直接到 <code>codex.Handler.ServeHTTP</code>，之后完全相同。<b>chatgpt.com 收不到这次请求</b>，供应商也收不到 Codex 的 ChatGPT 凭据。</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>6. ChatGPT 自带模型回合</h2>
+<div class="grid2">
+  <div class="card">
+    <h3 style="margin-top:0">经网关</h3>
+    <p><code>Takes()</code> 返回 false（model 不含 <code>/</code>），body 已放回原字节；请求继续交给 traffic addon，按普通 HTTPS 流量<b>采集与改写</b>后原样发往 chatgpt.com，记录里有改写前后对照与应用归属。响应头上 <code>X-Models-Etag</code> 被追加 aicat 标记。</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">直连</h3>
+    <p><code>passthrough()</code>：<code>ReverseProxy</code> 原样转发到 chatgpt.com（登录头保留，去掉 Accept-Encoding 让记录可读），<code>traffic.Mirror</code> 按上游 URL 记录，Authorization/Cookie 记为 <code>[aicat]</code>。</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>7. 模型从哪来：供应商同步与 models.dev</h2>
+<div class="card">
+  <svg viewBox="0 0 980 190" role="img" aria-label="模型来源">
+    <defs><marker id="m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+    <g font-size="13">
+      <rect x="20" y="20" width="200" height="64" rx="10" fill="var(--soft-vendor)" stroke="var(--vendor)"/>
+      <text x="120" y="46" text-anchor="middle" font-weight="600">保存供应商</text>
+      <text x="120" y="66" text-anchor="middle" font-size="11" class="muted">地址或密钥变化 / 手动「重新同步」</text>
+      <rect x="280" y="20" width="230" height="64" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+      <text x="395" y="46" text-anchor="middle">GET /models（8s，必要时 /v1/models）</text>
+      <text x="395" y="66" text-anchor="middle" font-size="11" class="muted">滤掉向量/出图/语音等非对话模型</text>
+      <rect x="570" y="20" width="200" height="64" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+      <text x="670" y="46" text-anchor="middle" class="mono" font-size="12">provider-models.json</text>
+      <text x="670" y="66" text-anchor="middle" font-size="11" class="muted">不含密钥；失败保留上次</text>
+
+      <rect x="20" y="110" width="200" height="64" rx="10" fill="var(--soft-aicat)" stroke="var(--aicat)"/>
+      <text x="120" y="136" text-anchor="middle" font-weight="600">Codex 扩展启用期间</text>
+      <text x="120" y="156" text-anchor="middle" font-size="11" class="muted">KeepFresh：超过一天再下载</text>
+      <rect x="280" y="110" width="230" height="64" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+      <text x="395" y="136" text-anchor="middle">models.dev 全量目录</text>
+      <text x="395" y="156" text-anchor="middle" font-size="11" class="muted">去厂商前缀匹配，字段取多数值</text>
+      <rect x="570" y="110" width="200" height="64" rx="10" fill="var(--panel)" stroke="var(--line)"/>
+      <text x="670" y="136" text-anchor="middle" class="mono" font-size="12">cache/models-dev.json</text>
+      <text x="670" y="156" text-anchor="middle" font-size="11" class="muted">只补缺失字段</text>
+
+      <rect x="820" y="60" width="140" height="74" rx="10" fill="var(--soft-codex)" stroke="var(--codex)"/>
+      <text x="890" y="92" text-anchor="middle" font-weight="600">entries()</text>
+      <text x="890" y="114" text-anchor="middle" font-size="11" class="muted">→ Codex 列表</text>
+
+      <path d="M220,52 L278,52" stroke="var(--muted)" marker-end="url(#m)"/>
+      <path d="M510,52 L568,52" stroke="var(--muted)" marker-end="url(#m)"/>
+      <path d="M220,142 L278,142" stroke="var(--muted)" marker-end="url(#m)"/>
+      <path d="M510,142 L568,142" stroke="var(--muted)" marker-end="url(#m)"/>
+      <path d="M770,52 C800,52 800,80 818,85" fill="none" stroke="var(--muted)" marker-end="url(#m)"/>
+      <path d="M770,142 C800,142 800,115 818,110" fill="none" stroke="var(--muted)" marker-end="url(#m)"/>
+    </g>
+  </svg>
+  <p class="src">Anthropic 供应商的模型也会同步，但它不支持 Responses，因此不出现在 Codex 列表里；aicat 不做协议转换。</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>8. 安全边界</h2>
+<div class="card">
+  <ul>
+    <li><b>凭据隔离</b>：供应商回合用全新 header 构造，ChatGPT 的 Bearer、Cookie、Account-Id、设备证明都不会发给供应商；供应商密钥只由 <code>provider.Handler</code> 在出站时注入。</li>
+    <li><b>不回落</b>：<code>/</code> 命名空间的模型失败只在本机报 400，不会被送往 chatgpt.com。</li>
+    <li><b>记录脱敏</b>：所有 Mirror 记录中的凭据头统一为 <code>[aicat]</code>；e2e 断言密钥不出现在任何记录里。</li>
+    <li><b>本机限制</b>：直连入口与 API/MCP 共用监听，只接受本机 peer、拒绝浏览器 Origin。</li>
+    <li><b>不污染用户配置</b>：额外解密 chatgpt.com 不写入用户的解密域名名单；停用即恢复直通。</li>
+    <li><b>出站直连</b>：codex 与 provider 的 transport 都 <code>Proxy: nil</code>，避免环境代理指回 aicat 自己形成回环。</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2>9. 已知限制</h2>
+<div class="card warn">
+  <ul>
+    <li>切换开关只影响新连接，已运行的 Codex 需要重启。</li>
+    <li>供应商模型的对话不支持压缩（<code>/responses/compact</code> 与 <code>compaction_trigger</code> 均 400）；从 ChatGPT 模型中途切到供应商模型时，历史中的加密内容供应商读不了，建议新开对话。</li>
+    <li>启用期间 Codex 不使用 WebSocket 优化，回落到 HTTP/SSE。</li>
+    <li>只支持 OpenAI 与兼容 OpenAI 的供应商；模型全部提供，没有勾选。</li>
+    <li>经网关被接管的请求只有「发往上游」的一条 Mirror 记录，没有改写前后对照和应用归属。</li>
+    <li>目前只用本机 fixture（<code>e2e/codex.cjs</code>）验证，尚未经真实 Codex / chatgpt.com / 真实供应商验证。</li>
+  </ul>
+</div>
+
+<footer>
+  源码：<code>internal/codex/{handler,body,catalog}.go</code> · <code>internal/gateway/addons/codex/addon.go</code> · <code>internal/provider/{handler,store,models}.go</code> · <code>internal/catalog</code> · <code>internal/app/{runtime,desktop}.go</code><br>
+  文档：<code>docs/feature-map/codex.md</code> · <code>CONTEXT.md</code>「Codex 扩展」
+</footer>
+</main>
+</body>
+</html>

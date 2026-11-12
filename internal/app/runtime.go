@@ -91,10 +91,7 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 		return nil, err
 	}
 	models := provider.NewHandler(providers, service.Recorder(), addon.Recording)
-	for _, mount := range provider.Mounts() {
-		endpoints.Handle(mount, models)
-		endpoints.Handle(mount+"/", models)
-	}
+	endpoints.Handle(provider.Mount, models)
 	modelsDev := catalog.Open(filepath.Join(o.Home, "cache", "models-dev.json"), modelsDevURL())
 	codexHandler, err := codex.New(codex.Options{Backend: codexBackend(), Providers: providers, Forward: models, Catalog: modelsDev, Recorder: service.Recorder(), Recording: addon.Recording})
 	if err != nil {

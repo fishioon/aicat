@@ -190,5 +190,5 @@ flowchart TD
 ## 设计依据
 
 - 当前 [脚本模型](../internal/plugins/model.go)、[编译与调用](../internal/plugins/plugin.go)、[规则管理](../internal/rewrite/service.go)、[执行引擎](../internal/rewrite/engine.go) 和 [SDK v1](../internal/mcpserver/guide.md)。
-- 当前 [规则与插件执行接缝](gateway-traffic-design.md#规则与插件执行接缝2026-11-10) 及 [一期设计](phase-one-design.md)。
+- [架构](architecture.md) 中的流量处理与脚本插件约束。
 - Magpie 的 [内置扩展生命周期](https://github.com/yetone/magpie/blob/025123431c140a4988efc3d5c44546e8d73d16d3/internal/pluginrt/pluginrt.go) 与 [安装管理](https://github.com/yetone/magpie/blob/025123431c140a4988efc3d5c44546e8d73d16d3/internal/plugin/store.go)：借鉴声明、安装与执行分工、明确的启停状态；aicat 首版继续采用现有单文件 moejs SDK 与重启生效模型。

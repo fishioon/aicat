@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -187,10 +188,20 @@ func (d *Desktop) SetDecryptionDomain(ctx context.Context, host string, enabled 
 	return d.mutate(ctx, func() error { return d.app.r.interception.set(host, enabled) })
 }
 
-// SetProvider saves a model vendor's endpoint and API key. An empty key keeps
-// the saved one; keys are never returned to the page.
-func (d *Desktop) SetProvider(ctx context.Context, id, baseURL, key string) error {
-	return d.mutate(ctx, func() error { return d.app.r.providers.Set(id, baseURL, key) })
+// SaveProvider adds a model vendor or changes a saved one, and returns its
+// ID. An empty key keeps the saved one; keys are never returned to the page.
+func (d *Desktop) SaveProvider(ctx context.Context, in provider.Input) (id string, err error) {
+	err = d.mutate(ctx, func() error { id, err = d.app.r.providers.Save(in); return err })
+	return id, err
+}
+
+// OpenLink opens a web page in the user's browser, such as the page where a
+// vendor issues keys.
+func (d *Desktop) OpenLink(ctx context.Context, link string) error {
+	if !strings.HasPrefix(link, "https://") {
+		return errors.New("只能打开 https 链接")
+	}
+	return mygo.Shell.OpenExternal(link)
 }
 func (d *Desktop) DeleteProvider(ctx context.Context, id string) error {
 	return d.mutate(ctx, func() error { return d.app.r.providers.Delete(id) })

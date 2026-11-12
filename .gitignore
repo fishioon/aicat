@@ -4,28 +4,9 @@
 .Spotlight-V100
 .Trashes
 
-# Xcode
-DerivedData/
-xcuserdata/
-*.xcuserstate
-*.xccheckout
-*.moved-aside
-*.xcscmblueprint
-
-# Swift / app artifacts
-.build/
-*.hmap
-*.ipa
-*.dSYM
-*.dSYM.zip
-*.app
-*.xcarchive
-timeline.xctimeline
-playground.xcworkspace
-
 # Go build output
 /bin/
-/target/
+*.app
 
 # 构建、部署及验收产物；保留正式构建资源和图标生成器
 /build/*
@@ -38,7 +19,7 @@ __pycache__/
 
 .playwright-mcp
 
-# MyGo development cache and nested module boundary for old local artifacts
+# MyGo development cache; build/go.mod keeps build artifacts out of the main module
 .mygo/
 !/build/go.mod
 

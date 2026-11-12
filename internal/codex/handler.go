@@ -168,7 +168,7 @@ func (h *Handler) vendor(w http.ResponseWriter, r *http.Request, rest string, bo
 		writeError(w, http.StatusBadRequest, "请求不是有效的 JSON")
 		return
 	}
-	if chosen.Provider != "openai" {
+	if !chosen.OpenAI {
 		body = forVendor(body)
 	}
 	// Fresh headers: never ChatGPT's bearer, cookies, account, attestation

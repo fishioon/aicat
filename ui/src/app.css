@@ -390,6 +390,10 @@ select.field {
   background: var(--bad-soft);
   color: var(--bad);
 }
+.note.ok {
+  background: var(--sunken);
+  color: var(--ok);
+}
 .spin {
   display: inline-block;
   width: 12px;
@@ -1011,8 +1015,44 @@ select.field {
   margin: 8px 12px;
   font-size: var(--t12);
 }
-.model-list p.bad {
-  color: var(--bad);
+.model-list details {
+  margin: 8px 12px;
+  font-size: var(--t12);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.model-list summary {
+  cursor: pointer;
+}
+.presets {
+  margin-top: 24px;
+  max-width: 720px;
+}
+.presets h2 {
+  font-size: var(--t15);
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.presets > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.presets p {
+  margin-top: 12px;
+  color: var(--ink-2);
+  font-size: var(--t12);
+}
+.step h2 .link {
+  margin-left: 12px;
+  font-size: var(--t12);
+  font-weight: 400;
+}
+.step .note {
+  margin: 12px 0 0;
+  max-width: 60ch;
 }
 .model-list ul {
   display: grid;

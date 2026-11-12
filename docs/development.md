@@ -18,11 +18,11 @@
 | `internal/codex/` | Codex 扩展：合并 Codex 模型列表、按模型分流 ChatGPT 与供应商；`internal/gateway/addons/codex/` 是它的解密入口 |
 | `internal/catalog/` | models.dev 目录的本地副本与按模型 ID 的查询 |
 | `internal/traffic/` 等业务包 | 业务模型与规则，不依赖 MyGo、Vue 或页面状态 |
-| `docs/design/aicat-redesign.html` | 当前 HTML 设计稿，含尚未交付的产品方向（用量图表、接入供应商）；不代表稿内全部功能已实现。`aicat-shell.html` 是旧稿 |
+| `docs/design/aicat-redesign.html` | HTML 设计稿，含尚未交付的产品方向（如用量图表）；不代表稿内全部功能已实现 |
 
 `ui/src/app.css` 是唯一样式表，色板、字号、圆角和组件 class 取自设计稿（`--ink`、`--mark`、`--ok` 等变量与稿子同名），另含虚拟列表、对话框和分隔条。Vue 模板沿用稿子的 class，不引入改变视觉规范的组件库。纯图标按钮统一使用 `icon-btn` 居中，SVG 通过 `Icon.vue` 避免参与文字基线排版。页面不加载 CDN。变更设计稿时同步组件并复核浅深色截图。
 
-需要 Go 1.27.3+、Node.js 22.12+（本轮以 Node.js 26 验证）及 npm。MyGo Go 模块和 CLI tool 固定为同一提交；UI 依赖由 `ui/package-lock.json` 锁定。TypeScript 使用与当前 vue-tsc 兼容的 5.9 系列。
+需要 Go 1.27.3+、Node.js 22.12+及 npm。MyGo Go 模块和 CLI tool 固定为同一提交；UI 依赖由 `ui/package-lock.json` 锁定。TypeScript 使用与当前 vue-tsc 兼容的 5.9 系列。
 
 | 命令 | 产物与行为 |
 | --- | --- |
@@ -76,7 +76,7 @@ node e2e/desktop.cjs bin/aicat-e2e build/sidebar-e2e sidebar
 node e2e/desktop.cjs bin/aicat-e2e build/app-tree-e2e app-tree
 # 仅验证滚动后首次选中、右键、历史及筛选重置滚动
 node e2e/desktop.cjs bin/aicat-e2e build/list-selection-e2e list-selection
-# 仅验证新外壳：概览、流量列表状态/类型、详情视图、键盘、隧道、更多、扩展启停、解密域名通配符、历史，截图在 build/redesign-e2e/
+# 仅验证外壳：概览、流量列表状态/类型、详情视图、键盘、隧道、更多、扩展启停、解密域名通配符、历史，截图在 build/redesign-e2e/
 node e2e/redesign.cjs bin/aicat-e2e build/redesign-e2e
 # 仅验证接入供应商：密钥只进 0600 的 providers.json、带密钥转发与流式、流量记录不含凭据、移除后失效
 node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
@@ -119,4 +119,4 @@ smoke 和 E2E 必须使用隔离 `--home`，不写真实 `~/.aicat/`，不修改
 - [绑定、生成客户端、事件和 Channel](https://mygo.egoist.dev/docs/bindings)
 - [Vue 的 TypeScript 工程配置](https://vuejs.org/guide/typescript/overview.html)
 
-历史内存实验的主进程 RSS 没有完整包含 WebKit XPC，不能证明整应用更省内存。当前构建验收记录成品体积；整应用内存需要在一致场景下汇总主进程与归属的 WebView 子进程，不能用前端资源大小替代。
+构建验收只记录成品体积。评估整应用内存时，需要在一致场景下汇总主进程与归属的 WebView 子进程，不能用前端资源大小替代。

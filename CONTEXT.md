@@ -1,10 +1,10 @@
 # aicat
 
-本仓库是 aicat 桌面端。从零重写，以 MyGo + WebView、go-mitmproxy 和 moejs 插件提供流量检查与 Agent 工具能力。历史 Claw、消息渠道、Wails UI 和外部 runtime 不属于当前实现。
+本仓库是 aicat 桌面端：以 MyGo + WebView、go-mitmproxy 和 moejs 插件，在一个进程内提供代理、流量检查、模型供应商接入与 Agent 工具能力。
 
 ## 产品定位与设计方向
 
-产品定位于 2026-11-11 对齐。aicat 是安装在用户节点上的常驻 Agent Gateway，为接入的 Agent 提供模型、工具、Skill 与消息入口。节点指用户部署 aicat 并接入 Agent 的运行环境，当前交付形态为本仓库的 macOS 桌面端。
+aicat 是安装在用户节点上的常驻 Agent Gateway，为接入的 Agent 提供模型、工具、Skill 与消息入口。节点指用户部署 aicat 并接入 Agent 的运行环境，当前交付形态为本仓库的 macOS 桌面端。
 
 - 用户主要在所选择的 Agent 中交互、查看结果及进行 review。Agent 通过 aicat 的 API/MCP 查询状态、获取能力，并按用户授权修改配置。桌面界面与 Agent 接口复用同一组服务。
 - 桌面窗口用于首次接入、能力配置、认证授权、用量查看及故障诊断。aicat 默认后台常驻，仅在确需用户处理时通知。首页展示节点网关状态、接入地址、能力配置、用量摘要与连接异常。
@@ -35,16 +35,14 @@
 - **证书准备**：首次在本机创建 CA，后续复用同一身份；`internal/certificate` 检测并管理当前用户信任。用户点击“安装证书”后，按需生成缺失的本机根证书并直接进入 macOS 授权，完成后按当前 CA 指纹与实际 SSL 验证结果更新状态，无应用内“继续”确认。私钥不导入钥匙串。证书与解密域名统一放在代理设置中，不设独立 HTTPS 解密页面；界面以一个本机根证书呈现，本地身份与钥匙串中的公开副本按同一指纹管理。管理入口提供查看、公开证书导出、打开钥匙串、检测信任和删除。删除先持久记录意图、停用签发与叶子缓存并断开既有连接，系统移除完成后再删除本地身份；取消或失败可重试，重启保持直通。删除成功后，用户仅需点击“安装证书”，即可生成新身份并完成系统安装与信任；没有单独的创建入口，取消授权后从同一按钮重试并复用已生成的身份。
 - **系统代理**：独立于常驻代理监听，默认关闭。`internal/systemproxy` 保存恢复日志、接管及恢复系统设置；`systemProxy.enabled` 保存用户意图。退出前恢复原设置；异常退出后在下一次启动恢复再按意图接管。外部修改不覆盖，恢复失败时保留监听与恢复入口。
 
-当前交付范围与运行方式见 README；架构约定见 `docs/phase-one-design.md` 和 `docs/gateway-traffic-design.md`。旧 ADR 保留历史语境，不能据此恢复已移除的旧业务。
-
 - **HTTPS 解密选择**：默认 CONNECT 直通；设置页可增删精确域名或 `*.example.com` 通配条目，保存成功才更新运行名单。通配符只能作为最前面的 `*.`，匹配该域名任意层级的子域名，不含域名本身；其他写法在保存时拒绝。CONNECT 详情保留所选域名，已被精确或通配条目覆盖时显示覆盖它的条目而不再提供启用入口：未信任时可就地完成证书授权，验证成功后启用；自行指定 CA 的客户端可明确选择“客户端已单独信任”。只影响新建连接；旧隧道和历史记录保持未解密。不在启动或选择域名时自动安装系统信任。
 - **未选择请求**：详情区只显示居中的空状态。选中后展示相应 HTTP 详情或 CONNECT 加密提示；Escape、清空、筛选掉或淘汰所选记录都会取消选择，并阻止旧查询结果重新填回详情。
-- **供应商**：`internal/provider/` 保管模型供应商的接口地址与 API Key，并把本机 Agent 的请求带上密钥转发出去。支持 Anthropic（挂在 `/anthropic`，密钥放 `x-api-key`）、OpenAI（`/openai/v1`）和兼容 OpenAI 的服务（`/compat/v1`，后两者用 `Authorization: Bearer`），每种一份。密钥存于 Home 下的 `providers.json`（0600，原子替换），不进 `aicat.yaml`，不读环境变量，也不回传界面，界面只拿到末四位；编辑时密钥留空表示保持不变。接口地址必须是 https，http 只允许本机地址。转发路由与 API/MCP 共用监听并沿用其本机限制（只接受本机 peer，拒绝浏览器 Origin）；Agent 自带的 `Authorization`、`x-api-key`、`api-key` 会被丢弃并换成保管的密钥，出站不走环境代理。采集开启时，转发的请求按上游 URL 记入流量，凭据头记为 `[aicat]`，不记录实际发出的请求头；这类记录没有应用归属。未保存或已移除的供应商返回 503。保存供应商且接口地址或密钥有变化时，按 magpie 的方式向供应商的 `/models` 同步**模型列表**（8 秒超时，必要时补 `/v1/models`，按模型 ID 滤掉向量、出图、语音等非对话模型），存于 Home 下的 `provider-models.json`，不含密钥；供应商页可重新同步，失败保留上次列表并显示原因。没有多密钥、失败切换或协议转换。
-- **Codex 扩展**：内置扩展，`features.codex` 缺省关闭；根证书未被信任时不能启用，界面先提示安装证书。`internal/codex` 是一个 HTTP 处理器：`/backend-api/codex/models` 在 ChatGPT 的列表后追加支持 Responses 的供应商（OpenAI、兼容 OpenAI）的模型，写作 `供应商/模型`，ETag 与回复的 `X-Models-Etag` 带上 aicat 标记；`/responses` 中带 `/` 的模型交给供应商路由（只带供应商密钥，去掉 OpenAI 专用字段），其他模型原样发往 ChatGPT；带 `/` 但不可用的模型、供应商模型的压缩在本机返回 400，不回落 ChatGPT；WebSocket 握手回 426。两个入口共用它：`internal/gateway/addons/codex` 在启用期间额外解密 `chatgpt.com`（不写入解密域名名单），只接管模型列表、供应商回合和 WebSocket，ChatGPT 自己的回合仍走普通采集与改写；监听地址上的 `/backend-api/codex` 供 `openai_base_url` 直连，沿用本机限制。供应商回合与直连入口的请求由 `traffic.Mirror` 按上游 URL 记录，凭据记为 `[aicat]`。
+- **供应商**：`internal/provider/` 保管模型供应商并把本机 Agent 的请求带上密钥转发出去。每个供应商是一个命名实例：ID（由预置或名称生成的 ASCII 短名，保存后不变）、名称、来源预置、接口协议、接口地址和 API Key，同一家可以接入多次。协议有 `anthropic`（密钥放 `x-api-key`）、`openai`（Chat 与 Responses，`Authorization: Bearer`）和 `chat`（仅 Chat Completions）。供应商挂在 `/p/<ID>`，等同于它的接口地址。预置目录在前端 `ui/src/state/providers.ts`（地址取自 magpie），后端只保存预置名。密钥存于 Home 下的 `providers.json`（0600，原子替换），不进 `aicat.yaml`，不读环境变量，也不回传界面，界面只拿到末四位；编辑时密钥留空表示保持不变。旧格式（每种协议一份）在启动时读成 ID 为 `anthropic`、`openai`、`compat` 的供应商。接口地址必须是 https，http 只允许本机地址；没写协议头时补 `https://`，Anthropic 协议去掉多写的 `/v1`。转发路由与 API/MCP 共用监听并沿用其本机限制（只接受本机 peer，拒绝浏览器 Origin）；Agent 自带的 `Authorization`、`x-api-key`、`api-key` 会被丢弃并换成保管的密钥，出站不走环境代理。采集开启时，转发的请求按上游 URL 记入流量，凭据头记为 `[aicat]`，不记录实际发出的请求头；这类记录没有应用归属。没有供应商的路径返回 503。保存供应商且地址、协议或密钥有变化时，按 magpie 的方式向供应商的 `/models` 同步**模型列表**（8 秒超时，必要时补 `/v1/models`，按模型 ID 滤掉向量、出图、语音等非对话模型），存于 Home 下的 `provider-models.json`，不含密钥；列表只在 `/v1/models` 有回答时，把接口地址补上 `/v1`。同步结果同时是**连通状态**：失败按 `errorKind` 分为 `auth`（401/403）、`network`（没连上）和 `endpoint`（这个地址没有模型列表），界面据此提示，不拦截保存；供应商页可重新同步，失败保留上次列表。没有多密钥、失败切换或协议转换。
+- **Codex 扩展**：内置扩展，`features.codex` 缺省关闭；根证书未被信任时不能启用，界面先提示安装证书。`internal/codex` 是一个 HTTP 处理器：`/backend-api/codex/models` 在 ChatGPT 的列表后追加协议为 `openai` 的供应商的模型，写作 `供应商 ID/模型`，ETag 与回复的 `X-Models-Etag` 带上 aicat 标记；`/responses` 中带 `/` 的模型交给供应商路由（只带供应商密钥，去掉 OpenAI 专用字段），其他模型原样发往 ChatGPT；带 `/` 但不可用的模型、供应商模型的压缩在本机返回 400，不回落 ChatGPT；WebSocket 握手回 426。两个入口共用它：`internal/gateway/addons/codex` 在启用期间额外解密 `chatgpt.com`（不写入解密域名名单），只接管模型列表、供应商回合和 WebSocket，ChatGPT 自己的回合仍走普通采集与改写；监听地址上的 `/backend-api/codex` 供 `openai_base_url` 直连，沿用本机限制。供应商回合与直连入口的请求由 `traffic.Mirror` 按上游 URL 记录，凭据记为 `[aicat]`。
 - **models.dev 目录**：`internal/catalog` 在 Codex 扩展启用期间按需下载 models.dev 到 Home 下的 `cache/models-dev.json`，超过一天再下载；按去掉厂商前缀的模型 ID 匹配，各字段取多数供应商给出的值，只补全供应商列表缺少的名称、上下文窗口、推理强度与图片输入。Codex 不支持的推理强度（如 `max`）不提供给 Codex。
 - **概览**：首页展示网关状态、接入地址、需要处理的事项（监听失败、证书删除未完成或过期、系统代理待恢复、按应用与域名聚合的失败请求）、已接入的供应商与经过网关的应用；请求数、失败与成功率按当前保留的流量记录统计，流量关闭时不显示。Token、费用、缓存命中率与按模型/供应商的用量需要解析模型响应，尚未实现。“接入 Agent”子页给出各客户端的 MCP 配置，“接入供应商”子页保存供应商并给出 Agent 要设置的环境变量。
 - **流量界面**：对齐 `docs/design/aicat-redesign.html` 的 MyGo + WebView；44 DIP 标题栏（前进后退、面包屑、常驻监听地址、主题），52 DIP 导航栏、224 DIP 侧边栏（扩展 272 DIP），主面板上列表/下详情。列表行首状态点区分成功、出错、3xx、未解密隧道与进行中，列含应用、类型（取自响应 Content-Type）；↑ ↓ 移动选择，⌘K 聚焦搜索。详情为请求与响应双栏，按内容提供 Header / Query / Body / 事件（SSE）/ Raw，默认 Header；两侧分别记住本次运行选择，切换请求不重置，列表只同步摘要，详情与正文按需读取有界快照。Header 按名称和值显示，重复值分别保留；复制跟随当前视图，并在按钮旁提示结果。请求行右键支持复制 URL、复制 cURL、固定/取消固定所属域名；cURL 仅从完整 HTTP 请求生成，CONNECT 与正文采集不完整时禁用。侧边栏分组与域名行只保留展开箭头、文字与数量，不显示固定、文件夹、地球或显示器装饰图标。域名/路径树聚合请求、右键固定持久化于 traffic.pinnedDomains；主搜索仅对完整 URL 做大小写不敏感的模糊匹配，字符按顺序出现但不必连续，空白分隔的词全部命中；前端按大小写不敏感、归一化后的字符顺序做模糊匹配，不支持扩展查询语法，保持采集顺序。实际数据行隔行底色，空白区域纯色。前进/后退恢复筛选、搜索与所选请求，失效记录不复活；清空同时复位域名与 URL 筛选，保留固定项。私云未接入时以状态说明呈现。
-
-
 - **改写规则**：`internal/rewrite` 统一管理匹配、顺序、启停、插件绑定和 settings，持久化于 `aicat.yaml` 的 rewrite；当前不另设声明式改写语言。每阶段按当前 URL/method 重新匹配，后续规则看到前序成功结果。规则与插件保存后重启生效；revision 表示已保存版本，activeRevision 表示启动快照，restartRequired 表示两者不同。
-- **MCP**：`internal/mcpserver` 在同一 9981 的 `/mcp` 提供 Streamable HTTP，使用 Home 中 0600 的 mcp-token 做 Bearer 认证，拒绝浏览器 Origin。提供规则与插件管理、编译校验、离线试运行、SDK 说明及流量查询；WebView 界面可直接复用相同 Go 服务，本轮未新增规则管理页面。
+- **MCP**：`internal/mcpserver` 在同一 9981 的 `/mcp` 提供 Streamable HTTP，使用 Home 中 0600 的 mcp-token 做 Bearer 认证，拒绝浏览器 Origin。提供规则与插件管理、编译校验、离线试运行、SDK 说明及流量查询；WebView 界面可直接复用相同 Go 服务；规则管理暂无桌面页面。
+
+当前交付范围与运行方式见 README，模块边界与约束见 `docs/architecture.md`。

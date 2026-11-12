@@ -1,13 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import {
-  state,
-  navigate,
-  proxyAddress,
-  providerChoice,
-  providerKinds,
-  type ProviderKind,
-} from "../state/desktop";
+import { state, navigate, proxyAddress } from "../state/desktop";
+import { providerId } from "../state/providers";
 import { records, appKey, failed, running, copy } from "../state/traffic";
 import { status } from "../state/format";
 import { t } from "../i18n";
@@ -169,13 +163,21 @@ const todos = computed<Todo[]>(() => {
 });
 const providers = computed(() =>
   (state.value?.providers ?? []).map((p) => ({
-    id: p.id as ProviderKind,
-    name: t(providerKinds[p.id as ProviderKind]?.name ?? p.id),
+    id: p.id,
+    name: p.name,
     host: new URL(p.baseUrl).host,
+    // what the last model list sync said about the endpoint and key
+    problem: !p.models.error
+      ? ""
+      : p.models.errorKind === "auth"
+        ? t("密钥无效")
+        : p.models.errorKind === "network"
+          ? t("连不上")
+          : "",
   })),
 );
-function openProvider(id?: ProviderKind) {
-  if (id) providerChoice.value = id;
+function openProvider(id = "") {
+  providerId.value = id;
   navigate("provider");
 }
 const endpoints = computed(() => [
@@ -261,7 +263,12 @@ const endpoints = computed(() => [
                 <strong>{{ provider.name }}</strong
                 ><span class="who"
                   >{{ t("供应商") }} · {{ provider.host }} ·
-                  {{ t("密钥由 aicat 保管") }}</span
+                  <span v-if="provider.problem" class="bad">{{
+                    provider.problem
+                  }}</span
+                  ><template v-else>{{
+                    t("密钥由 aicat 保管")
+                  }}</template></span
                 >
               </div>
               <button class="btn" @click="openProvider(provider.id)">

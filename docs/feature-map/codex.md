@@ -1,6 +1,6 @@
 # Codex 扩展
 
-内置扩展，默认停用。启用后，Codex 的模型列表在 ChatGPT 自带的模型之后加入已接入供应商的模型，写作 `供应商/模型`（如 `compat/deepseek-v4`）。选择这类模型时，请求带上 aicat 保管的密钥发给供应商；选择 ChatGPT 自带的模型时，请求原样发往 ChatGPT。Codex 保留自己的 ChatGPT 登录。
+内置扩展，默认停用。启用后，Codex 的模型列表在 ChatGPT 自带的模型之后加入已接入供应商的模型，写作 `供应商 ID/模型`（如 `deepseek/deepseek-v4`）。选择这类模型时，请求带上 aicat 保管的密钥发给供应商；选择 ChatGPT 自带的模型时，请求原样发往 ChatGPT。Codex 保留自己的 ChatGPT 登录。
 
 ## Sub-features
 
@@ -23,7 +23,7 @@
 
 - **默认停用。** `state().codexEnabled` 为 false；直连入口返回 503；经网关 CONNECT 到后端时看到后端自己的证书（未解密）。
 - **启用。** `#nav-extensions` → `#extension-codex` → `#feature-codex`。未信任证书时出现“需要先安装证书”对话框；取消后保持停用，点“安装证书”后启用，`aicat.yaml` 写入 `codex: true`，详情显示 `#codex-status`。
-- **同步模型。** 接入供应商选 `#provider-compat`，填 fixture 地址与密钥保存；`providers[0].models` 自动出现，向量、出图模型被滤掉，只声明 Chat Completions 的模型留在列表里但不提供给 Codex。
+- **同步模型。** 接入供应商选 `#preset-custom`，名称填 `Compat`（ID 为 `compat`），填 fixture 地址与密钥保存；`providers[0].models` 自动出现，向量、出图模型被滤掉，只声明 Chat Completions 的模型留在列表里但不提供给 Codex。
 - **模型列表。** 直连与经网关两种入口的 `/backend-api/codex/models` 都返回 ChatGPT 条目加 `compat/...` 条目；上下文窗口、推理强度、默认强度、图片输入先取供应商列表，缺少时取 models.dev；Codex 不支持的 `max` 强度被丢弃；ETag 形如 `"<后端 ETag>+aicat-<标记>"`；后端收到原始 Authorization，没有条件请求头。
 - **供应商回合。** zstd 压缩的请求被解开，供应商收到 `Bearer <保管密钥>`、去掉前缀的模型名，没有 `ChatGPT-Account-Id` 等头，也没有 `stream_options.reasoning_summary_delivery`、`configuration_update` 与消息元数据；文本中的 `<` `&` 不被转义；SSE 分段到达。后端收不到这次请求。
 - **ChatGPT 回合。** 原样到达后端（正文与账号头不变），响应的 `X-Models-Etag` 与列表 ETag 一致。
@@ -36,7 +36,7 @@
 - 解密只影响新连接：启用或停用后，已在运行的 Codex 需要重新启动。
 - 供应商模型的对话暂不支持压缩；从 ChatGPT 模型中途切到供应商模型时，历史中的加密内容供应商读不了，建议新开对话。
 - 启用期间 Codex 回落到 HTTP/SSE，不使用 WebSocket 优化。
-- 只提供 OpenAI 与兼容 OpenAI 的供应商；Anthropic 不支持 Responses，模型列表仍会同步但不提供给 Codex。没有协议转换。
+- 只提供协议为 `openai` 的供应商；协议为 `anthropic` 或 `chat`（仅 Chat Completions）的供应商模型列表仍会同步但不提供给 Codex。没有协议转换。
 - 模型全部提供，没有勾选；供应商列表里未被关键词滤掉的非对话模型仍会出现。
 - 经网关的模型列表与供应商回合由扩展直接应答，流量记录里只有发往上游的一条，没有改写前后对照和应用归属。
 - 只用本机 fixture 验证过，没有经真实 Codex、chatgpt.com 或真实供应商验证。

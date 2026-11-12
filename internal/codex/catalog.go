@@ -21,8 +21,6 @@ var prompt string
 // other would not load.
 var efforts = []string{"none", "minimal", "low", "medium", "high", "xhigh"}
 
-var providerNames = map[string]string{"openai": "OpenAI", "compat": "OpenAI-compatible"}
-
 // entry is one model as Codex's models.json describes it. Only fields Codex
 // requires or that change its behaviour are set. The shape follows Magpie's
 // codexcat.Entries.
@@ -77,7 +75,7 @@ func (h *Handler) entries(after int) []entry {
 			}
 		}
 		name := firstOf(m.Name, info.Name, m.ID)
-		vendor := providerNames[m.Provider]
+		vendor := m.ProviderName
 		e := entry{
 			Slug: m.Provider + "/" + m.ID, DisplayName: name + " · " + vendor, Description: name + " (" + vendor + ") via aicat",
 			Instructions: prompt, Efforts: []level{}, Shell: "unified_exec", Visibility: "list", InAPI: true,

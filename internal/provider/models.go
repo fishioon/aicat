@@ -39,8 +39,27 @@ type ModelList struct {
 	// Source is the URL that answered.
 	Source string `json:"source,omitempty"`
 	// Error is why the last sync failed; the models are what an earlier one
-	// found, if any.
-	Error string `json:"error,omitempty"`
+	// found, if any. ErrorKind sorts it for the page: "auth" (the vendor
+	// refused the key), "network" (the vendor was not reached) or "endpoint"
+	// (no model list at this address).
+	Error     string `json:"error,omitempty"`
+	ErrorKind string `json:"errorKind,omitempty"`
+}
+
+// fetchError is one list URL's failure.
+type fetchError struct {
+	kind string
+	text string
+}
+
+func (e *fetchError) Error() string { return e.text }
+
+func errorKind(err error) string {
+	var fe *fetchError
+	if errors.As(err, &fe) {
+		return fe.kind
+	}
+	return "endpoint"
 }
 
 // fetchTimeout bounds each list URL asked.
@@ -49,9 +68,9 @@ const fetchTimeout = 8 * time.Second
 // fetchModels asks the vendor at base which models it serves. The usual list
 // paths are tried around base: an OpenAI-style base with a version in its
 // path is asked only as written, at base/models.
-func fetchModels(ctx context.Context, client *http.Client, k Kind, base, key string) ([]Model, string, error) {
+func fetchModels(ctx context.Context, client *http.Client, proto, base, key string) ([]Model, string, error) {
 	base = strings.TrimRight(strings.TrimSpace(base), "/")
-	anthropic := k.ID == "anthropic"
+	anthropic := proto == "anthropic"
 	var urls []string
 	add := func(u string) {
 		if !slices.Contains(urls, u) {
@@ -69,20 +88,30 @@ func fetchModels(ctx context.Context, client *http.Client, k Kind, base, key str
 		add(root + "/models")
 	}
 	var errs []string
+	// A refused key at any URL is the answer; the vendor not being reached
+	// is, only when no URL answered at all.
+	kinds := map[string]int{}
 	for _, u := range urls {
-		ms, err := fetchList(ctx, client, k, u, key)
+		ms, err := fetchList(ctx, client, proto, u, key)
 		if err == nil && len(ms) > 0 {
 			return ms, u, nil
 		}
 		if err == nil {
-			err = errors.New(u + "：列表为空")
+			err = &fetchError{"endpoint", u + "：列表为空"}
 		}
 		errs = append(errs, err.Error())
+		kinds[errorKind(err)]++
 		if ctx.Err() != nil {
 			break
 		}
 	}
-	return nil, "", errors.New("没有取得模型列表：" + strings.Join(errs, "；"))
+	kind := "endpoint"
+	if kinds["auth"] > 0 {
+		kind = "auth"
+	} else if kinds["network"] == len(errs) {
+		kind = "network"
+	}
+	return nil, "", &fetchError{kind, "没有取得模型列表：" + strings.Join(errs, "；")}
 }
 
 // versioned reports whether a base URL has a version segment in its path
@@ -115,7 +144,7 @@ type listedModel struct {
 	Levels        any `json:"supported_reasoning_levels"`
 }
 
-func fetchList(ctx context.Context, client *http.Client, k Kind, url, key string) ([]Model, error) {
+func fetchList(ctx context.Context, client *http.Client, proto, url, key string) ([]Model, error) {
 	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -124,28 +153,38 @@ func fetchList(ctx context.Context, client *http.Client, k Kind, url, key string
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "aicat")
+	k := protocols[proto]
 	req.Header.Set(k.header, k.prefix+key)
-	if k.ID == "anthropic" {
+	if proto == "anthropic" {
 		req.Header.Set("Anthropic-Version", "2023-06-01")
+		// Anthropic takes x-api-key only; the vendors that speak its
+		// protocol often list their models behind a bearer token.
+		if req.URL.Hostname() != "api.anthropic.com" {
+			req.Header.Set("Authorization", "Bearer "+key)
+		}
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%s：%w", url, err)
+		return nil, &fetchError{"network", fmt.Sprintf("%s：%v", url, err)}
 	}
 	defer res.Body.Close()
 	b, _ := io.ReadAll(io.LimitReader(res.Body, 8<<20))
 	if res.StatusCode != http.StatusOK {
-		if msg := errorMessage(b); msg != "" {
-			return nil, fmt.Errorf("%s：%s（%s）", url, res.Status, msg)
+		kind := "endpoint"
+		if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
+			kind = "auth"
 		}
-		return nil, fmt.Errorf("%s：%s", url, res.Status)
+		if msg := errorMessage(b); msg != "" {
+			return nil, &fetchError{kind, fmt.Sprintf("%s：%s（%s）", url, res.Status, msg)}
+		}
+		return nil, &fetchError{kind, fmt.Sprintf("%s：%s", url, res.Status)}
 	}
 	var v struct {
 		Data   []listedModel `json:"data"`
 		Models []listedModel `json:"models"`
 	}
 	if err := json.Unmarshal(b, &v); err != nil {
-		return nil, fmt.Errorf("%s：返回的不是模型列表", url)
+		return nil, &fetchError{"endpoint", url + "：返回的不是模型列表"}
 	}
 	rows := v.Data
 	if len(rows) == 0 {
