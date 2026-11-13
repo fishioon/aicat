@@ -57,6 +57,7 @@ func newListener(o Options) (*listener, error) {
 	p.SetShouldInterceptRule(func(r *http.Request) bool { return o.ShouldIntercept != nil && o.ShouldIntercept(r) })
 	// Outbound traffic must never inherit an environment proxy pointing at us.
 	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) { return nil, nil })
+	p.AddAddon(&httpTransport{})
 	tracker := &connections{conns: make(map[*proxy.ClientConn]struct{})}
 	token := make([]byte, 24)
 	if _, err = rand.Read(token); err != nil {

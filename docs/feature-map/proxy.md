@@ -24,6 +24,7 @@ Preconditions:
 - 使用独立 Home、本地上游和现有 OS fixture；系统代理初始关闭。系统接管不要求先安装或信任证书；只有 HTTPS 解密需要证书信任。
 
 - **监听与域名表单。** `node e2e/proxy-settings.cjs bin/aicat-e2e build/proxy-settings-<run>` 为独立后台场景，覆盖未修改/非法端口、占用失败回退、通配监听与重启持久化；同时核对域名输入在异步成功/失败、重复提交、配置受阻时的保留和恢复。
+- **同连接多目标。** `node e2e/http-origins.cjs bin/aicat-e2e build/http-origins-<run>` 用一条真实客户端到代理的 TCP 连接交替访问两个上游和控制 API，核对每条请求、凭据、二进制正文都到达目标站点；各 POST 只提交一次，SSE 分段到达且结束后仍可复用。
 - **显式代理。** 在 harness 中运行 `await send('/proxy-check')`；核对上游响应和 `/api/traffic` 中已完成记录。终端等价请求为 `curl --noproxy '' --proxy "http://127.0.0.1:$AICAT_PROXY_PORT" "http://127.0.0.1:$AICAT_UPSTREAM_PORT/proxy-check"`，两个变量取本次 fixture 端口。
 - **监听切换。** 通过导航栏底部的设置进入代理页，在 `#listener-address` 选择 `0.0.0.0`，在 `#listener-port` 填入空闲端口，点击 `#listener-apply`；等待 `#gateway-address` 显示新地址。向 `127.0.0.1:新端口` 发送请求，核对历史记录与 CA 指纹保留；只读检查 `gateway.addr`，重启同一 Home 后复查。
 - **输入失败。** 分别填入 `0`、`65536` 和非数字，应用按钮禁用、`#listener-error` 有提示。使用被本次测试占用的端口再应用，旧监听应继续或恢复可用，配置不保存失败目标，并显示错误。

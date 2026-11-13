@@ -74,7 +74,7 @@ flowchart TB
 
 控制路由同时核对 TCP peer（loopback 或本机地址）、目标 authority 和 Origin，不只匹配路径；监听 `0.0.0.0` 时控制接口仍只对本机开放。控制流量不进入采集。MCP 另外核对 Bearer token。
 
-网关最终转发使用直接连接的 transport，不继承指向自身的 `HTTP_PROXY`/`HTTPS_PROXY`。
+网关最终转发使用直接连接的 transport，不继承指向自身的 `HTTP_PROXY`/`HTTPS_PROXY`。未进入 TLS 隧道的请求使用代理库提供的独立 HTTP 客户端，按目标复用连接；同一客户端代理连接可交替访问多个站点。CONNECT 与已解密 TLS 继续使用对应隧道的传输链路。
 
 WebView 经 MyGo 绑定调用进程内服务，通过 Channel 接收合并后的流量变化，通过 typed event 得知设置状态失效。HTTP API 与 MCP 经监听地址调用同一组服务，复用数据模型、校验和错误语义。
 
