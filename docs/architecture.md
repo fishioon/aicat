@@ -69,10 +69,10 @@ flowchart TB
 | 请求形态 | 处理方式 |
 | --- | --- |
 | CONNECT | 按解密选择进入 TLS MITM 或原样隧道转发 |
-| absolute-form HTTP 请求 | 作为代理请求进入 traffic addon |
+| absolute-form HTTP 请求 | 目标为 aicat 时进入控制入口，其余作为代理请求进入 traffic addon |
 | 以 aicat 为目标的请求 | 由 api addon 交给 API、MCP、供应商与 Codex 的 HTTP handler |
 
-控制路由同时核对 TCP peer（loopback 或本机地址）、目标 authority 和 Origin，不只匹配路径；监听 `0.0.0.0` 时控制接口仍只对本机开放。控制流量不进入采集。MCP 另外核对 Bearer token。
+控制路由同时核对 TCP peer（loopback 或本机地址）、目标 authority 和 Origin，不只匹配路径；监听 `0.0.0.0` 时控制接口仍只对本机开放。控制流量无论使用路径或完整 URL 都不进入代理采集：api addon 先校验原始连接并标记请求，traffic addon 跳过该标记；模型 handler 仍单独生成脱敏的模型记录。完整 URL 形式保持请求与响应流式传输。MCP 另外核对 Bearer token。
 
 网关最终转发使用直接连接的 transport，不继承指向自身的 `HTTP_PROXY`/`HTTPS_PROXY`。未进入 TLS 隧道的请求使用代理库提供的独立 HTTP 客户端，按目标复用连接；同一客户端代理连接可交替访问多个站点。CONNECT 与已解密 TLS 继续使用对应隧道的传输链路。
 

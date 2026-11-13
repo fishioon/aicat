@@ -71,6 +71,11 @@ func (s *Service) list(q Query) Page {
 		limit = 2000
 	}
 	p := Page{Items: make([]Summary, 0)}
+	host := strings.TrimSpace(q.Host)
+	hostname := host
+	if strings.HasPrefix(hostname, "[") && strings.HasSuffix(hostname, "]") {
+		hostname = hostname[1 : len(hostname)-1]
+	}
 	for i := len(s.order) - 1; i >= 0; i-- {
 		id := s.order[i]
 		r := s.records[id]
@@ -83,9 +88,9 @@ func (s *Service) list(q Query) Page {
 		if q.State != "" && q.State != r.State {
 			continue
 		}
-		if q.Host != "" {
+		if host != "" {
 			u, _ := url.Parse(r.URL)
-			if u == nil || !strings.EqualFold(u.Hostname(), q.Host) {
+			if u == nil || (!strings.EqualFold(u.Hostname(), hostname) && !strings.EqualFold(u.Host, host)) {
 				continue
 			}
 		}

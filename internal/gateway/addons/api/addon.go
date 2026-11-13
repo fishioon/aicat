@@ -1,9 +1,9 @@
-// Package api mounts application handlers on the proxy's origin-form entry.
 package api
 
 import (
 	"encoding/json"
 	"errors"
+	"github.com/fishioon/aicat/internal/gateway/requestmeta"
 	"github.com/fishioon/aicat/internal/listenaddr"
 	"github.com/fishioon/aicat/internal/traffic"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
@@ -25,22 +25,47 @@ type Addon struct {
 func New(authority string, handler http.Handler) *Addon {
 	return &Addon{authority: authority, handler: handler}
 }
+func (a *Addon) owns(authority string) bool {
+	return strings.EqualFold(authority, a.authority) || strings.EqualFold(authority, listenaddr.ClientAddress(a.authority))
+}
+
+func (a *Addon) accessError(r *http.Request) string {
+	peer, _, err := net.SplitHostPort(r.RemoteAddr)
+	ip, parseErr := netip.ParseAddr(peer)
+	if err != nil || parseErr != nil || !listenaddr.IsLocal(ip) {
+		return "application endpoints are local only"
+	}
+	if !a.owns(r.Host) {
+		return "unknown authority"
+	}
+	if r.Header.Get("Origin") != "" {
+		return "browser origins are not allowed"
+	}
+	return ""
+}
+
+func (a *Addon) Requestheaders(flow *proxy.Flow) {
+	if !a.owns(flow.Request.URL.Host) {
+		return
+	}
+	request := flow.Request.Raw()
+	requestmeta.MarkControl(request)
+	flow.Stream = true
+	if message := a.accessError(request); message != "" {
+		header := make(http.Header)
+		header.Set("Content-Type", "text/plain; charset=utf-8")
+		header.Set("Cache-Control", "no-store")
+		header.Set("X-Content-Type-Options", "nosniff")
+		flow.Response = &proxy.Response{StatusCode: http.StatusForbidden, Header: header, Body: []byte(message + "\n")}
+	}
+}
+
 func (a *Addon) AccessProxyServer(r *http.Request, w http.ResponseWriter) {
 	if w.Header().Get("X-Aicat-Instance") != "" {
 		return
 	}
-	peer, _, err := net.SplitHostPort(r.RemoteAddr)
-	ip, parseErr := netip.ParseAddr(peer)
-	if err != nil || parseErr != nil || !listenaddr.IsLocal(ip) {
-		http.Error(w, "application endpoints are local only", http.StatusForbidden)
-		return
-	}
-	if !strings.EqualFold(r.Host, a.authority) && !strings.EqualFold(r.Host, listenaddr.ClientAddress(a.authority)) {
-		http.Error(w, "unknown authority", http.StatusForbidden)
-		return
-	}
-	if r.Header.Get("Origin") != "" {
-		http.Error(w, "browser origins are not allowed", http.StatusForbidden)
+	if message := a.accessError(r); message != "" {
+		http.Error(w, message, http.StatusForbidden)
 		return
 	}
 	a.handler.ServeHTTP(streaming(w), r)

@@ -77,6 +77,8 @@ frontend-check: ui/node_modules/.aicat-install bindings channel-check
 	node --check e2e/extension-details.cjs
 	node --check e2e/inspector-copy.cjs
 	node --check e2e/connect.cjs
+	node --check e2e/agent-traffic.cjs
+	node --check e2e/control-traffic.cjs
 	node --check e2e/provider-lifecycle.cjs
 	node --check e2e/provider-model-state.cjs
 	node --check e2e/overview.cjs
@@ -95,7 +97,7 @@ frontend-check: ui/node_modules/.aicat-install bindings channel-check
 	node --check e2e/wecom.cjs
 	node --check e2e/wecom-live.cjs
 	node --check e2e/wecom-local-ui.cjs
-	python3 -m py_compile e2e/os-fixture.py e2e/wecom-local.py e2e/wecom-local-fixture.py e2e/wecom-local-live.py
+	python3 -m py_compile e2e/mcp.py e2e/os-fixture.py e2e/wecom-local.py e2e/wecom-local-fixture.py e2e/wecom-local-live.py
 	node --check e2e/channel-install-failure.cjs
 
 verify: frontend-check fmt-check vet build cli app

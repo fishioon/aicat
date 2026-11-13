@@ -64,6 +64,8 @@ npm --prefix e2e ci
 | 请求详情重试、迟到详情与清空并发（无头） | `node e2e/traffic-lifecycle.cjs bin/aicat-e2e build/feature-map-traffic-lifecycle-<run>` |
 | 请求详情复制、迟到正文与失败重试（无头） | `node e2e/inspector-copy.cjs bin/aicat-e2e build/feature-map-inspector-copy-<run>` |
 | 扩展详情、空状态与 Codex 接入指引（无头） | `node e2e/extension-details.cjs bin/aicat-e2e build/feature-map-extension-details-<run>` |
+| HTTP/MCP 查询、分页、正文与失效生命周期（无头） | `node e2e/agent-traffic.cjs bin/aicat-e2e build/feature-map-agent-traffic-<run>` |
+| 控制入口与代理采集隔离、模型流式（无头） | `node e2e/control-traffic.cjs bin/aicat-e2e build/feature-map-control-traffic-<run>` |
 | 同一代理连接的多目标转发、控制 API 与 SSE（无头） | `node e2e/http-origins.cjs bin/aicat-e2e build/feature-map-http-origins-<run>` |
 | 代理设置输入、域名草稿与监听恢复（无头） | `node e2e/proxy-settings.cjs bin/aicat-e2e build/feature-map-proxy-settings-<run>` |
 | 证书跨入口恢复、实际 TLS 与通配解密（无头） | `node e2e/certificate-entries.cjs bin/aicat-e2e build/feature-map-certificate-entries-<run>` |

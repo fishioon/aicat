@@ -7,25 +7,46 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/fishioon/aicat/internal/messages"
 	"github.com/fishioon/aicat/internal/traffic"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+type requestBoundary uint64
+
+func (id *requestBoundary) UnmarshalJSON(data []byte) error {
+	text := string(data)
+	if len(data) > 0 && data[0] == '"' {
+		if err := json.Unmarshal(data, &text); err != nil {
+			return errors.New("before must be an unsigned request ID or a nextPage value")
+		}
+	}
+	value, err := strconv.ParseUint(text, 10, 64)
+	if err != nil {
+		return errors.New("before must be an unsigned request ID or a nextPage value")
+	}
+	*id = requestBoundary(value)
+	return nil
+}
+
 type ListInput struct {
-	Limit  int    `json:"limit,omitempty"`
-	Before uint64 `json:"before,omitempty"`
-	Host   string `json:"host,omitempty"`
-	Method string `json:"method,omitempty"`
-	Query  string `json:"query,omitempty"`
+	Limit  int             `json:"limit,omitempty" jsonschema:"Maximum summaries to return; defaults to 50."`
+	Before requestBoundary `json:"before,omitempty" jsonschema:"Use nextPage from the previous response; records at or above this ID are excluded."`
+	Host   string          `json:"host,omitempty" jsonschema:"Hostname, optionally including a port."`
+	Method string          `json:"method,omitempty" jsonschema:"HTTP method, case-insensitive."`
+	State  traffic.State   `json:"state,omitempty" jsonschema:"Completion state; omit or use an empty string to match all states."`
+	Query  string          `json:"query,omitempty" jsonschema:"Case-insensitive substring of the method, URL or transport error."`
 }
 type RecordInput struct {
 	ID uint64 `json:"id"`
@@ -39,9 +60,13 @@ type BodyOutput struct {
 	ReturnedTruncated bool             `json:"returnedTruncated"`
 }
 
-func add[In, Out any](s *mcp.Server, name, description string, readOnly, destructive bool, fn func(context.Context, In) (Out, error)) {
+func add[In, Out any](s *mcp.Server, name, description string, readOnly, destructive bool, fn func(context.Context, In) (Out, error), schemas ...any) {
 	open := !readOnly
-	mcp.AddTool(s, &mcp.Tool{Name: name, Description: description, Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly, DestructiveHint: &destructive, OpenWorldHint: &open}}, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
+	tool := &mcp.Tool{Name: name, Description: description, Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly, DestructiveHint: &destructive, OpenWorldHint: &open}}
+	if len(schemas) > 0 {
+		tool.InputSchema = schemas[0]
+	}
+	mcp.AddTool(s, tool, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
 		out, err := fn(ctx, in)
 		return nil, out, err
 	})
@@ -61,15 +86,28 @@ func New(home string, flows *traffic.Service, sendMessage func(context.Context, 
 		}
 		return sendMessage(ctx, in.Channel, in.Event)
 	})
-	add(server, "traffic_list", "Read recent captured traffic summaries; limit 1..200.", true, false, func(ctx context.Context, in ListInput) (traffic.Page, error) {
+	listSchema, err := jsonschema.For[ListInput](nil)
+	if err != nil {
+		return nil, err
+	}
+	minimum, maximum, zero := float64(1), float64(200), float64(0)
+	listSchema.Properties["limit"].Minimum = &minimum
+	listSchema.Properties["limit"].Maximum = &maximum
+	listSchema.Properties["limit"].Default = json.RawMessage("50")
+	listSchema.Properties["before"].Type = ""
+	listSchema.Properties["before"].Types = []string{"string", "integer"}
+	listSchema.Properties["before"].Minimum = &zero
+	listSchema.Properties["before"].Pattern = "^[0-9]+$"
+	listSchema.Properties["state"].Enum = []any{"", "request", "response", "completed", "failed", "canceled"}
+	add(server, "traffic_list", "Read recent captured traffic summaries, newest first; continue with before=nextPage.", true, false, func(ctx context.Context, in ListInput) (traffic.Page, error) {
 		if in.Limit == 0 {
 			in.Limit = 50
 		}
 		if in.Limit < 1 || in.Limit > 200 {
 			return traffic.Page{}, errors.New("limit must be 1..200")
 		}
-		return flows.List(ctx, traffic.Query{Limit: in.Limit, Before: traffic.ID(in.Before), Host: in.Host, Method: in.Method, Text: in.Query})
-	})
+		return flows.List(ctx, traffic.Query{Limit: in.Limit, Before: traffic.ID(in.Before), Host: in.Host, Method: in.Method, State: in.State, Text: in.Query})
+	}, listSchema)
 	add(server, "traffic_get", "Read request and response snapshots, completion state and transport errors for a captured request.", true, false, func(ctx context.Context, in RecordInput) (traffic.Record, error) {
 		return flows.Get(ctx, traffic.ID(in.ID))
 	})
