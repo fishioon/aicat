@@ -182,7 +182,7 @@ async function run({
 } = {}) {
   const http = require("node:http");
   const crypto = require("node:crypto");
-  const { spawn } = require("node:child_process");
+  const { spawn, execFileSync } = require("node:child_process");
   const { chromium } = require(process.env.AICAT_PLAYWRIGHT || "playwright");
   const binary = path.resolve(process.argv[2] || "bin/aicat-e2e");
   const root = path.resolve(
@@ -212,6 +212,7 @@ async function run({
     sources: Object.fromEntries(
       [
         "e2e/traffic-default.cjs",
+        "e2e/os-fixture.py",
         `e2e/${scenario}.cjs`,
         "internal/app/app.go",
         "internal/app/desktop.go",
@@ -303,7 +304,7 @@ async function run({
       proc = undefined;
     }
   };
-  const launch = async () => {
+  const launch = async ({ configuredListener = false } = {}) => {
     fs.rmSync(previewFile, { force: true });
     const env = {
       ...process.env,
@@ -312,10 +313,18 @@ async function run({
       AICAT_E2E_BACKGROUND: "1",
     };
     delete env.MYGO_AUTOMATION;
-    proc = spawn(binary, ["--home", home, "--addr", `127.0.0.1:${proxyPort}`], {
-      env,
-      stdio: ["ignore", log, log],
-    });
+    proc = spawn(
+      binary,
+      [
+        "--home",
+        home,
+        ...(configuredListener ? [] : ["--addr", `127.0.0.1:${proxyPort}`]),
+      ],
+      {
+        env,
+        stdio: ["ignore", log, log],
+      },
+    );
     let spawnError;
     proc.on("error", (error) => {
       spawnError = error;
@@ -365,17 +374,18 @@ async function run({
         launch,
         stop,
         preview,
-        fixture: (update) => {
-          const value = {
-            ...JSON.parse(fs.readFileSync(stateFile, "utf8")),
-            ...update,
-          };
-          fs.writeFileSync(stateFile + ".next", JSON.stringify(value), {
-            mode: 0o600,
-          });
-          fs.renameSync(stateFile + ".next", stateFile);
-          return value;
-        },
+        fixture: (update) =>
+          JSON.parse(
+            execFileSync(
+              "python3",
+              [path.join(__dirname, "os-fixture.py"), stateFile],
+              {
+                input: JSON.stringify(update),
+                encoding: "utf8",
+                timeout: 5000,
+              },
+            ),
+          ),
         current: () => page.evaluate(() => window.desktop.state()),
         api: async () => {
           const response = await request("/api/traffic?limit=2000");

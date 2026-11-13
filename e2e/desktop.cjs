@@ -805,6 +805,7 @@ async function verifyListSelection() {
     await settled();
     assert.equal((await current()).certificate.trusted, true);
     const firstFingerprint = (await current()).certificate.fingerprint;
+    await page.locator("#certificate-details > summary").click();
     assert(
       (await page.locator("#certificate").textContent()).includes(
         firstFingerprint,

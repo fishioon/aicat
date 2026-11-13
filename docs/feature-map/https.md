@@ -4,7 +4,7 @@
 
 ## Sub-features
 
-- `https-install`：安装或重新检测根证书，展示实际信任与失败状态。
+- `https-install`：安装或重新检测根证书，展示实际信任与失败状态；过期时在代理设置中使用“更换证书”，确认后删除旧身份并创建、安装新身份。
 - `https-manage`：查看真实名称、有效期、SHA-256，导出公开证书，打开钥匙串。
 - `https-domains`：在代理设置中增删解密域名/IP；`*.example.com` 匹配任意层级子域名，不含域名本身。
 - `https-connect`：从未解密 CONNECT 详情就地启用域名，支持客户端自行信任。
@@ -12,7 +12,7 @@
 
 ## How to get to it (user POV)
 
-- 设置 → 代理 → 本机证书：安装证书、查看、导出、在钥匙串中管理、重新检测、删除。
+- 设置 → 代理 → 根证书：安装或更换过期证书。展开“证书详情”查看身份、导出、打开钥匙串、重新检测或删除；删除未完成时重试入口保持可见。
 - 设置 → 代理 → 解密域名：添加域名，或移除已有域名。
 - 流量 → 未解密 CONNECT 记录 → 请求/响应双栏 → 响应侧“仅启用此域名” → 安装证书/客户端已单独信任。域名已被精确或通配条目覆盖时，这里显示覆盖它的条目，没有启用按钮。
 
@@ -22,10 +22,11 @@ Preconditions:
 
 - 使用独立 Home、OS 信任适配器、测试 TLS 上游；最初解密名单为空。准备新的 CONNECT 连接，不能复用旧连接验证名单变更。
 
+- **后台设置与证书场景。** `node e2e/proxy-settings.cjs bin/aicat-e2e build/proxy-settings-<run>` 验证域名草稿、重复提交、校验与配置失败恢复、监听切换；`node e2e/certificate.cjs bin/aicat-e2e build/certificate-<run>` 验证授权取消/失败/实际信任、折叠详情、公开导出、删除中断与重启恢复，以及真实过期 CA 的更换与安装重试。两个场景 headless 且隐藏原生窗口，成功路径使用真实服务和文件，只有授权/钥匙串/保存面板由 OS 适配器替代；域名延迟/错误另在预览传输层注入。报告、日志、配置、公开证书、源码和截图保存在输出目录。
 - **默认直通。** 用配置了代理的 HTTPS 客户端连接测试上游；列表显示 CONNECT，选中后请求侧显示 CONNECT 的 Header/Raw，响应侧居中显示锁图标、“HTTPS 响应”、“此 HTTPS 响应已加密。启用 SSL 代理以查看内容。”和“仅启用此域名”按钮。客户端看到上游原证书。
 - **安装。** 设置 → 代理，点击 `#certificate-install`；无应用内二次“继续”确认。OS fixture 模拟取消、失败和成功，每次都检查 `#certificate-status`、错误提示及重试按钮；仅成功且实际验证通过显示“已信任”。重试期间 CA 指纹保持。
-- **管理。** 点击 `#certificate-details`，核对名称、有效期和指纹；`#certificate-recheck` 更新状态。点 `#certificate-export`，读取本次目录的 `aicat-root-ca.pem`，核对指纹一致且不含私钥；点 `#certificate-keychain`，在 fixture 核对打开操作被请求。真实钥匙串 UI 需要另记原生结果。
-- **名单入口。** 点击 `#add-decryption-domain`，在 `#decryption-domain-input` 输入测试主机（如 `localhost`），在 `#dialog` 点击“添加”；名单和 `gateway.interceptHosts` 同时更新。用新连接再次发 HTTPS 请求，核对客户端看到测试 aicat CA、列表显示已解密 HTTP 请求与正文。
+- **管理。** 展开 `#certificate-details > summary`，核对名称、有效期和指纹；`#certificate-recheck` 更新状态。点 `#certificate-export`，读取本次目录的 `aicat-root-ca.pem`，核对指纹一致且不含私钥；点 `#certificate-keychain`，在 fixture 核对打开操作被请求。真实钥匙串 UI 需要另记原生结果。
+- **名单入口。** 在 `#decryption-domain-input` 输入测试主机（如 `localhost`），点击 `#add-decryption-domain` 或按 Enter；名单和 `gateway.interceptHosts` 同时更新。添加期间不可重复提交，可继续编辑下一条；成功仅清空未被继续修改的输入，失败保留输入供重试。用新连接再次发 HTTPS 请求，核对客户端看到测试 aicat CA、列表显示已解密 HTTP 请求与正文。
 - **独立双栏场景。** `node e2e/tunnel.cjs bin/aicat-e2e build/tunnel-<run>`，检查请求 Header/Raw、响应侧提示、中英文文案、取消及启用域名、历史记录、切回 HTTP；以 Playwright headless 浏览器预览与真实服务验证，设置 `AICAT_E2E_BACKGROUND=1`，不显示原生窗口；保留浅深色截图、日志、运行命令、二进制 hash 和报告。此场景不覆盖 WKWebView 原生窗口及真实系统授权。
 - **详情入口。** 清除目标名单，建立新的 CONNECT 并选中；在响应侧点击 `#enable-decryption`（请求侧 Header/Raw 不影响该入口）。弹窗保留目标域名；选择“安装证书”完成授权后启用，或在客户端已指定测试 CA 时选择“客户端已单独信任”。分别新建连接核对解密，历史 CONNECT 仍保持原状态。
 - **移除与非法输入。** 使用 ID `remove-decryption-` 加实际域名的按钮移除；新连接恢复直通。添加 URL、带端口字符串或 `*.` 前缀以外的通配写法（`api.*.com`、`*example.com`、`*.`）时应报错且不写入配置。

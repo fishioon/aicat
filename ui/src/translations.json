@@ -701,5 +701,13 @@
   "系统代理，或手动配置 openai_base_url": "System proxy or manual openai_base_url configuration",
   "提供 {n} 个供应商模型。更改后请重启 Codex。": "Offering {n} provider models. Restart Codex after changes.",
   "已停用。重启 Codex；使用手动接入时，先删除 openai_base_url 配置。": "Disabled. Restart Codex; for a manual connection, remove openai_base_url first.",
-  "采集流量": "Capture traffic"
+  "采集流量": "Capture traffic",
+  "更换过期证书": "Replace expired certificate",
+  "更换证书": "Replace certificate",
+  "删除过期的本机根证书并安装新证书。使用旧证书的连接将断开。": "Remove the expired local root certificate and install a new one. Connections using the old certificate will close.",
+  "添加中…": "Adding…",
+  "只解密列表中的域名，改动对新连接生效。": "Decrypt only the listed domains. Changes apply to new connections.",
+  "通配域名": "Wildcard domains",
+  "匹配所有层级的子域名，不含 example.com 本身。": "matches subdomains at every level, excluding example.com itself.",
+  "应用中…": "Applying…"
 }
