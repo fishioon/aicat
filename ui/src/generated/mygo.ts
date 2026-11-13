@@ -59,6 +59,7 @@ export interface Delivery {
 
 /** DesktopState is a coherent snapshot of settings and live desktop state. */
 export interface DesktopState {
+  mcpTokenPath: string;
   preferences: Preferences;
   language: string;
   trafficEnabled: boolean;

@@ -208,7 +208,7 @@ async function run({
       "browser pointer input, embedded frontend and real desktop services; no native window/menu input",
     binary,
     binarySHA256: hash(binary),
-    command: `node e2e/${scenario}.cjs ${binary} ${root}`,
+    command: ["node", `e2e/${scenario}.cjs`, binary, root],
     sources: Object.fromEntries(
       [
         "e2e/traffic-default.cjs",

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import {
   state,
   shell,
@@ -39,11 +39,17 @@ const incomplete = computed(
 );
 // Saving a new endpoint or key first asks the vendor for its model list; a
 // provider that gives none is not saved, and why is shown under the form.
+let active = true;
+onBeforeUnmount(() => {
+  active = false;
+});
 const saving = ref(false);
 const saveError = ref("");
 watch([name, baseUrl, key], () => (saveError.value = ""));
 async function save() {
-  if (saving.value) return;
+  if (saving.value || syncing.value || saved.value?.syncing) return;
+  const label = name.value.trim();
+  const provider = shell.provider;
   saving.value = true;
   saveError.value = "";
   try {
@@ -54,12 +60,16 @@ async function save() {
       key: key.value,
     });
     await refresh();
-    shell.provider = id;
-    key.value = "";
-    say(t("已保存 {name} 的密钥", { name: name.value.trim() }));
+    if (active && shell.provider === provider) {
+      shell.provider = id;
+      key.value = "";
+    }
+    say(t("已保存供应商 {name}", { name: label }));
   } catch (error) {
     await refresh().catch(() => {});
-    saveError.value = error instanceof Error ? error.message : String(error);
+    if (active && shell.provider === provider)
+      saveError.value = error instanceof Error ? error.message : String(error);
+    else problem(error);
   } finally {
     saving.value = false;
   }
@@ -194,10 +204,11 @@ function tickShown(on: boolean) {
       <div class="provider-content">
         <form @submit.prevent="!incomplete && save()">
           <div class="form provider-form">
-            <label for="provider-name">{{ t("名称") }}</label>
+            <label for="provider-name">{{ t("名称", {}, "provider") }}</label>
             <input
               id="provider-name"
               v-model="name"
+              :disabled="saving"
               class="field"
               maxlength="40"
               autocomplete="off"
@@ -208,6 +219,7 @@ function tickShown(on: boolean) {
             <input
               id="provider-url"
               v-model="baseUrl"
+              :disabled="saving"
               class="field code"
               placeholder="https://"
               autocomplete="off"
@@ -218,6 +230,7 @@ function tickShown(on: boolean) {
             <input
               id="provider-key"
               v-model="key"
+              :disabled="saving"
               class="field code"
               type="password"
               :placeholder="
@@ -238,13 +251,14 @@ function tickShown(on: boolean) {
               type="submit"
               class="btn"
               :class="{ primary: !saved }"
-              :disabled="incomplete || saving"
+              :disabled="incomplete || saving || syncing || saved?.syncing"
             >
-              {{ t(saved ? "重新保存" : "添加") }}
+              {{ t(saving ? "正在保存…" : saved ? "保存" : "添加") }}
             </button>
             <button
               v-if="saved"
               id="provider-delete"
+              :disabled="saving || syncing || saved?.syncing"
               type="button"
               class="btn danger"
               @click="remove"
@@ -263,7 +277,7 @@ function tickShown(on: boolean) {
             <button
               id="provider-sync"
               class="btn"
-              :disabled="saved.syncing || syncing"
+              :disabled="saved.syncing || syncing || saving"
               @click="sync"
             >
               {{ t("重新同步") }}

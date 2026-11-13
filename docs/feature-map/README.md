@@ -61,6 +61,8 @@ npm --prefix e2e ci
 | HTTP/TLS 接入 | `python3 e2e/prototype.py --only transport --output build/feature-map-transport-<run>` |
 | 流量与 MCP | `python3 e2e/prototype.py --only mcp --output build/feature-map-mcp-<run>` |
 | Codex 扩展、模型同步与两个入口 | `node e2e/codex.cjs bin/aicat-e2e build/feature-map-codex-<run>` |
+| Agent 接入指引、复制命令和 MCP 认证（无头） | `node e2e/connect.cjs bin/aicat-e2e build/feature-map-connect-<run>` |
+| 供应商保存的页面生命周期与重试（无头） | `node e2e/provider-lifecycle.cjs bin/aicat-e2e build/feature-map-provider-lifecycle-<run>` |
 | 供应商密钥与转发 | `node e2e/provider.cjs bin/aicat-e2e build/feature-map-provider-<run>` |
 | 企业微信客户端读取与恢复 | `python3 e2e/wecom-local.py` |
 | 企业微信 BOT 配置、收发与恢复 | `node e2e/wecom.cjs bin/aicat-e2e` |

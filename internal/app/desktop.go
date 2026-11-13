@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -32,6 +33,7 @@ type Desktop struct{ app *application }
 
 // DesktopState is a coherent snapshot of settings and live desktop state.
 type DesktopState struct {
+	MCPTokenPath     string                    `json:"mcpTokenPath"`
 	Preferences      config.Preferences        `json:"preferences"`
 	Language         string                    `json:"language"`
 	TrafficEnabled   bool                      `json:"trafficEnabled"`
@@ -76,7 +78,7 @@ func (d *Desktop) State(ctx context.Context) (DesktopState, error) {
 		a.checkedAt = time.Now()
 	}
 	addresses, _ := listenaddr.Addresses()
-	return DesktopState{Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, Extensions: a.r.extensions.List(), MessageChannels: a.r.extensions.MessageStates(), Recording: a.recording, CaptureStarted: a.captureStarted, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Providers: a.r.providers.List(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
+	return DesktopState{MCPTokenPath: filepath.Join(a.r.home, "mcp-token"), Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, Extensions: a.r.extensions.List(), MessageChannels: a.r.extensions.MessageStates(), Recording: a.recording, CaptureStarted: a.captureStarted, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Providers: a.r.providers.List(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
 }
 func (d *Desktop) mutate(ctx context.Context, operation func() error) error {
 	a := d.app

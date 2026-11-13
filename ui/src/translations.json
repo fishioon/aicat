@@ -680,5 +680,13 @@
   "当前显示上次成功读取的数据": "Showing the last successfully loaded data",
   "正在读取用量…": "Loading usage…",
   "重试": "Retry",
-  "错误详情": "Error details"
+  "错误详情": "Error details",
+  "<令牌文件的内容>": "<contents of the token file>",
+  "加入 ~/.codex/config.toml": "Add to ~/.codex/config.toml",
+  "启动 Codex 前，在同一终端运行": "Run in the same terminal before starting Codex",
+  "在终端读取令牌，替换配置中的占位内容": "Read the token in a terminal and replace the configuration placeholder",
+  "通过 MCP 让 Agent 查询流量和发送消息。": "Let your Agent query traffic and send messages through MCP.",
+  "MCP、模型入口和 HTTP API 仅供本机访问。": "MCP, model endpoints and HTTP API are for local clients.",
+  "已保存供应商 {name}": "Saved provider {name}",
+  "provider.名称": "Name"
 }
