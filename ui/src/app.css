@@ -97,7 +97,8 @@ body {
 }
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
@@ -245,7 +246,7 @@ code,
   outline-color: var(--surface);
 }
 .field {
-  height: 28px;
+  min-height: 28px;
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: var(--r2);

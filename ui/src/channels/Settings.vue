@@ -11,6 +11,11 @@ const enabled = computed(
 );
 const accountId = ref("");
 const secret = ref("");
+const requiresSecret = computed(
+  () =>
+    !channel.value?.configured ||
+    accountId.value.trim() !== channel.value?.accountId,
+);
 const agentEnabled = ref(false);
 const agentBinary = ref("");
 watch(
@@ -61,11 +66,7 @@ async function save() {
   <div id="wecom-settings">
     <h2>{{ t("配置机器人") }}</h2>
     <p>
-      {{
-        t(
-          "在企业微信创建使用长连接的智能机器人，将 Bot ID 和 Secret 填入下方。保存并通过鉴权验证后，回到扩展详情启用。",
-        )
-      }}
+      {{ t("填写企业微信长连接机器人的 Bot ID 和 Secret，验证后启用。") }}
     </p>
     <form class="form" id="wecom-config" @submit.prevent="save">
       <label for="wecom-bot-id">Bot ID</label>
@@ -85,20 +86,26 @@ async function save() {
         :disabled="enabled || busy"
         type="password"
         autocomplete="new-password"
-        :placeholder="channel?.configured ? t('留空保留已保存的 Secret') : ''"
+        :placeholder="!requiresSecret ? t('留空保留已保存的 Secret') : ''"
+        :required="requiresSecret"
       />
       <div class="acts">
         <button
           id="wecom-save"
           class="btn"
-          :disabled="enabled || busy || !accountId.trim()"
+          :disabled="
+            enabled ||
+            busy ||
+            !accountId.trim() ||
+            (requiresSecret && !secret.trim())
+          "
         >
           {{ t("保存并验证账号") }}
         </button>
       </div>
     </form>
     <p v-if="enabled">
-      {{ t("修改账号前请先停用扩展。停用保留账号和消息日志。") }}
+      {{ t("修改前请先停用，账号和消息保留。") }}
     </p>
     <h2>Codex</h2>
     <form class="form" id="wecom-agent-form" @submit.prevent="saveAgent">
@@ -112,11 +119,7 @@ async function save() {
         {{ t("自动处理私聊消息") }}</label
       >
       <p>
-        {{
-          t(
-            "开启后，新收到的私聊文本交给 Codex。执行中的新消息会补充当前任务，回复自动发送到此会话。修改前请先停用扩展。",
-          )
-        }}
+        {{ t("新私聊交给 Codex 处理，回复自动发送。") }}
       </p>
       <label for="wecom-agent-binary">{{ t("Codex 可执行文件") }}</label>
       <input

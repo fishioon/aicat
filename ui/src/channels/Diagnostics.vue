@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { host } from "../host";
 import { busy, run, shell, state } from "../state/desktop";
 import { t } from "../i18n";
@@ -12,6 +12,26 @@ const recipient = ref("");
 const text = ref("");
 const request = ref<{ id: string; room: string; text: string }>();
 const result = ref("");
+const uncertain = ref(false);
+const blocked = computed(
+  () =>
+    uncertain.value &&
+    request.value?.room === recipient.value.trim() &&
+    request.value?.text === text.value,
+);
+watch([recipient, text], () => (result.value = ""), { flush: "sync" });
+function deliveryStatus(status: string) {
+  const labels: Record<string, string> = {
+    pending: "开始发送",
+    sent: "已发送",
+    unknown: "结果不明",
+  };
+  return t(labels[status] ?? status);
+}
+function preview(text: string) {
+  const value = text.replace(/\s+/g, " ").trim();
+  return value.length > 80 ? value.slice(0, 80) + "…" : value;
+}
 function taskStatus(status: string) {
   const labels: Record<string, string> = {
     pending: "待处理",
@@ -23,6 +43,7 @@ function taskStatus(status: string) {
   return t(labels[status] ?? status);
 }
 async function send() {
+  if (busy.value || blocked.value) return;
   const room = recipient.value.trim();
   if (
     !request.value ||
@@ -30,6 +51,7 @@ async function send() {
     request.value.text !== text.value
   ) {
     request.value = { id: crypto.randomUUID(), room, text: text.value };
+    uncertain.value = false;
   }
   const pending = request.value;
   await run(async () => {
@@ -46,14 +68,21 @@ async function send() {
         text: { content: pending.text },
       },
     });
-    result.value =
-      receipt.status === "sent"
-        ? t("平台已确认发送")
-        : t("发送结果不明，请勿重新发送");
+    uncertain.value = receipt.status !== "sent";
     if (receipt.status === "sent") {
-      text.value = "";
+      if (
+        recipient.value.trim() === pending.room &&
+        text.value === pending.text
+      )
+        text.value = "";
       request.value = undefined;
     }
+    result.value =
+      receipt.status === "sent"
+        ? t("已发送给 {recipient}", { recipient: pending.room })
+        : t("{recipient} 发送结果不明，请勿重新发送", {
+            recipient: pending.room,
+          });
   });
 }
 </script>
@@ -88,7 +117,6 @@ async function send() {
         class="field"
         v-model="text"
         rows="3"
-        maxlength="1000"
         required
       />
       <div class="acts">
@@ -97,6 +125,7 @@ async function send() {
           class="btn"
           :disabled="
             busy ||
+            blocked ||
             !enabled ||
             channel?.phase !== 'connected' ||
             !recipient.trim() ||
@@ -108,13 +137,9 @@ async function send() {
       </div>
     </form>
     <p id="wecom-send-result" role="status">{{ result }}</p>
-    <h2>{{ t("本次运行的消息") }}</h2>
+    <h2>{{ t("本次运行的消息流水") }}</h2>
     <p>
-      {{
-        t(
-          "收到的消息和发送结果写入本地 Room 流水日志。可手动发送、通过 messages_send 调用，或开启 Codex 自动处理私聊。",
-        )
-      }}
+      {{ t("收发记录保存在本机，重启后可从日志查看。") }}
     </p>
     <p>
       <button
@@ -130,10 +155,15 @@ async function send() {
         <tr v-for="record in [...channel.records].reverse()" :key="record.id">
           <th scope="row">{{ record.event.data.roomid }}</th>
           <td>
-            {{ record.event.data.text.content }}
-            <span class="tag">{{
-              record.status ? record.status : t("收到")
-            }}</span>
+            <details>
+              <summary>
+                <span class="tag">{{
+                  record.status ? deliveryStatus(record.status) : t("收到")
+                }}</span>
+                {{ preview(record.event.data.text.content) }}
+              </summary>
+              <pre class="body">{{ record.event.data.text.content }}</pre>
+            </details>
           </td>
         </tr>
       </tbody>

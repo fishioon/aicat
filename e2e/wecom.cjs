@@ -33,6 +33,7 @@ const alive = (pid) => {
   }
 };
 const agentScenario = process.argv[4] === "agent";
+const uiScenario = process.argv[4] === "ui";
 const sourceBinary = path.resolve(process.argv[2] || "bin/aicat-e2e");
 const root = path.resolve(
   process.argv[3] ||
@@ -69,6 +70,25 @@ const report = {
     .update(fs.readFileSync(binary))
     .digest("hex"),
   command: process.argv,
+  scenario: agentScenario ? "agent" : uiScenario ? "ui" : "lifecycle",
+  mode: {
+    browser: "headless Chromium",
+    application: "AICAT_E2E_BACKGROUND=1",
+    nativeAutomation: false,
+  },
+  platform: "local synthetic WebSocket fixture",
+  sources: Object.fromEntries(
+    [
+      "e2e/wecom.cjs",
+      "ui/src/channels/Settings.vue",
+      "ui/src/channels/Diagnostics.vue",
+      "ui/src/app.css",
+      "internal/messages/send.go",
+    ].map((file) => [
+      file,
+      crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex"),
+    ]),
+  ),
 };
 function treeDigest(dir) {
   const hash = crypto.createHash("sha256");
@@ -316,6 +336,235 @@ const logs = () =>
           .map(JSON.parse),
       }))
     : [];
+async function runUI() {
+  await toggle();
+  await wait(async () => (await state()).phase === "connected");
+  report.pids.push((await state()).pid);
+  await configure();
+  for (const selector of [
+    "#wecom-bot-id",
+    "#wecom-secret",
+    "#wecom-agent-enabled",
+    "#wecom-agent-binary",
+    "#wecom-save",
+    "#wecom-agent-save",
+  ])
+    assert(await page.locator(selector).isDisabled());
+  await diagnostics();
+  let mode = "hold";
+  let release;
+  const attempts = [];
+  await page.route("**/rpc", async (route) => {
+    const request = route.request().postDataJSON();
+    if (request.method !== "Desktop.SendMessage") return route.continue();
+    attempts.push(request.args[1]);
+    if (mode === "fail")
+      return route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Send connection interrupted" }),
+      });
+    if (mode === "hold") {
+      const response = await route.fetch();
+      await new Promise((resolve) => {
+        release = resolve;
+      });
+      return route.fulfill({ response });
+    }
+    return route.continue();
+  });
+  const recipient = page.locator("#wecom-recipient");
+  const text = page.locator("#wecom-text");
+  assert.equal(
+    await recipient.evaluate(
+      (element) => element.getBoundingClientRect().height,
+    ),
+    28,
+  );
+  const send = page.locator("#wecom-send");
+  assert(
+    await text.evaluate(
+      (element) =>
+        element.clientHeight >=
+        3 * parseFloat(getComputedStyle(element).lineHeight),
+    ),
+  );
+  const settled = () =>
+    page.waitForFunction(() => !document.body.classList.contains("busy"));
+  try {
+    await recipient.fill("alice");
+    await text.fill("first UI outgoing");
+    await send.click();
+    await wait(() => release && deliveries.length === 1);
+    assert(await send.isDisabled());
+    await recipient.fill("bob");
+    await text.fill("next UI draft");
+    mode = "pass";
+    release();
+    release = undefined;
+    await settled();
+    assert.equal(
+      await text.inputValue(),
+      "next UI draft",
+      "a late send receipt must not erase the next draft",
+    );
+    assert.equal(await recipient.inputValue(), "bob");
+    assert(
+      (await page.locator("#wecom-send-result").innerText()).includes("alice"),
+    );
+    assert.equal(deliveries[0].body.chatid, "alice");
+    await page.screenshot({ path: path.join(root, "wecom-next-draft.png") });
+    await send.click();
+    await wait(() => deliveries.length === 2);
+    await settled();
+    assert.equal(await text.inputValue(), "");
+    assert.equal(deliveries[1].body.chatid, "bob");
+    check(
+      "UI send snapshots recipient/body, preserves later edits and names the receipt recipient",
+    );
+    await text.fill("retry UI outgoing");
+    mode = "fail";
+    await send.click();
+    await page
+      .locator("#notice", { hasText: "Send connection interrupted" })
+      .waitFor();
+    await settled();
+    assert.equal(await text.inputValue(), "retry UI outgoing");
+    assert(await send.isEnabled());
+    const failed = attempts.at(-1).id;
+    mode = "pass";
+    await send.click();
+    await wait(() => deliveries.length === 3);
+    await settled();
+    assert.equal(attempts.at(-1).id, failed);
+    assert.equal(await text.inputValue(), "");
+    check(
+      "failed UI transport preserves the draft; retry reuses the request ID and sends once",
+    );
+    const long = "文".repeat(1600);
+    await text.fill(long);
+    assert.equal(
+      await text.inputValue(),
+      long,
+      "the form must not silently truncate supported message text",
+    );
+    await send.click();
+    await wait(() => deliveries.length === 5);
+    await settled();
+    assert.equal(
+      deliveries
+        .slice(3)
+        .map((frame) => frame.body.markdown.content)
+        .join(""),
+      long,
+    );
+    check(
+      "UI accepts text beyond 1000 characters; real channel splits UTF-8 messages and confirms each segment",
+    );
+    const longEvent = page
+      .locator("#wecom-messages details")
+      .filter({ has: page.locator("pre", { hasText: long }) })
+      .first();
+    assert.equal(await longEvent.getAttribute("open"), null);
+    assert((await longEvent.locator("summary").innerText()).length < 110);
+    await longEvent.locator("summary").click();
+    assert.equal(await longEvent.locator("pre").textContent(), long);
+    await longEvent.locator("summary").click();
+    assert(
+      !(await page.locator("#wecom-messages").innerText()).includes("发送中"),
+    );
+    hold = true;
+    await text.fill("uncertain UI outgoing");
+    await send.click();
+    await wait(() => deliveries.length === 6);
+    const pid = (await state()).pid;
+    process.kill(pid, "SIGKILL");
+    await page
+      .locator("#wecom-send-result", { hasText: "发送结果不明" })
+      .waitFor();
+    await settled();
+    hold = false;
+    await wait(async () => (await state()).phase === "connected");
+    report.pids.push((await state()).pid);
+    assert.equal(await text.inputValue(), "uncertain UI outgoing");
+    assert(
+      await send.isDisabled(),
+      "an uncertain send must not offer a redundant resend",
+    );
+    await page.screenshot({ path: path.join(root, "wecom-unknown.png") });
+    await text.fill("new message after uncertainty");
+    assert(await send.isEnabled());
+    mode = "fail";
+    await send.click();
+    await page
+      .locator("#notice", { hasText: "Send connection interrupted" })
+      .waitFor();
+    await settled();
+    assert(
+      await send.isEnabled(),
+      "a new request must not inherit the previous unknown result",
+    );
+    const newRequest = attempts.at(-1).id;
+    mode = "pass";
+    await send.click();
+    await wait(() => deliveries.length === 7);
+    assert.equal(attempts.at(-1).id, newRequest);
+    await settled();
+    assert.equal(await text.inputValue(), "");
+    check(
+      "unknown delivery retains its text and blocks same-request resend; a new message is independent",
+    );
+    await toggle();
+    await wait(async () => (await state()).phase === "stopped");
+    await configure();
+    await page.locator("#wecom-bot-id").fill("another-bot");
+    assert(
+      await page.locator("#wecom-save").isDisabled(),
+      "changing Bot ID requires a new Secret",
+    );
+    await page.locator("#wecom-bot-id").fill("synthetic-bot");
+    assert(await page.locator("#wecom-save").isEnabled());
+    check("saved Secret may be retained only for the same Bot ID");
+    await page.locator("#settings-general").click();
+    await page.locator("#preference-language-en").click();
+    await page.locator("#preference-theme-dark").click();
+    await page.waitForFunction(
+      () =>
+        document.documentElement.lang === "en" &&
+        document.documentElement.dataset.theme === "dark",
+    );
+    await configure();
+    await page.screenshot({
+      path: path.join(root, "wecom-settings-en-dark.png"),
+    });
+    await diagnostics();
+    const statuses = await page
+      .locator("#wecom-messages .tag")
+      .allTextContents();
+    assert(statuses.some((value) => value.trim() === "Send started"));
+    assert(statuses.some((value) => value.trim() === "Sent"));
+    assert(
+      !statuses.some((value) =>
+        ["pending", "sent", "unknown"].includes(value.trim()),
+      ),
+    );
+    await page.screenshot({
+      path: path.join(root, "wecom-events-en-dark.png"),
+    });
+    assert(
+      !fs.readFileSync(path.join(root, "app.log"), "utf8").includes(secret),
+    );
+    assert.deepEqual(errors, []);
+    for (const source of [
+      "ui/src/channels/Diagnostics.vue",
+      "ui/src/channels/Settings.vue",
+    ])
+      fs.copyFileSync(source, path.join(root, path.basename(source)));
+  } finally {
+    if (release) release();
+  }
+}
+
 async function runAgent() {
   const fixture = path.join(root, "codex-fixture");
   fs.writeFileSync(
@@ -863,6 +1112,8 @@ async function runRecovery() {
     check("unrelated state refresh preserves unsaved Agent fields");
     if (agentScenario) {
       await runAgent();
+    } else if (uiScenario) {
+      await runUI();
     } else {
       await toggle();
       await wait(async () => (await state()).phase === "connected");
@@ -975,7 +1226,7 @@ async function runRecovery() {
       await wait(() => deliveries.length === 1);
       await page
         .locator("#wecom-send-result")
-        .filter({ hasText: "平台已确认发送" })
+        .filter({ hasText: "已发送给 alice" })
         .waitFor();
       assert.equal(deliveries[0].body.chatid, "alice");
       assert(JSON.stringify(deliveries[0]).includes("explicit UI outgoing"));

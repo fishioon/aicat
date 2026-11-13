@@ -76,6 +76,7 @@ npm --prefix e2e ci
 | 供应商密钥与转发 | `node e2e/provider.cjs bin/aicat-e2e build/feature-map-provider-<run>` |
 | 企业微信客户端读取与恢复 | `python3 e2e/wecom-local.py` |
 | 企业微信 BOT 配置、收发与恢复 | `node e2e/wecom.cjs bin/aicat-e2e` |
+| 企业微信 BOT 表单并发编辑、发送恢复与长文本（无头） | `node e2e/wecom.cjs bin/aicat-e2e build/feature-map-wecom-ui-<run> ui` |
 | 整组桌面验收 | `python3 e2e/prototype.py --only desktop --output build/feature-map-desktop-<run>` |
 
 `<run>` 换成本次运行的唯一名称。日常只验证受影响的流程；整组桌面包含设计稿比较，不应用它代替每个小流程的定向验证。`traffic-default.cjs` 与 `tunnel.cjs` 是无头浏览器与后台应用的独立入口；桌面脚本对 `traffic-default` 保留兼容转发，对旧 `tunnel` 参数在启动应用前退出并提示新命令。`desktop.cjs` 的独立原生场景有 `sidebar`、`app-tree`、`list-selection` 与 `icons`，其余功能文件中的配方用于定向操作，不能给脚本传入不存在的场景名。需要新增自动场景时先提供独立入口。全套 `make e2e` 留到整轮开发结束统一验收。
