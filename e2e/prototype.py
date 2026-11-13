@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unified acceptance: real WebView + browser UI, CLI HTTP/TLS, rules/plugins/MCP.
+"""Unified acceptance: real WebView + browser UI, CLI HTTP/TLS, traffic/MCP.
 Each stage uses an isolated Home, local fixtures, fake OS adapters and artifacts.
 Run only after the migration is complete; --only scopes later focused work.
 """
@@ -16,17 +16,17 @@ import time
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--binary', default='bin/aicat-e2e')
-    parser.add_argument('--cli', default='bin/aicat-rules-e2e')
+    parser.add_argument('--cli', default='bin/aicat-cli-e2e')
     parser.add_argument('--output')
-    parser.add_argument('--only', choices=('desktop', 'transport', 'rules'))
+    parser.add_argument('--only', choices=('desktop', 'transport', 'mcp'))
     args = parser.parse_args()
     root = Path(args.output).resolve() if args.output else Path(tempfile.mkdtemp(prefix='full-e2e-', dir=Path('build').resolve()))
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    report = {'passed': False, 'stages': {}, 'arguments': vars(args), 'startedAt': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'scope': 'complete WebView desktop, HTTP/TLS transport, rules/plugins/MCP'}
+    report = {'passed': False, 'stages': {}, 'arguments': vars(args), 'startedAt': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'scope': 'complete WebView desktop, HTTP/TLS transport, traffic/MCP'}
     stages = {
         'desktop': ['node', 'e2e/desktop.cjs', args.binary, str(root / 'desktop')],
         'transport': ['python3', 'e2e/listener.py', '--binary', args.cli, '--transport-only', '--output', str(root / 'transport')],
-        'rules': ['python3', 'e2e/rules.py', '--binary', args.cli, '--output', str(root / 'rules')],
+        'mcp': ['python3', 'e2e/mcp.py', '--binary', args.cli, '--output', str(root / 'mcp')],
     }
     try:
         for name, command in stages.items():

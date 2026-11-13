@@ -6,7 +6,7 @@
 <title>aicat 重新设计稿</title>
 <!--
   aicat 外壳重新设计稿（2026-11-11）。可独立打开：不依赖宿主、图标库或网络。
-  覆盖：概览（已接入 / 首次接入 / 接入 Agent）、流量、扩展、设置（通用 / 代理），明暗两套。
+  覆盖：主页（已接入 / 首次接入 / 接入 Agent）、流量、扩展、设置（通用 / 代理），明暗两套。
   数据全部为演示数据。界面文案只做了简体中文。
 
   骨架：标题栏（前进后退、面包屑、监听地址、主题）+ 左侧图标导航栏 + 各模块自己的侧栏 + 主区。
@@ -147,7 +147,7 @@ svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .twist[aria-expanded="true"] svg{transform:rotate(90deg)}
 .twist.none{visibility:hidden}
 
-/* 概览 */
+/* 主页 */
 .ov{max-width:1080px;margin:0 auto;padding:32px}
 .ov-head{display:flex;align-items:flex-end;gap:16px;margin-bottom:24px}
 .ov-head h1{font-size:var(--t20);font-weight:600;line-height:1.3}
@@ -204,6 +204,21 @@ svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .conn .bad{color:var(--bad);font-weight:600} .conn .warn{color:var(--warn)}
 .form{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 12px;align-items:center;max-width:520px;margin:12px 0}
 .form label{font-size:var(--t12);color:var(--ink-2)}
+.provider-form{max-width:560px;display:grid;gap:8px}
+.provider-form .provider-row{display:grid;grid-template-columns:68px minmax(0,1fr);gap:12px;align-items:center}
+.provider-form label{display:block;font-size:var(--t12);color:var(--ink-2);line-height:28px}
+.provider-form .field{width:100%}
+.provider-models{max-width:560px;margin-top:20px;border:1px solid var(--line);border-radius:var(--r2);overflow:hidden}
+.provider-models header,.provider-model-tools{display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--line);font-size:var(--t12);flex-wrap:wrap}
+.provider-models header span,.provider-model-tools span{flex:1;color:var(--ink-2)}
+.provider-models ul{padding:8px 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px 16px}
+.provider-models li label{display:flex;align-items:center;gap:6px;font:var(--t12) var(--code)}
+.provider-model-tools .field{width:140px}
+.provider-heading{display:flex;align-items:center;gap:8px}
+.provider-heading .provider-icon{display:inline-flex;align-items:center;color:var(--ink-3)}
+.provider-form .key-note{font-size:var(--t12);color:var(--ink-3);margin-top:8px}
+.provider-form .acts{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
+.provider-form .save-status{font-size:var(--t12);color:var(--ink-2)}
 .ov-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;margin-top:32px}
 .ov-cols h2{font-size:var(--t15);font-weight:600}
 .ov-cols .sub{color:var(--ink-3);font-size:var(--t12);margin-bottom:8px}
@@ -426,7 +441,7 @@ pre.body{margin:0;font:var(--t12)/1.6 var(--code);white-space:pre-wrap;overflow-
 <div class="preview">
   <strong>aicat 重新设计稿</strong><span>演示数据</span>
   <span class="grow"></span>
-  <div class="seg" role="group" aria-label="概览状态">
+  <div class="seg" role="group" aria-label="主页状态">
     <button type="button" data-act="demo" data-v="connected">已接入</button>
     <button type="button" data-act="demo" data-v="first">首次接入</button>
   </div>
@@ -466,6 +481,7 @@ const ICON={
   x:'<path d="m4 4 8 8M12 4l-8 8"/>',
   home:'<path d="M2.5 7.5 8 3l5.5 4.5v5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1Z"/><path d="M6.5 13.5v-4h3v4"/>',
   traffic:'<path d="M2.5 5.5h10M10 3l2.5 2.5L10 8M13.5 10.5h-10M6 8l-2.5 2.5L6 13"/>',
+  provider:'<path d="m8 1.5 6 3.25v6.5L8 14.5l-6-3.25v-6.5Z"/><path d="m2 4.75 6 3.5 6-3.5M8 8.25v6.25"/>',
   ext:'<rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/><path d="M11.25 2.5V7M9 4.75h4.5"/>',
   more:'<circle cx="3.5" cy="8" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="12.5" cy="8" r=".6"/>',
   settings:'<path d="M2.5 4.5h6M12.5 4.5h1M2.5 11.5h1M7.5 11.5h6"/><circle cx="10.5" cy="4.5" r="1.75"/><circle cx="5.5" cy="11.5" r="1.75"/>',
@@ -560,7 +576,7 @@ function copy(text,what){
 const copyline=(text,what)=>`<div class="copyline"><code>${esc(text)}</code><button type="button" class="icon-btn" data-act="copy" data-text="${esc(text)}" aria-label="复制${esc(what)}">${icon('copy')}</button></div>`;
 const seg=(act,cur,opts,label)=>`<div class="seg" role="radiogroup" aria-label="${label}">${opts.map(([v,t])=>`<button type="button" role="radio" aria-checked="${v===cur}" data-act="${act}" data-v="${v}">${t}</button>`).join('')}</div>`;
 
-const MODS={overview:['概览','home'],traffic:['流量','traffic'],ext:['扩展','ext'],settings:['设置','settings']};
+const MODS={overview:['主页','home'],traffic:['流量','traffic'],ext:['扩展','ext'],settings:['设置','settings']};
 // 前进后退只记录位置：模块、子页面和流量侧栏筛选。
 const H={list:[],at:-1};
 const loc=()=>JSON.stringify({page:S.page,connect:S.connect,set:S.set,ext:S.ext,filter:S.filter});
@@ -571,7 +587,7 @@ function track(){
 }
 function crumbs(){
   const c=[MODS[S.page][0]];
-  if(S.page==='overview'&&S.connect)c.push(S.connect==='provider'?'接入供应商':'接入 Agent');
+  if(S.page==='overview'&&S.connect)c.push(S.connect==='provider'?'添加供应商':'接入 Agent');
   if(S.page==='traffic'){const f=S.filter;c.push(f?[f.app,f.host,f.path].filter(Boolean).join(' / '):'全部请求');}
   if(S.page==='ext')c.push(EXTS.find(x=>x.id===S.ext).name);
   if(S.page==='settings')c.push(S.set==='general'?'通用':'代理');
@@ -601,7 +617,7 @@ function draw(){
   if(key){const el=document.querySelector(key);if(el)el.focus();}
 }
 
-/* ---------- 概览：用量总览 ---------- */
+/* ---------- 主页：用量总览 ---------- */
 // 演示数据。实际数字来自经过网关的模型请求；费用按公开价目估算。
 const rnd=(a,b)=>{const x=Math.sin(a*127.1+b*311.7)*43758.5453;return x-Math.floor(x);};
 const USE=[
@@ -734,7 +750,7 @@ function overview(){
 function connectPage(){
   const c=CLIENTS[S.client],code=c.code();
   return `<div class="main" style="height:100%"><div class="ov">
-  <button type="button" class="btn back" data-act="back">${icon('back')}返回概览</button>
+  <button type="button" class="btn back" data-act="back">${icon('back')}返回主页</button>
   <div class="ov-head"><div><h1>接入 Agent</h1><p>aicat 的 MCP 和网关共用同一个监听地址，只接受本机请求。</p></div></div>
   <ol class="steps">
     <li class="step ${S.waiting?'done':'now'}"><span class="n num">1</span><div>
@@ -745,35 +761,59 @@ function connectPage(){
     </div></li>
     <li class="step ${S.waiting?'now':''}"><span class="n num">2</span><div>
       <h2>在 Agent 里发一条消息</h2>
-      <p>aicat 收到第一次 MCP 请求后，会自动回到概览。</p>
+      <p>aicat 收到第一次 MCP 请求后，会自动回到主页。</p>
       ${S.waiting?`<div class="waiting" role="status"><i class="spin"></i>等待 ${c.name} 首次连接…<button type="button" class="link" data-act="sim">模拟首次连接（设计预览）</button></div>`:''}
     </div></li>
   </ol></div></div>`;
 }
 
+// Existing demo providers are only used to demonstrate ID uniqueness, not presets.
+const providerDraft={name:'',id:'',url:'',saved:false,query:'',models:['gpt-5','claude-sonnet-4-5'],enabled:new Set(['gpt-5','claude-sonnet-4-5'])};
+const providerIDs=new Set(['anthropic','openai']);
+const providerSlug=value=>value.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+function generatedProviderID(){
+  let id=providerSlug(providerDraft.name);
+  if(!id){
+    try{
+      const value=providerDraft.url.trim(),host=new URL(value.includes('://')?value:'https://'+value).hostname;
+      if(host&&!/^[0-9.]+$/.test(host)&&!host.includes(':')){
+        const labels=host.split('.');
+        if(labels.length>1)labels.pop();
+        while(labels.length>1&&['api','www'].includes(labels[0]))labels.shift();
+        id=providerSlug(labels.join('-'));
+      }
+    }catch{}
+  }
+  if(!id)return providerDraft.name.trim()&&providerDraft.url.trim()?'custom':'';
+  const base=id;let n=2;
+  while(providerIDs.has(id))id=base+'-'+n++;
+  return id;
+}
+function validateProviderDraft(){
+  if(!providerDraft.saved)providerDraft.id=generatedProviderID();
+  const valid=!!(providerDraft.name.trim()&&providerDraft.url.trim()&&providerDraft.id&&(providerDraft.saved||$('#prov-key').value.trim()));
+  $('#prov-save').disabled=!valid;
+  return valid;
+}
 function providerPage(){
-  const p=PROVS[S.prov],saved=S.provSaved.has(S.prov);
+  const d=providerDraft;
+  if(!d.saved)d.id=generatedProviderID();
   return `<div class="main" style="height:100%"><div class="ov">
-  <button type="button" class="btn back" data-act="back">${icon('back')}返回概览</button>
-  <div class="ov-head"><div><h1>接入供应商</h1><p>把供应商的密钥交给 aicat 保管，Agent 只需要指向 aicat，不用各自保存密钥。</p></div></div>
-  <div class="note plain" style="max-width:720px">上游模型路由还没有实现，这一页是方向稿，地址和路径以最终实现为准。</div>
-  <ol class="steps">
-    <li class="step ${saved?'done':'now'}"><span class="n num">1</span><div>
-      <h2>填写供应商</h2>
-      ${seg('prov',S.prov,Object.entries(PROVS).map(([k,v])=>[k,v.name]),'供应商')}
-      <div class="form">
-        <label for="prov-url">接口地址</label><input class="field code" id="prov-url" value="${esc(p.url)}" placeholder="https://" autocomplete="off" spellcheck="false">
-        <label for="prov-key">API Key</label><input class="field code" id="prov-key" type="password" placeholder="${esc(p.ph)}" autocomplete="off">
-      </div>
-      <p>密钥只保存在这台 Mac 上，不会出现在流量记录里。</p>
-      <button type="button" class="btn${saved?'':' primary'}" data-act="prov-save">${saved?'已保存，重新保存':'保存'}</button>
-    </div></li>
-    <li class="step ${saved?'now':''}"><span class="n num">2</span><div>
-      <h2>让 Agent 经 aicat 调用模型</h2>
-      <p>把 Agent 的模型地址指向 aicat，请求会带上保管的密钥转发给 ${esc(p.name)}。</p>
-      <div class="snippet"><header><span>在 Agent 的环境变量里设置</span><button type="button" class="btn" data-act="copy-snippet">${icon('copy')}复制</button></header><pre id="snippet">${esc(`export ${p.env}=${base()}${p.path}`)}</pre></div>
-    </div></li>
-  </ol></div></div>`;
+  <button type="button" class="btn back" data-act="back">${icon('back')}返回主页</button>
+  <div class="ov-head"><div><h1 class="provider-heading">${d.saved?`<span class="provider-icon" role="img" aria-label="供应商默认图标">${icon('provider')}</span>`:''}${d.saved?esc(d.name):'添加供应商'}</h1></div></div>
+  <form class="provider-form" id="provider-form">
+    <div class="provider-row">
+      <label for="prov-name">名称</label><input class="field" id="prov-name" data-in="prov-name" value="${esc(d.name)}" placeholder="供应商名称" maxlength="40" autocomplete="off" required>
+    </div>
+    <div class="provider-row"><label for="prov-url">接口地址</label><input class="field code" id="prov-url" data-in="prov-url" value="${esc(d.url)}" placeholder="https://api.example.com" autocomplete="off" spellcheck="false" required></div>
+    <div class="provider-row"><label for="prov-key">API Key</label><input class="field code" id="prov-key" data-in="prov-key" type="password" placeholder="${d.saved?'已保存，留空保持不变':'填写 API Key'}" autocomplete="off" ${d.saved?'':'required'}></div>
+    <p class="key-note">密钥仅保存在本机。</p>
+    <div class="acts"><button type="submit" class="btn primary" id="prov-save" ${d.saved?'':'disabled'}>${d.saved?'重新保存':'添加'}</button><span class="save-status" id="prov-save-status" role="status" aria-live="polite"></span></div>
+  </form>${d.saved?`<section class="provider-models" aria-label="模型列表">
+    <header><strong>模型列表</strong><span>2 个模型 · 已同步</span><button class="btn" type="button" data-act="provider-sync">重新同步</button></header>
+    <div class="provider-model-tools"><span>已启用 ${d.enabled.size} / 2</span><input class="field" data-in="provider-model-filter" value="${esc(d.query)}" placeholder="筛选模型" aria-label="筛选模型"><button class="btn" type="button" data-act="provider-model-all">全选</button><button class="btn" type="button" data-act="provider-model-none">全不选</button></div>
+    <ul>${d.models.filter(m=>m.includes(d.query.toLowerCase())).map(m=>`<li><label><input type="checkbox" data-in="provider-model-tick" data-model="${m}" ${d.enabled.has(m)?'checked':''}>${m}</label></li>`).join('')}</ul>
+  </section>`:''}</div></div>`;
 }
 
 /* ---------- 流量 ---------- */
@@ -1021,13 +1061,13 @@ const ACT={
   'toast-do':()=>{const f=toastFn;$('#toast').innerHTML='';f&&f();},
   say:t=>toast(t.dataset.v),
   connect:()=>{S.page='overview';S.connect='agent';draw();},
+  'provider-sync':()=>toast('模型列表已同步（演示）'),
+  'provider-model-all':()=>{providerDraft.models.filter(m=>m.includes(providerDraft.query.toLowerCase())).forEach(m=>providerDraft.enabled.add(m));draw();},
+  'provider-model-none':()=>{providerDraft.models.filter(m=>m.includes(providerDraft.query.toLowerCase())).forEach(m=>providerDraft.enabled.delete(m));draw();},
   'connect-prov':()=>{S.page='overview';S.connect='provider';draw();},
   range:t=>{S.range=t.dataset.v;draw();},
   metric:t=>{S.metric=t.dataset.v;draw();},
   dim:t=>{S.dim=t.dataset.v;draw();},
-  prov:t=>{S.prov=t.dataset.v;draw();},
-  'prov-save':()=>{if(!$('#prov-url').value.trim()||!$('#prov-key').value.trim()){toast('接口地址和 API Key 都要填');return;}
-    S.provSaved.add(S.prov);draw();toast('已保存 '+PROVS[S.prov].name+' 的密钥（演示）');},
   'see-fail':()=>{S.filter=null;S.q='';S.quick='all';S.sel=2234;go('traffic');},
   back:()=>{S.connect=false;draw();},
   client:t=>{S.client=t.dataset.v;draw();},
@@ -1096,8 +1136,25 @@ document.addEventListener('contextmenu',e=>{
 });
 document.addEventListener('mouseover',e=>{const c=e.target.closest('.col'),t=$('#tip');if(c)tipShow(c);else if(t)t.hidden=true;});
 document.addEventListener('focusin',e=>{const c=e.target.closest('.col'),t=$('#tip');if(c)tipShow(c);else if(t)t.hidden=true;});
+document.addEventListener('submit',e=>{
+  if(e.target.id!=='provider-form')return;
+  e.preventDefault();
+  if(!validateProviderDraft())return;
+  providerIDs.add(providerDraft.id.trim());
+  providerDraft.saved=true;
+  draw();
+  $('#prov-save-status').textContent='已保存（演示）';
+});
 document.addEventListener('input',e=>{
   const k=e.target.dataset.in;
+  if(k&&k.startsWith('prov-')){
+    if(k==='prov-name')providerDraft.name=e.target.value;
+    if(k==='prov-url')providerDraft.url=e.target.value;
+    $('#prov-save-status').textContent='';
+    validateProviderDraft();
+  }
+  if(k==='provider-model-filter'){providerDraft.query=e.target.value;const pos=e.target.selectionStart;draw();const input=$('[data-in=provider-model-filter]');input.focus();input.setSelectionRange(pos,pos);}
+  if(k==='provider-model-tick'){e.target.checked?providerDraft.enabled.add(e.target.dataset.model):providerDraft.enabled.delete(e.target.dataset.model);draw();}
   if(k==='q'){S.q=e.target.value;drawList();drawInsp();}
   if(k==='xq'){S.xq=e.target.value;const pos=e.target.selectionStart;drawExtSide();const el=$('#xside input');el.focus();el.setSelectionRange(pos,pos);}
 });

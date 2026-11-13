@@ -80,7 +80,6 @@
   "responsePending": "Response pending",
   "thisRequestHasNoBody": "This request has no body",
   "thisRequestWasForwardedUnchanged": "This request was forwarded unchanged.",
-  "thePrototypeDoesNotRunMoejsRewritePluginsYet": "The prototype does not run moejs rewrite plugins yet.",
   "requestIdDMethodSUrlSStartedSStateS": "Request ID: %d\nMethod: %s\nURL: %s\nStarted: %s\nState: %s",
   "statusCodeDTimeSErrorS": "Status code: %d\nTime: %s\nError: %s",
   "notCaptured": "\n[Not captured]",

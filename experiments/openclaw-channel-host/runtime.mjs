@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-// Both plugins use this same runtime. No platform-specific dispatch or send implementation.
+// All channel plugins use this same runtime. No platform-specific dispatch or send implementation.
 export function createRuntime(store, config, stateDir, status) {
   const calls = {};
   const track = (name, fn) => (...args) => { calls[name] = (calls[name] ?? 0) + 1; return fn(...args); };
@@ -10,6 +10,8 @@ export function createRuntime(store, config, stateDir, status) {
   });
   const reply = {
     finalizeInboundContext: track('reply.finalizeInboundContext', value => value),
+    resolveEnvelopeFormatOptions: () => ({}),
+    formatAgentEnvelope: ({body}) => body,
     resolveHumanDelayConfig: () => ({mode: 'off'}),
     createReplyDispatcherWithTyping: ({deliver}) => ({
       dispatcher: {sendFinalReply: deliver, sendBlockReply: deliver, sendToolResult: deliver,
@@ -24,6 +26,7 @@ export function createRuntime(store, config, stateDir, status) {
     version: '2026.5.12', // Advertised compatibility baseline, not a full OpenClaw implementation.
     config: {loadConfig: () => config, readConfigFileSnapshot: async () => ({config})},
     logging: {getChildLogger: () => console},
+    system: {enqueueSystemEvent: text => {console.info('system event:', text);}},
     channel: {
       reply,
       routing: {resolveAgentRoute: track('routing.resolveAgentRoute', ({accountId, peer}) => ({
@@ -41,7 +44,12 @@ export function createRuntime(store, config, stateDir, status) {
         shouldHandleTextCommands: () => false,
         resolveCommandAuthorizedFromAuthorizers: () => false,
       },
-      text: {chunkMarkdownText: (text, limit) => Array.from({length: Math.ceil(text.length / limit)}, (_, i) => text.slice(i * limit, (i + 1) * limit))},
+      text: {
+        resolveTextChunkLimit: (_cfg, _channel, _accountId, options) => options?.fallbackLimit ?? 4000,
+        resolveChunkMode: () => 'length',
+        chunkTextWithMode: (text, limit = 4000) => Array.from({length: Math.ceil(text.length / limit)}, (_, i) => text.slice(i * limit, (i + 1) * limit)),
+        chunkMarkdownText: (text, limit = 4000) => Array.from({length: Math.ceil(text.length / limit)}, (_, i) => text.slice(i * limit, (i + 1) * limit)),
+      },
       pairing: {readAllowFromStore: async () => []},
     },
   };

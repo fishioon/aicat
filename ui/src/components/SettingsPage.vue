@@ -15,6 +15,15 @@ import { host } from "../host";
 import { t } from "../i18n";
 import Icon from "./Icon.vue";
 import Seg from "./Seg.vue";
+import ExtensionSettingsPanel from "./ExtensionSettingsPanel.vue";
+import { extensionList, uiOf } from "../extensions";
+
+const configurable = computed(() =>
+  extensionList().filter(
+    (extension) => extension.installed && uiOf(extension.id).Settings,
+  ),
+);
+const extensionsExpanded = ref(true);
 
 const listener = ref("127.0.0.1");
 const port = ref("");
@@ -126,6 +135,33 @@ async function removeDomain(domain: string) {
       >
         <span class="label">{{ t("代理") }}</span>
       </button>
+      <section v-if="configurable.length">
+        <button
+          id="settings-extensions"
+          class="xsec"
+          :aria-expanded="extensionsExpanded"
+          @click="extensionsExpanded = !extensionsExpanded"
+        >
+          <Icon name="chev" /><span class="label">{{ t("扩展") }}</span>
+        </button>
+        <button
+          v-for="extension in configurable"
+          v-show="extensionsExpanded"
+          :key="extension.id"
+          :id="'settings-extension-' + extension.id"
+          class="side-item"
+          :aria-current="
+            (shell.route === 'extension-settings' ||
+              shell.route === 'extension-diagnostics') &&
+            shell.extension === extension.id
+              ? 'true'
+              : undefined
+          "
+          @click="navigate('extension-settings', { extension: extension.id })"
+        >
+          <span class="label">{{ t(extension.name) }}</span>
+        </button>
+      </section>
       <div class="side-foot">{{ t("私云未接入") }}</div>
     </aside>
     <section class="main">
@@ -164,6 +200,12 @@ async function removeDomain(domain: string) {
           </div>
         </div>
       </div>
+      <ExtensionSettingsPanel
+        v-else-if="
+          shell.route === 'extension-settings' ||
+          shell.route === 'extension-diagnostics'
+        "
+      />
       <div class="doc" v-else>
         <h1>{{ t("代理") }}</h1>
         <p class="lede">

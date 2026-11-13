@@ -16,6 +16,7 @@ import { t } from "../i18n";
 import { extensionList, uiOf } from "../extensions";
 import type { ExtensionState } from "../generated/mygo";
 import Icon from "./Icon.vue";
+import ExtensionIcon from "./ExtensionIcon.vue";
 
 // The page shows the extensions the backend registered; a folder under
 // ui/src/extensions/ named after one adds its own detail.
@@ -26,6 +27,13 @@ const current = computed(
     extensionList().find((x) => x.id === shell.extension) ?? extensionList()[0],
 );
 const ui = computed(() => uiOf(current.value?.id ?? ""));
+const installed = computed(() => matches.value.filter((x) => x.installed));
+const recommended = computed(() => matches.value.filter((x) => !x.installed));
+async function install() {
+  const x = current.value;
+  if (x && (await run(() => host.installExtension(x.id))))
+    say(t("插件已安装，请配置并验证账号"));
+}
 const enabled = computed(() => !!current.value?.enabled);
 const status = computed(() => {
   const own = ui.value.status?.();
@@ -44,9 +52,8 @@ const matches = computed(() => {
   );
 });
 function choose(id: string) {
-  shell.extension = id;
   tab.value = "detail";
-  navigate("extensions");
+  navigate("extensions", { extension: id });
 }
 async function set(x: ExtensionState, on: boolean) {
   if (!(await run(() => host.setExtensionEnabled(x.id, on)))) return;
@@ -84,6 +91,24 @@ function toggle() {
 function gear(event: MouseEvent) {
   const id = current.value?.id ?? "";
   popup(event.currentTarget as Element, [
+    ...(current.value?.installed && ui.value.Settings
+      ? [
+          {
+            label: "配置",
+            id: "extension-menu-configure",
+            run: () => navigate("extension-settings", { extension: id }),
+          },
+        ]
+      : []),
+    ...(current.value?.installed && ui.value.Diagnostics
+      ? [
+          {
+            label: "诊断",
+            id: "extension-menu-diagnostics",
+            run: () => navigate("extension-diagnostics", { extension: id }),
+          },
+        ]
+      : []),
     ...(ui.value.menu?.() ?? []),
     {
       label: "复制扩展标识符",
@@ -125,11 +150,11 @@ function tabKey(event: KeyboardEvent) {
           @click="sections.installed = !sections.installed"
         >
           <Icon name="chev" /><span class="label">{{ t("已安装") }}</span
-          ><span class="badge num">{{ matches.length }}</span>
+          ><span class="badge num">{{ installed.length }}</span>
         </button>
         <template v-if="sections.installed">
-          <ul v-if="matches.length">
-            <li v-for="x in matches" :key="x.id">
+          <ul v-if="installed.length">
+            <li v-for="x in installed" :key="x.id">
               <button
                 :id="'extension-' + x.id"
                 class="xitem"
@@ -137,12 +162,12 @@ function tabKey(event: KeyboardEvent) {
                 :aria-current="current?.id === x.id ? 'true' : undefined"
                 @click="choose(x.id)"
               >
-                <span class="xicon"
-                  ><Icon :name="x.id" :geometry="uiOf(x.id).icon" /></span
-                ><span class="top"
+                <ExtensionIcon :name="x.id" /><span class="top"
                   ><strong
                     >{{ t(x.name) }}
-                    <span class="tag">{{ t("内置") }}</span></strong
+                    <span v-if="x.builtin" class="tag">{{
+                      t("内置")
+                    }}</span></strong
                   ><span class="st">{{
                     t(x.enabled ? "已启用" : "已停用")
                   }}</span></span
@@ -161,11 +186,23 @@ function tabKey(event: KeyboardEvent) {
           @click="sections.recommended = !sections.recommended"
         >
           <Icon name="chev" /><span class="label">{{ t("推荐") }}</span
-          ><span class="badge num">0</span>
+          ><span class="badge num">{{ recommended.length }}</span>
         </button>
-        <p v-if="sections.recommended" class="xnote">
-          {{ t("社区扩展的发现和安装尚未提供。") }}
-        </p>
+        <ul v-if="sections.recommended && recommended.length">
+          <li v-for="x in recommended" :key="x.id">
+            <button
+              :id="'extension-' + x.id"
+              class="xitem"
+              :aria-current="current?.id === x.id ? 'true' : undefined"
+              @click="choose(x.id)"
+            >
+              <ExtensionIcon :name="x.id" /><span class="top"
+                ><strong>{{ t(x.name) }}</strong
+                ><span class="st">{{ t("未安装") }}</span></span
+              ><span class="desc">{{ t(x.summary) }}</span>
+            </button>
+          </li>
+        </ul>
       </section>
     </aside>
     <section class="main">
@@ -175,24 +212,52 @@ function tabKey(event: KeyboardEvent) {
         :data-extension="current.id"
       >
         <header class="xd-head">
-          <span class="xicon extension-emblem"
-            ><Icon :name="current.id" :geometry="ui.icon"
-          /></span>
+          <ExtensionIcon class="extension-emblem" :name="current.id" />
           <h1>
-            {{ t(current.name) }}<span class="tag">{{ t("内置") }}</span>
+            {{ t(current.name)
+            }}<span v-if="current.builtin" class="tag">{{ t("内置") }}</span>
           </h1>
           <p class="xd-meta">
-            <span>aicat</span><span>{{ t("随 aicat 发布") }}</span>
+            <span>{{ current.publisher || "aicat" }}</span
+            ><span>{{ current.version || t("随 aicat 发布") }}</span>
           </p>
           <p class="lede">{{ t(current.lede) }}</p>
           <div class="xd-acts">
             <button
+              v-if="!current.installed"
+              id="extension-install"
+              class="xbtn primary"
+              @click="install"
+            >
+              {{ t("安装") }}
+            </button>
+            <button
+              v-else
               :id="'feature-' + current.id"
               class="xbtn"
               :class="{ primary: !enabled }"
+              :disabled="!enabled && !current.ready"
               @click="toggle"
             >
               {{ t(enabled ? "停用" : "启用") }}
+            </button>
+            <button
+              v-if="ui.Settings && current.installed"
+              id="extension-configure"
+              class="xbtn"
+              @click="navigate('extension-settings', { extension: current.id })"
+            >
+              {{ t("配置") }}
+            </button>
+            <button
+              v-if="ui.Diagnostics && current.installed"
+              id="extension-diagnostics"
+              class="xbtn"
+              @click="
+                navigate('extension-diagnostics', { extension: current.id })
+              "
+            >
+              {{ t("诊断") }}
             </button>
             <button
               id="extension-menu"
@@ -236,9 +301,11 @@ function tabKey(event: KeyboardEvent) {
                 <code>{{ current.id }}</code>
               </dd>
               <dt>{{ t("发布者") }}</dt>
-              <dd>aicat</dd>
+              <dd>{{ current.publisher || "aicat" }}</dd>
               <dt>{{ t("来源") }}</dt>
-              <dd>{{ t("内置") }}</dd>
+              <dd>{{ current.builtin ? t("内置") : "OpenClaw" }}</dd>
+              <dt>{{ t("版本") }}</dt>
+              <dd>{{ current.version || t("随 aicat 发布") }}</dd>
             </dl>
             <h2>{{ t("分类") }}</h2>
             <div class="tags">

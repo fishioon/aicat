@@ -33,7 +33,7 @@ def run_case(case,out):
  original=out/'matrix'/(kind+'-'+version+('-root-alias' if kind=='feishu' else '-text'))
  directory=out/'candidates'/(kind+'-'+version+'-'+mode)
  directory.mkdir(parents=True,exist_ok=True)
- for name in ['host.mjs','runtime.mjs','store.mjs','network.mjs','profiles.mjs','fixtures.mjs','e2e.mjs','registration-probe.mjs','package.json','package-lock.json']:
+ for name in ['loader.mjs','feishu-frame.mjs','host.mjs','runtime.mjs','store.mjs','network.mjs','profiles.mjs','fixtures.mjs','e2e.mjs','registration-probe.mjs','package.json','package-lock.json']:
   shutil.copyfile(original/name,directory/name)
  shutil.copytree(original/'shim',directory/'shim',dirs_exist_ok=True)
  # Copy the exact installed dependency graph and byte-identical official packages; local SDK is linked anew.

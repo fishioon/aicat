@@ -82,29 +82,13 @@ type Response struct {
 	Header     http.Header `json:"headers"`
 	Body       BodyInfo    `json:"body"`
 }
-type ExecutionLog struct {
-	Level   string `json:"level"`
-	Message string `json:"message"`
-}
-type Execution struct {
-	RuleID   string         `json:"ruleId,omitempty"`
-	PluginID string         `json:"pluginId,omitempty"`
-	Stage    string         `json:"stage"`
-	Status   string         `json:"status"`
-	Error    string         `json:"error,omitempty"`
-	Duration time.Duration  `json:"durationNs,omitempty"`
-	Logs     []ExecutionLog `json:"logs,omitempty"`
-}
 type Record struct {
 	Summary
 	pendingClient    string
-	RuleRevision     string      `json:"ruleRevision,omitempty"`
-	Synthetic        bool        `json:"synthetic,omitempty"`
-	Executions       []Execution `json:"executions,omitempty"`
-	RequestReceived  Request     `json:"requestReceived"`
-	RequestSent      *Request    `json:"requestSent,omitempty"`
-	ResponseReceived *Response   `json:"responseReceived,omitempty"`
-	ResponseSent     *Response   `json:"responseSent,omitempty"`
+	RequestReceived  Request   `json:"requestReceived"`
+	RequestSent      *Request  `json:"requestSent,omitempty"`
+	ResponseReceived *Response `json:"responseReceived,omitempty"`
+	ResponseSent     *Response `json:"responseSent,omitempty"`
 }
 type Query struct {
 	Limit        int
@@ -122,7 +106,6 @@ type Body struct {
 	Reader io.ReadCloser
 }
 type Start struct {
-	RuleRevision  string
 	At            time.Time
 	Request       Request
 	Tunnel        bool
@@ -139,11 +122,9 @@ const (
 )
 
 type Observation struct {
-	Executions []Execution
-	Synthetic  bool
-	Point      Point
-	Request    *Request
-	Response   *Response
+	Point    Point
+	Request  *Request
+	Response *Response
 }
 type Completion struct {
 	At    time.Time

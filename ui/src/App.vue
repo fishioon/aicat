@@ -28,7 +28,11 @@ import ConnectPage from "./components/ConnectPage.vue";
 import ProviderPage from "./components/ProviderPage.vue";
 
 const settings = computed(
-  () => shell.route === "proxy" || shell.route === "general",
+  () =>
+    shell.route === "proxy" ||
+    shell.route === "general" ||
+    shell.route === "extension-settings" ||
+    shell.route === "extension-diagnostics",
 );
 const overview = computed(
   () =>
@@ -49,10 +53,10 @@ function appName(key: string) {
 const crumbs = computed(() => {
   if (overview.value)
     return shell.route === "connect"
-      ? [t("概览"), t("接入 Agent")]
+      ? [t("主页"), t("接入 Agent")]
       : shell.route === "provider"
-        ? [t("概览"), t("接入供应商")]
-        : [t("概览")];
+        ? [t("主页"), t("接入供应商")]
+        : [t("主页")];
   if (shell.route === "traffic") {
     const parts = [
       shell.app === null ? "" : appName(shell.app),
@@ -60,6 +64,18 @@ const crumbs = computed(() => {
       shell.path,
     ].filter(Boolean);
     return [t("流量"), parts.length ? parts.join(" / ") : t("全部请求")];
+  }
+  if (
+    shell.route === "extension-settings" ||
+    shell.route === "extension-diagnostics"
+  ) {
+    const parts = [
+      t("设置"),
+      t("扩展"),
+      t(extensionOf(shell.extension)?.name ?? "扩展"),
+    ];
+    if (shell.route === "extension-diagnostics") parts.push(t("诊断"));
+    return parts;
   }
   if (settings.value)
     return [t("设置"), t(shell.route === "proxy" ? "代理" : "通用")];
@@ -261,8 +277,8 @@ window.desktop = {
     <nav class="rail" :aria-label="t('模块')" id="navigation">
       <button
         id="nav-overview"
-        :title="t('概览')"
-        :aria-label="t('概览')"
+        :title="t('主页')"
+        :aria-label="t('主页')"
         :aria-current="overview ? 'page' : undefined"
         @click="navigate('overview')"
       >

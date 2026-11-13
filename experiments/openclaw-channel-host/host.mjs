@@ -8,6 +8,7 @@ import {Store} from './store.mjs';
 import {createRuntime} from './runtime.mjs';
 import {configure, profiles, packageEntry} from './profiles.mjs';
 import {restrictNetwork} from './network.mjs';
+import {loadPlugin} from './loader.mjs';
 
 const wire = process.stdout.write.bind(process.stdout);
 // Redirect even direct plugin stdout writes before importing any official plugin.
@@ -52,11 +53,13 @@ async function open(params) {
   fs.writeFileSync(process.env.OPENCLAW_CONFIG, JSON.stringify(config), {mode: 0o600});
   sendEnabled = params.send === true;
   runtimeInfo = createRuntime(store, config, stateDir, status);
-  const {default: plugin} = await import(packageEntry(profile));
+  const {plugin, mode: loader} = await loadPlugin(packageEntry(profile), stateDir);
   const api = {
     runtime: runtimeInfo.runtime, config, logger: console, registrationMode: 'full',
     registerChannel({plugin}) { if (channel) throw Error('MULTIPLE_CHANNELS'); channel = plugin; },
     // Intentionally record these registrations; never execute or expose them.
+    registerCli: () => registrations.push({kind: 'cli'}),
+    registerCommand: value => registrations.push({kind: 'command', name: value.name}),
     registerTool: (...args) => registrations.push({kind: 'tool', name: args[1]?.name}),
     registerHttpRoute: value => registrations.push({kind: 'http', path: value.path}),
     on: name => registrations.push({kind: 'hook', name}),
@@ -74,7 +77,7 @@ async function open(params) {
   })).then(() => { if (phase === 'running') {phase = 'error'; taskError = 'PLUGIN_STOPPED_UNEXPECTEDLY';} }, error => {
     taskError = String(error.stack ?? error); phase = 'error'; console.error(taskError);
   });
-  return {plugin: profile, accountId, registrations, protocol: 'prototype-ndjson-v1'};
+  return {plugin: profile, loader, accountId, registrations, protocol: 'prototype-ndjson-v1', runtime: {name: process.versions.bun ? 'bun' : 'node', version: process.versions.bun ?? process.version, nodeCompatibility: process.versions.node}};
 }
 async function stop() {
   sendEnabled = false;

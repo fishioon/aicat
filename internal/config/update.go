@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/fishioon/aicat/internal/rewrite"
 	"gopkg.in/yaml.v3"
 )
 
@@ -89,24 +88,5 @@ func SetSystemProxyEnabled(home string, enabled bool) error {
 			return fmt.Errorf("systemProxy must contain a mapping")
 		}
 		return value(n, "enabled", yaml.ScalarNode).Encode(enabled)
-	})
-}
-
-func SetRewrite(home string, c rewrite.Config) error {
-	return update(home, func(root *yaml.Node) error {
-		n := value(root, "rewrite", yaml.MappingNode)
-		if n.Kind != yaml.MappingNode {
-			return errors.New("rewrite must contain a mapping")
-		}
-		fields := []struct {
-			key   string
-			value any
-		}{{"enabled", c.Enabled}, {"timeout", c.Timeout}, {"memoryBytes", c.MemoryBytes}, {"maxConcurrent", c.MaxConcurrent}, {"maxBodyBytes", c.MaxBodyBytes}, {"rules", c.Rules}}
-		for _, field := range fields {
-			if err := value(n, field.key, yaml.ScalarNode).Encode(field.value); err != nil {
-				return err
-			}
-		}
-		return nil
 	})
 }

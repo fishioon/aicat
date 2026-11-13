@@ -3,8 +3,6 @@ module github.com/fishioon/aicat
 go 1.27.3
 
 require (
-	github.com/MoeForge/moejs v0.1.0-alpha.11
-	github.com/andybalholm/brotli v1.2.1
 	github.com/egoist/mygo v0.8.4-0.20261107140116-94f22c384d0e
 	github.com/klauspost/compress v1.18.6
 	github.com/lqqyt2423/go-mitmproxy v1.9.4
@@ -15,6 +13,7 @@ require (
 )
 
 require (
+	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect

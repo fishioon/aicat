@@ -8,6 +8,8 @@ export interface ExtensionUI {
   // icon is its own 16px outline geometry, as in ui/src/icons.ts; without
   // one the shared icon named after its ID is used.
   icon?: string;
+  iconImage?: string;
+  iconImageDark?: string;
   // status replaces the line under the switch, with an element ID if the
   // page's checks need one.
   status?(): { text: string; id?: string } | undefined;
@@ -15,4 +17,6 @@ export interface ExtensionUI {
   menu?(): MenuEntry[];
   // Body shows the detail and features tabs; it takes a `tab` prop.
   Body?: Component;
+  Settings?: Component;
+  Diagnostics?: Component;
 }

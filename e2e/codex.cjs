@@ -4,7 +4,7 @@
  * openai_base_url pointing at aicat).
  * Failure modes: the extension serving while off, or turning on before the
  * certificate is trusted; model lists not synced on save, or keeping
- * embedding/image/chat-only models; models.dev not filling in what the
+ * embedding/image models; models.dev not filling in what the
  * provider leaves out, or passing a reasoning level Codex rejects; a provider
  * turn carrying ChatGPT's credentials or OpenAI-only fields, buffered, or
  * falling through to ChatGPT; ChatGPT's own turns altered or not passed on;
@@ -239,6 +239,13 @@ function collect(resolve) {
   // An OpenAI-compatible provider: its list, and Responses for its key only.
   const vendor = http.createServer(async (req, res) => {
     const text = await body(req);
+    // Public icon discovery is separate from the model request ledger.
+    if (req.method === "GET" && ["/favicon.ico", "/"].includes(req.url)) {
+      assert.equal(req.headers.authorization, undefined);
+      assert.equal(req.headers["x-api-key"], undefined);
+      res.writeHead(404);
+      return res.end();
+    }
     vendorSeen.push({
       method: req.method,
       url: req.url,
@@ -265,6 +272,14 @@ function collect(resolve) {
       if (extraModel) data.push({ id: "late-model" });
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ object: "list", data }));
+    }
+    if (
+      req.method === "POST" &&
+      req.url === "/v1/responses" &&
+      JSON.parse(text).model === "chat-only"
+    ) {
+      res.writeHead(422, { "Content-Type": "application/json" });
+      return res.end('{"error":{"message":"Responses not supported"}}');
     }
     if (req.method === "POST" && req.url === "/v1/responses")
       return stream(res, [
@@ -462,7 +477,6 @@ function collect(resolve) {
     // Saving a provider syncs its list; non-chat models are left out.
     await page.locator("#nav-overview").click();
     await page.locator("#connect-provider").click();
-    await page.locator("#preset-custom").click();
     await page.locator("#provider-name").fill("Compat");
     await page.locator("#provider-url").fill(`http://127.0.0.1:${vp}/v1`);
     await page.locator("#provider-key").fill(KEY);
@@ -476,7 +490,6 @@ function collect(resolve) {
       ["good-model", "chat-only", "vision-x"],
     );
     assert.equal(saved.models.source, `http://127.0.0.1:${vp}/v1/models`);
-    assert.equal(saved.responses, true);
     await page.locator("#provider-models li").nth(2).waitFor();
     assert.match(
       await page.locator("#provider-models-status").innerText(),
@@ -512,10 +525,15 @@ function collect(resolve) {
     const listed = JSON.parse(models.text).models;
     assert.deepEqual(
       listed.map((m) => m.slug),
-      ["gpt-native", "compat/good-model", "compat/vision-x"],
+      [
+        "gpt-native",
+        "compat/good-model",
+        "compat/chat-only",
+        "compat/vision-x",
+      ],
     );
     const good = listed[1],
-      vision = listed[2];
+      vision = listed[3];
     assert.equal(good.display_name, "Good Model · Compat");
     assert.equal(good.context_window, 272000);
     assert.deepEqual(
@@ -643,7 +661,7 @@ function collect(resolve) {
     // The provider namespace never falls through to ChatGPT.
     const vendorBefore = vendorSeen.length;
     const backendBeforeRefusals = backendSeen.length;
-    for (const model of ["compat/nope", "foo/bar", "compat/chat-only"]) {
+    for (const model of ["compat/nope", "foo/bar"]) {
       const r = await call(port, "/backend-api/codex/responses", {
         method: "POST",
         headers: codexHeaders,
@@ -669,7 +687,23 @@ function collect(resolve) {
     assert.match(JSON.parse(trigger.text).error.message, /压缩/);
     assert.equal(vendorSeen.length, vendorBefore);
     assert.equal(backendSeen.length, backendBeforeRefusals);
-    check("unknown, chat-only and compacting provider turns refused locally");
+    check("unknown and compacting provider turns refused locally");
+
+    const unsupported = await call(port, "/backend-api/codex/responses", {
+      method: "POST",
+      headers: codexHeaders,
+      body: turn("compat/chat-only"),
+    });
+    assert.equal(unsupported.status, 422);
+    assert.equal(
+      unsupported.text,
+      '{"error":{"message":"Responses not supported"}}',
+    );
+    assert.equal(backendSeen.length, backendBeforeRefusals);
+    assert.equal(vendorSeen.length, vendorBefore + 1);
+    check(
+      "model endpoint metadata does not block routing; Codex receives upstream protocol error without fallback",
+    );
 
     const ws = await call(port, "/backend-api/codex/responses", {
       headers: {
@@ -698,7 +732,12 @@ function collect(resolve) {
     assert.notEqual(mitmModels.issuer, "Codex E2E Root");
     assert.deepEqual(
       JSON.parse(mitmModels.text).models.map((m) => m.slug),
-      ["gpt-native", "compat/good-model", "compat/vision-x"],
+      [
+        "gpt-native",
+        "compat/good-model",
+        "compat/chat-only",
+        "compat/vision-x",
+      ],
     );
     const mitmVendor = await viaGateway(
       aicatCA,
@@ -772,7 +811,9 @@ function collect(resolve) {
     const vendorRows = items.filter(
       (r) => r.url === `http://127.0.0.1:${vp}/v1/responses`,
     );
-    assert.equal(vendorRows.length, 2);
+    assert.equal(vendorRows.length, 3);
+    assert.equal(vendorRows.filter((r) => r.statusCode === 200).length, 2);
+    assert.equal(vendorRows.filter((r) => r.statusCode === 422).length, 1);
     const nativeRows = items.filter(
       (r) =>
         r.url === `https://localhost:${bp}/backend-api/codex/responses` &&

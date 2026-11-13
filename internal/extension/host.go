@@ -9,13 +9,17 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/fishioon/aicat/internal/channelplugin"
+	"github.com/fishioon/aicat/internal/config"
+	"github.com/fishioon/aicat/internal/messages"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
 
 // Host holds the registered extensions and turns them on and off.
 type Host struct {
-	ctx   context.Context
-	items []*item
+	ctx     context.Context
+	plugins *channelplugin.Store
+	items   []*item
 }
 
 type item struct {
@@ -30,7 +34,17 @@ type item struct {
 // New builds every extension; none is on yet. ctx bounds every extension's
 // background work.
 func New(ctx context.Context, env Env, extensions []Extension) (*Host, error) {
-	h := &Host{ctx: ctx}
+	h := &Host{ctx: ctx, plugins: channelplugin.New(env.Home)}
+	for _, descriptor := range channelplugin.Catalog {
+		if err := h.plugins.RefreshRuntime(descriptor.ID); err != nil {
+			return nil, fmt.Errorf("渠道兼容层更新失败：%w", err)
+		}
+		extensions = append(extensions, Extension{ID: descriptor.ID, Name: descriptor.Name, Summary: descriptor.Summary, Lede: descriptor.Summary, Categories: []string{"消息"}, Package: descriptor.Package, Version: descriptor.Version, Publisher: descriptor.Publisher,
+			Build: func(env Env) (Parts, error) {
+				channel := messages.New(env.Home, descriptor.ID, platformEndpoint(), env.ChannelHost)
+				return Parts{Messages: channel, Run: channel.Run}, nil
+			}})
+	}
 	for _, e := range extensions {
 		parts, err := e.Build(env)
 		if err != nil {
@@ -60,14 +74,20 @@ func (h *Host) Known(id string) (known, needsTrust bool) {
 // State is a registered extension and whether it is on.
 type State struct {
 	Extension
-	Enabled bool `json:"enabled"`
+	Enabled   bool `json:"enabled"`
+	Installed bool `json:"installed"`
+	Builtin   bool `json:"builtin"`
+	Ready     bool `json:"ready"`
 }
 
 // List is every registered extension, in the order they were registered.
 func (h *Host) List() []State {
 	out := make([]State, 0, len(h.items))
 	for _, it := range h.items {
-		out = append(out, State{Extension: it.Extension, Enabled: it.on.Load()})
+		builtin := it.Package == ""
+		installed := builtin || it.parts.Messages != nil && it.parts.Messages.Installed()
+		ready := it.parts.Messages == nil || it.parts.Messages.Validated()
+		out = append(out, State{Extension: it.Extension, Enabled: it.on.Load(), Builtin: builtin, Installed: installed, Ready: ready})
 	}
 	return out
 }
@@ -83,6 +103,11 @@ func (h *Host) Set(id string, on bool) error {
 	defer it.mu.Unlock()
 	if it.on.Load() == on {
 		return nil
+	}
+	if on {
+		if err := h.CanEnable(id); err != nil {
+			return err
+		}
 	}
 	it.on.Store(on)
 	if on {
@@ -107,6 +132,64 @@ func (h *Host) Close() {
 	for _, it := range h.items {
 		_ = h.Set(it.ID, false)
 	}
+}
+
+func (h *Host) MessageStates() map[string]messages.State {
+	out := make(map[string]messages.State)
+	for _, it := range h.items {
+		if it.parts.Messages != nil {
+			out[it.ID] = it.parts.Messages.Snapshot()
+		}
+	}
+	return out
+}
+
+func (h *Host) OnChange(fn func()) {
+	for _, it := range h.items {
+		if it.parts.Messages != nil {
+			it.parts.Messages.OnChange(fn)
+		}
+	}
+}
+
+func (h *Host) ConfigureMessageChannel(ctx context.Context, id string, account messages.AccountConfig) error {
+	it := h.find(id)
+	if it == nil || it.parts.Messages == nil {
+		return fmt.Errorf("没有这个消息渠道：%s", id)
+	}
+	it.mu.Lock()
+	defer it.mu.Unlock()
+	if it.on.Load() {
+		return fmt.Errorf("请先停用扩展再修改账号")
+	}
+	if !it.parts.Messages.Installed() {
+		return fmt.Errorf("请先安装渠道插件")
+	}
+	if err := it.parts.Messages.Configure(account); err != nil {
+		return err
+	}
+	return it.parts.Messages.Validate(ctx)
+}
+
+func (h *Host) ConfigureMessageAgent(id string, settings config.MessageAgent) error {
+	it := h.find(id)
+	if it == nil || it.parts.Messages == nil {
+		return fmt.Errorf("没有这个消息渠道：%s", id)
+	}
+	it.mu.Lock()
+	defer it.mu.Unlock()
+	if it.on.Load() {
+		return fmt.Errorf("请先停用扩展再修改 Codex 配置")
+	}
+	return it.parts.Messages.ConfigureAgent(settings)
+}
+
+func (h *Host) SendMessage(ctx context.Context, channel string, event messages.Event) (messages.Receipt, error) {
+	it := h.find(channel)
+	if it == nil || it.parts.Messages == nil || !it.on.Load() {
+		return messages.Receipt{}, fmt.Errorf("消息渠道未启用")
+	}
+	return it.parts.Messages.Send(ctx, event)
 }
 
 // Intercepts reports whether an extension that is on wants a CONNECT target
@@ -266,4 +349,30 @@ func (g gatedAddon) HTTPConnectError(f *proxy.Flow, err error) {
 	if g.on.Load() {
 		g.a.HTTPConnectError(f, err)
 	}
+}
+
+func (h *Host) Install(ctx context.Context, id string) error {
+	it := h.find(id)
+	if it == nil || it.Package == "" {
+		return fmt.Errorf("没有可安装的渠道插件：%s", id)
+	}
+	it.mu.Lock()
+	defer it.mu.Unlock()
+	if it.on.Load() {
+		return fmt.Errorf("请先停用渠道插件")
+	}
+	installCtx, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(h.ctx, cancel)
+	defer func() { stop(); cancel() }()
+	return h.plugins.Install(installCtx, id)
+}
+func (h *Host) CanEnable(id string) error {
+	it := h.find(id)
+	if it == nil {
+		return fmt.Errorf("没有这个扩展：%s", id)
+	}
+	if it.parts.Messages != nil && !it.parts.Messages.Validated() {
+		return fmt.Errorf("请先完成消息渠道配置和验证")
+	}
+	return nil
 }

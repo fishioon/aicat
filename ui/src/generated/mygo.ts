@@ -4,6 +4,12 @@ import { call, event, type Channel } from "mygo-runtime";
 
 // ---- Types ----
 
+export interface AccountConfig {
+  local?: LocalMessages;
+  accountId: string;
+  secret: string;
+}
+
 export type BodyID = string;
 
 export interface BodyInfo {
@@ -43,12 +49,21 @@ export interface ClientApp {
   bundleId?: string;
 }
 
+export interface Delivery {
+  source: string;
+  id: string;
+  status: string;
+  result?: PlatformResult;
+  error?: string;
+}
+
 /** DesktopState is a coherent snapshot of settings and live desktop state. */
 export interface DesktopState {
   preferences: Preferences;
   language: string;
   trafficEnabled: boolean;
   extensions: ExtensionState[];
+  messageChannels: Record<string, MessagesState>;
   recording: boolean;
   captureStarted: boolean;
   navigationPins: string[];
@@ -64,19 +79,14 @@ export interface DesktopState {
   revision: number;
 }
 
-export interface Execution {
-  ruleId?: string;
-  pluginId?: string;
-  stage: string;
-  status: string;
-  error?: string;
-  durationNs?: number;
-  logs?: ExecutionLog[];
-}
-
-export interface ExecutionLog {
-  level: string;
-  message: string;
+export interface Event {
+  specversion: string;
+  id: string;
+  source: string;
+  type: string;
+  time?: string;
+  datacontenttype: string;
+  data: Message;
 }
 
 /** State is a registered extension and whether it is on. */
@@ -86,6 +96,9 @@ export interface ExtensionState {
    * has no dot; a community package's is publisher.name.
    */
   id: string;
+  package: string;
+  version: string;
+  publisher: string;
   /**
    * Name, Summary, Lede and Categories are shown on the extensions page,
    * in the source language; the page translates them.
@@ -105,6 +118,9 @@ export interface ExtensionState {
    */
   restart?: string;
   enabled: boolean;
+  installed: boolean;
+  builtin: boolean;
+  ready: boolean;
 }
 
 /** Group sums the calls sharing a key: a model, a provider ID or an agent. */
@@ -138,10 +154,66 @@ export type ID = number;
 export interface Input {
   id: string;
   name: string;
-  preset: string;
-  protocol: string;
   baseUrl: string;
   key: string;
+}
+
+export interface LocalMessages {
+  accountId: string;
+  dataDir: string;
+  keyFile: string;
+}
+
+export interface Message {
+  local_id?: string;
+  server_id?: string;
+  sequence?: string;
+  content_type?: number;
+  flag?: number;
+  outgoing?: boolean;
+  room_type?: string;
+  sender_kind?: string;
+  media_status?: string;
+  raw_content?: string;
+  image?: unknown;
+  voice?: unknown;
+  file?: unknown;
+  link?: unknown;
+  msgid?: string;
+  action: string;
+  from?: string;
+  tolist?: string[];
+  roomid: string;
+  msgtime?: number;
+  msgtype: string;
+  text: Text;
+}
+
+export interface MessageAgent {
+  enabled: boolean;
+  binary: string;
+}
+
+export interface MessagesRecord {
+  id: string;
+  recordedAt: string;
+  offset: number;
+  event: Event;
+  status?: string;
+}
+
+export interface MessagesState {
+  local?: LocalMessages;
+  accountId: string;
+  configured: boolean;
+  validated: boolean;
+  phase: string;
+  error: string;
+  pid: number;
+  records: MessagesRecord[];
+  roomDir: string;
+  agent: MessageAgent;
+  tasks: Task[];
 }
 
 /**
@@ -161,11 +233,6 @@ export interface Model {
   efforts?: string[];
   /** Images is the vendor's answer on image input; nil when it didn't say. */
   images?: boolean;
-  /**
-   * APIs are the APIs the vendor says the model is served on ("chat",
-   * "responses", "anthropic"); empty is not known.
-   */
-  apis?: string[];
 }
 
 /** ModelList is a provider's model list as last synced. */
@@ -184,6 +251,12 @@ export interface ModelList {
   errorKind?: string;
 }
 
+export interface PlatformResult {
+  messageId: string;
+  chatId: string;
+  channel: string;
+}
+
 /** Preferences is the app-wide presentation state in the sole aicat.yaml config. */
 export interface Preferences {
   language: string;
@@ -197,12 +270,9 @@ export interface Preferences {
 export interface Provider {
   id: string;
   name: string;
-  preset: string;
-  protocol: string;
   baseUrl: string;
   keyHint: string;
-  /** Responses: the provider's models can be offered to Codex. */
-  responses: boolean;
+  icon: string;
   models: ModelList;
   /**
    * Enabled are the IDs of the listed models offered to agents; Picked
@@ -211,6 +281,15 @@ export interface Provider {
   enabled: string[];
   picked: boolean;
   syncing: boolean;
+}
+
+export interface Receipt {
+  source: string;
+  id: string;
+  status: string;
+  result?: PlatformResult;
+  error?: string;
+  parts?: Delivery[];
 }
 
 export interface Report {
@@ -277,6 +356,22 @@ export interface SystemproxyStatus {
   ownedElsewhere?: boolean;
 }
 
+export interface Task {
+  id: string;
+  account: string;
+  source: string;
+  room: string;
+  log: string;
+  status: string;
+  error?: string;
+  createdAt: string;
+  trigger: Message;
+}
+
+export interface Text {
+  content: string;
+}
+
 /** TrafficBatch contains summary changes; body bytes never enter this stream. */
 export interface TrafficBatch {
   reset: boolean;
@@ -300,9 +395,6 @@ export interface TrafficRecord {
   clientApp?: ClientApp;
   /** ContentType is the media type of the latest observed response, without parameters. */
   contentType?: string;
-  ruleRevision?: string;
-  synthetic?: boolean;
-  executions?: Execution[];
   requestReceived: Request;
   requestSent?: Request;
   responseReceived?: Response;
@@ -322,6 +414,12 @@ export const Desktop = {
   clearTraffic(): Promise<void> {
     return call("Desktop.ClearTraffic");
   },
+  configureMessageAgent(id: string, settings: MessageAgent): Promise<void> {
+    return call("Desktop.ConfigureMessageAgent", id, settings);
+  },
+  configureMessageChannel(id: string, account: AccountConfig): Promise<void> {
+    return call("Desktop.ConfigureMessageChannel", id, account);
+  },
   copyText(text: string): Promise<void> {
     return call("Desktop.CopyText", text);
   },
@@ -340,6 +438,9 @@ export const Desktop = {
   installCertificate(): Promise<void> {
     return call("Desktop.InstallCertificate");
   },
+  installExtension(id: string): Promise<void> {
+    return call("Desktop.InstallExtension", id);
+  },
   openKeychain(): Promise<void> {
     return call("Desktop.OpenKeychain");
   },
@@ -349,6 +450,9 @@ export const Desktop = {
    */
   openLink(link: string): Promise<void> {
     return call("Desktop.OpenLink", link);
+  },
+  openMessageLogs(id: string): Promise<void> {
+    return call("Desktop.OpenMessageLogs", id);
   },
   recheckCertificate(): Promise<void> {
     return call("Desktop.RecheckCertificate");
@@ -368,6 +472,9 @@ export const Desktop = {
    */
   saveProvider(in_: Input): Promise<string> {
     return call("Desktop.SaveProvider", in_);
+  },
+  sendMessage(channel: string, event: Event): Promise<Receipt> {
+    return call("Desktop.SendMessage", channel, event);
   },
   setDecryptionDomain(host: string, enabled: boolean): Promise<void> {
     return call("Desktop.SetDecryptionDomain", host, enabled);

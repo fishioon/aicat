@@ -123,7 +123,6 @@ func (s *Service) Get(ctx context.Context, id ID) (Record, error) {
 		return Record{}, ErrNotFound
 	}
 	c := *r
-	c.Executions = cloneExecutions(r.Executions)
 	c.RequestReceived = cloneRequest(r.RequestReceived)
 	if r.RequestSent != nil {
 		v := cloneRequest(*r.RequestSent)
@@ -188,12 +187,4 @@ func (s *Service) evict(id ID) {
 		}
 	}
 	s.notify(Change{Kind: "removed", ID: id})
-}
-
-func cloneExecutions(in []Execution) []Execution {
-	out := append([]Execution(nil), in...)
-	for i := range out {
-		out[i].Logs = append([]ExecutionLog(nil), in[i].Logs...)
-	}
-	return out
 }

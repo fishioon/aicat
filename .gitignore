@@ -29,3 +29,5 @@ __pycache__/
 /ui/node_modules/
 /ui/dist/
 /ui/dist-e2e/
+
+/runtime/channel-host/node_modules/

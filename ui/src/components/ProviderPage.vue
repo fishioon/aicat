@@ -2,82 +2,35 @@
 import { computed, ref, watch } from "vue";
 import {
   state,
+  shell,
   navigate,
   run,
   ask,
   say,
   problem,
   refresh,
-  proxyAddress,
 } from "../state/desktop";
-import {
-  providerId,
-  providerPresets,
-  customEndpoints,
-  protocolNames,
-  protocolEnv,
-  type Protocol,
-  type ProviderPreset,
-} from "../state/providers";
-import { copy } from "../state/traffic";
 import { host } from "../host";
 import { t, locale } from "../i18n";
 import Icon from "./Icon.vue";
-import Seg from "./Seg.vue";
+import ProviderIcon from "./ProviderIcon.vue";
 
 const saved = computed(() =>
-  state.value?.providers.find((p) => p.id === providerId.value),
+  state.value?.providers.find((p) => p.id === shell.provider),
 );
-// A new provider starts from a preset or as a custom one; nothing picked yet
-// shows the catalog.
-const picked = ref<ProviderPreset | "custom">();
-const preset = computed(() =>
-  saved.value
-    ? providerPresets.find((p) => p.id === saved.value!.preset)
-    : picked.value === "custom"
-      ? undefined
-      : picked.value,
-);
-const picking = computed(() => !saved.value && !picked.value);
-const endpoints = computed(() => preset.value?.endpoints ?? customEndpoints);
 const name = ref("");
-const protocol = ref<Protocol>("openai");
 const baseUrl = ref("");
 const key = ref("");
-// The form follows the provider being edited and what is saved for it. The
-// key is never sent back, so its field always starts empty.
-// Getters only: a shallowRef source makes Vue run the callback on every state
-// refresh, which would wipe an address being typed whenever a sync ends.
+// Watch only persisted fields; unrelated state notifications must not wipe drafts.
 watch(
-  [
-    () => providerId.value,
-    () => picked.value,
-    () => saved.value?.baseUrl,
-    () => saved.value?.protocol,
-    () => saved.value?.name,
-  ],
+  [() => shell.provider, () => saved.value?.baseUrl, () => saved.value?.name],
   () => {
-    const [first, url] = endpoints.value[0];
-    name.value = saved.value?.name ?? preset.value?.name ?? "";
-    protocol.value = (saved.value?.protocol as Protocol) ?? first;
-    baseUrl.value = saved.value?.baseUrl ?? url;
+    name.value = saved.value?.name ?? "";
+    baseUrl.value = saved.value?.baseUrl ?? "";
     key.value = "";
   },
   { immediate: true },
 );
-const protocols = computed(() => {
-  const list = endpoints.value.map(([id]) => id);
-  if (!list.includes(protocol.value)) list.push(protocol.value);
-  return list.map((id) => [id, protocolNames[id]] as const);
-});
-// Another protocol of the same vendor lives at another address: follow it
-// unless the address was typed by hand.
-function setProtocol(next: Protocol) {
-  const known = endpoints.value.map(([, url]) => url);
-  if (!baseUrl.value.trim() || known.includes(baseUrl.value.trim()))
-    baseUrl.value = endpoints.value.find(([id]) => id === next)?.[1] ?? "";
-  protocol.value = next;
-}
 const incomplete = computed(
   () =>
     !name.value.trim() ||
@@ -88,7 +41,7 @@ const incomplete = computed(
 // provider that gives none is not saved, and why is shown under the form.
 const saving = ref(false);
 const saveError = ref("");
-watch([name, protocol, baseUrl, key], () => (saveError.value = ""));
+watch([name, baseUrl, key], () => (saveError.value = ""));
 async function save() {
   if (saving.value) return;
   saving.value = true;
@@ -97,13 +50,11 @@ async function save() {
     const id = await host.saveProvider({
       id: saved.value?.id ?? "",
       name: name.value,
-      preset: preset.value?.id ?? "",
-      protocol: protocol.value,
       baseUrl: baseUrl.value,
       key: key.value,
     });
     await refresh();
-    providerId.value = id;
+    shell.provider = id;
     key.value = "";
     say(t("已保存 {name} 的密钥", { name: name.value.trim() }));
   } catch (error) {
@@ -114,7 +65,7 @@ async function save() {
   }
 }
 function remove() {
-  const id = providerId.value;
+  const id = shell.provider;
   const label = saved.value?.name ?? "";
   ask(
     "移除供应商",
@@ -131,7 +82,7 @@ function remove() {
 // key; a sync can also be asked for again here.
 const syncing = ref(false);
 async function sync() {
-  const id = providerId.value;
+  const id = shell.provider;
   syncing.value = true;
   try {
     await host.syncProviderModels(id);
@@ -191,20 +142,12 @@ const status = computed(() => {
   if (!p.models.syncedAt) return undefined;
   return { kind: "ok", text: t("已连通，密钥有效。") };
 });
-const connected = computed(() => status.value?.kind === "ok");
-// Every provider is reached at the same address; the model's prefix picks
-// the provider. An OpenAI-style base URL ends in /v1, Anthropic's does not.
-const snippet = computed(
-  () =>
-    `export ${protocolEnv[protocol.value]}=http://${proxyAddress()}${protocol.value === "anthropic" ? "" : "/v1"}`,
-);
-const modelExample = computed(() => {
-  const p = saved.value;
-  return p ? `${p.id}/${p.enabled[0] ?? t("模型名")}` : "";
-});
 // Ticked models are the ones agents are offered; a filter narrows a long list.
 const modelQuery = ref("");
-watch(providerId, () => (modelQuery.value = ""));
+watch(
+  () => shell.provider,
+  () => (modelQuery.value = ""),
+);
 const shownModels = computed(() => {
   const q = modelQuery.value.trim().toLowerCase();
   const all = saved.value?.models.models ?? [];
@@ -213,7 +156,7 @@ const shownModels = computed(() => {
     : all;
 });
 async function setModels(next: string[]) {
-  const id = providerId.value;
+  const id = shell.provider;
   // the vendor's order, whatever order they were ticked in
   const order = saved.value?.models.models.map((m) => m.id) ?? [];
   await run(() =>
@@ -240,258 +183,150 @@ function tickShown(on: boolean) {
   <div class="main" id="provider">
     <div class="ov">
       <button class="btn back" id="provider-back" @click="navigate('overview')">
-        <Icon name="back" />{{ t("返回概览") }}
+        <Icon name="back" />{{ t("返回主页") }}
       </button>
       <div class="ov-head">
-        <div>
-          <h1>{{ t("接入供应商") }}</h1>
-          <p>
-            {{
-              t(
-                "把供应商的密钥交给 aicat 保管，Agent 只需要指向 aicat，不用各自保存密钥。",
-              )
-            }}
-          </p>
-        </div>
+        <h1 class="provider-heading">
+          <ProviderIcon v-if="saved" :image="saved.icon" />
+          {{ saved ? saved.name : t("添加供应商") }}
+        </h1>
       </div>
-      <section v-if="picking" class="presets" id="provider-presets">
-        <h2>{{ t("选择供应商") }}</h2>
-        <div>
-          <button
-            v-for="p in providerPresets"
-            :key="p.id"
-            :id="'preset-' + p.id"
-            class="btn"
-            @click="picked = p"
-          >
-            {{ t(p.name) }}
-          </button>
-          <button id="preset-custom" class="btn" @click="picked = 'custom'">
-            {{ t("自定义…") }}
-          </button>
-        </div>
-        <p>
-          {{
-            t(
-              "列表里没有的供应商选“自定义”，填它的接口地址即可；同一家可以接入多次。",
-            )
-          }}
-        </p>
-      </section>
-      <ol v-else class="steps">
-        <li class="step" :class="connected ? 'done' : 'now'">
-          <span class="n num">1</span>
-          <div>
-            <h2>
-              {{ t("填写供应商")
-              }}<button
-                v-if="!saved"
-                id="provider-repick"
-                class="link"
-                @click="picked = undefined"
-              >
-                {{ t("重新选择") }}
-              </button>
-            </h2>
-            <div class="form">
-              <label for="provider-name">{{ t("名称") }}</label
-              ><input
-                id="provider-name"
-                v-model="name"
-                class="field"
-                maxlength="40"
-                autocomplete="off"
-                spellcheck="false"
-              />
-              <template v-if="protocols.length > 1">
-                <label>{{ t("接口协议") }}</label>
-                <Seg
-                  :model-value="protocol"
-                  :options="protocols"
-                  label="接口协议"
-                  id-prefix="provider-protocol-"
-                  @update:model-value="setProtocol"
-                />
-              </template>
-              <label for="provider-url">{{ t("接口地址") }}</label
-              ><input
-                id="provider-url"
-                v-model="baseUrl"
-                class="field code"
-                placeholder="https://"
-                autocomplete="off"
-                spellcheck="false"
-              />
-              <label for="provider-key">API Key</label
-              ><input
-                id="provider-key"
-                v-model="key"
-                class="field code"
-                type="password"
-                :placeholder="
-                  saved
-                    ? t('已保存 ····{hint}，留空保持不变', {
-                        hint: saved.keyHint,
-                      })
-                    : 'API Key'
-                "
-                autocomplete="off"
-                @keydown.enter="!incomplete && save()"
-              />
-            </div>
-            <p>
-              {{
-                t(
-                  "密钥保存在这台 Mac 的 aicat 目录里（providers.json，仅当前用户可读），不会出现在流量记录里。",
-                )
-              }}
-            </p>
-            <div class="acts">
-              <button
-                id="provider-save"
-                class="btn"
-                :class="{ primary: !saved }"
-                :disabled="incomplete || saving"
-                @click="save"
-              >
-                {{ t(saved ? "重新保存" : "保存") }}
-              </button>
-              <button
-                v-if="preset && !saved"
-                id="provider-keys"
-                class="btn"
-                @click="run(() => host.openLink(preset!.keys))"
-              >
-                {{ t("获取密钥") }} ↗
-              </button>
-              <button
-                v-if="saved"
-                id="provider-delete"
-                class="btn danger"
-                @click="remove"
-              >
-                {{ t("移除") }}
-              </button>
-            </div>
-            <p
-              v-if="status"
-              id="provider-status"
-              class="note"
-              :class="status.kind"
-            >
-              {{ status.text }}
-            </p>
-            <section v-if="saved" class="model-list" id="provider-models">
-              <header>
-                <strong>{{ t("模型列表") }}</strong>
-                <span id="provider-models-status">{{ modelStatus }}</span>
-                <button
-                  id="provider-sync"
-                  class="btn"
-                  :disabled="saved.syncing || syncing"
-                  @click="sync"
-                >
-                  {{ t("重新同步") }}
-                </button>
-              </header>
-              <details v-if="saved.models.error" id="provider-models-error">
-                <summary>{{ t("供应商的回答") }}</summary>
-                {{ saved.models.error }}
-              </details>
-              <p v-if="!saved.responses">
-                {{ t("这个供应商不支持 Responses 接口。") }}
-              </p>
-              <template v-if="saved.models.models.length">
-                <div class="model-tools">
-                  <span id="provider-models-enabled">{{
-                    t("已启用 {n} / {total}", {
-                      n: saved.enabled.length,
-                      total: saved.models.models.length,
+      <div class="provider-content">
+        <form @submit.prevent="!incomplete && save()">
+          <div class="form provider-form">
+            <label for="provider-name">{{ t("名称") }}</label>
+            <input
+              id="provider-name"
+              v-model="name"
+              class="field"
+              maxlength="40"
+              autocomplete="off"
+              spellcheck="false"
+              required
+            />
+            <label for="provider-url">{{ t("接口地址") }}</label>
+            <input
+              id="provider-url"
+              v-model="baseUrl"
+              class="field code"
+              placeholder="https://"
+              autocomplete="off"
+              spellcheck="false"
+              required
+            />
+            <label for="provider-key">API Key</label>
+            <input
+              id="provider-key"
+              v-model="key"
+              class="field code"
+              type="password"
+              :placeholder="
+                saved
+                  ? t('已保存 ····{hint}，留空保持不变', {
+                      hint: saved.keyHint,
                     })
-                  }}</span>
-                  <input
-                    id="provider-models-filter"
-                    v-model="modelQuery"
-                    class="field"
-                    :placeholder="t('筛选模型')"
-                    autocomplete="off"
-                    spellcheck="false"
-                  />
-                  <button
-                    id="provider-models-all"
-                    class="btn"
-                    @click="tickShown(true)"
-                  >
-                    {{ t("全选") }}
-                  </button>
-                  <button
-                    id="provider-models-none"
-                    class="btn"
-                    @click="tickShown(false)"
-                  >
-                    {{ t("全不选") }}
-                  </button>
-                </div>
-                <ul>
-                  <li
-                    v-for="m in shownModels"
-                    :key="m.id"
-                    :title="m.name || m.id"
-                  >
-                    <label class="code">
-                      <input
-                        type="checkbox"
-                        :value="m.id"
-                        :checked="saved.enabled.includes(m.id)"
-                        @change="
-                          toggleModel(
-                            m.id,
-                            ($event.target as HTMLInputElement).checked,
-                          )
-                        "
-                      />{{ m.id }}
-                    </label>
-                  </li>
-                </ul>
-                <p v-if="saved.picked">
-                  {{ t("供应商新增的模型不会自动启用。") }}
-                </p>
-              </template>
-            </section>
+                  : 'API Key'
+              "
+              autocomplete="off"
+              :required="!saved"
+            />
           </div>
-        </li>
-        <li class="step" :class="{ now: connected }">
-          <span class="n num">2</span>
-          <div>
-            <h2>{{ t("让 Agent 经 aicat 调用模型") }}</h2>
-            <p>
-              {{
-                t(
-                  "把 Agent 的模型地址指向 aicat，所有供应商共用这一个地址。aicat 按请求里的模型名选择供应商，带上保管的密钥转发。只接受本机请求。",
-                )
-              }}
-            </p>
-            <div class="snippet">
-              <header>
-                <span>{{ t("在 Agent 的环境变量里设置") }}</span
-                ><button
-                  id="provider-copy"
-                  class="btn"
-                  @click="copy('provider-snippet', snippet, t('配置'))"
-                >
-                  <Icon name="copy" />{{ t("复制") }}
-                </button>
-              </header>
-              <pre id="provider-snippet">{{ snippet }}</pre>
+          <p class="provider-key-note">{{ t("密钥仅保存在本机。") }}</p>
+          <div class="acts">
+            <button
+              id="provider-save"
+              type="submit"
+              class="btn"
+              :class="{ primary: !saved }"
+              :disabled="incomplete || saving"
+            >
+              {{ t(saved ? "重新保存" : "添加") }}
+            </button>
+            <button
+              v-if="saved"
+              id="provider-delete"
+              type="button"
+              class="btn danger"
+              @click="remove"
+            >
+              {{ t("移除") }}
+            </button>
+          </div>
+        </form>
+        <p v-if="status" id="provider-status" class="note" :class="status.kind">
+          {{ status.text }}
+        </p>
+        <section v-if="saved" class="model-list" id="provider-models">
+          <header>
+            <strong>{{ t("模型列表") }}</strong>
+            <span id="provider-models-status">{{ modelStatus }}</span>
+            <button
+              id="provider-sync"
+              class="btn"
+              :disabled="saved.syncing || syncing"
+              @click="sync"
+            >
+              {{ t("重新同步") }}
+            </button>
+          </header>
+          <details v-if="saved.models.error" id="provider-models-error">
+            <summary>{{ t("供应商的回答") }}</summary>
+            {{ saved.models.error }}
+          </details>
+          <template v-if="saved.models.models.length">
+            <div class="model-tools">
+              <span id="provider-models-enabled">{{
+                t("已启用 {n} / {total}", {
+                  n: saved.enabled.length,
+                  total: saved.models.models.length,
+                })
+              }}</span>
+              <input
+                id="provider-models-filter"
+                v-model="modelQuery"
+                class="field"
+                :placeholder="t('筛选模型')"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button
+                id="provider-models-all"
+                class="btn"
+                @click="tickShown(true)"
+              >
+                {{ t("全选") }}
+              </button>
+              <button
+                id="provider-models-none"
+                class="btn"
+                @click="tickShown(false)"
+              >
+                {{ t("全不选") }}
+              </button>
             </div>
-            <p v-if="saved" id="provider-model-hint">
-              {{ t("模型名写作“供应商 ID/模型”，例如") }}
-              <code class="code">{{ modelExample }}</code
-              >{{ t("。只有一家供应商提供这个模型时，可以只写模型名。") }}
+            <ul>
+              <li v-for="m in shownModels" :key="m.id" :title="m.name || m.id">
+                <label class="code">
+                  <input
+                    type="checkbox"
+                    :value="m.id"
+                    :checked="saved.enabled.includes(m.id)"
+                    @change="
+                      toggleModel(
+                        m.id,
+                        ($event.target as HTMLInputElement).checked,
+                      )
+                    "
+                  />{{ m.id }}
+                </label>
+              </li>
+            </ul>
+            <p v-if="saved.picked">
+              {{ t("供应商新增的模型不会自动启用。") }}
             </p>
-          </div>
-        </li>
-      </ol>
+          </template>
+        </section>
+      </div>
     </div>
   </div>
 </template>

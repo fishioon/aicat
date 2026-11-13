@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch } from "vue";
 import { state, navigate } from "../state/desktop";
-import { providerId } from "../state/providers";
 import {
   usage,
   period,
@@ -13,6 +12,7 @@ import {
 } from "../state/usage";
 import { t } from "../i18n";
 import Icon from "./Icon.vue";
+import ProviderIcon from "./ProviderIcon.vue";
 import Seg from "./Seg.vue";
 import UsageChart from "./UsageChart.vue";
 
@@ -90,8 +90,7 @@ const providerHost = computed(
     ),
 );
 function openProvider(id = "") {
-  providerId.value = id;
-  navigate("provider");
+  navigate("provider", { provider: id });
 }
 const periods = [
   ["today", "今天"],
@@ -155,6 +154,46 @@ watch(period, () => void loadUsage().catch(() => {}));
           </button>
         </li>
       </ul>
+      <section
+        v-if="state!.providers.length"
+        class="ov-providers"
+        id="connected-providers"
+      >
+        <h2>{{ t("已接入供应商") }}</h2>
+        <ul class="ov-list">
+          <li v-for="p in state!.providers" :key="p.id">
+            <button
+              class="ov-row"
+              :data-provider-id="p.id"
+              @click="openProvider(p.id)"
+            >
+              <strong class="provider-heading"
+                ><ProviderIcon :image="p.icon" />{{ p.name }}</strong
+              >
+              <span>{{ t("管理模型") }} →</span>
+              <span class="who">
+                {{ providerHost.get(p.id) }} ·
+                {{
+                  t("已启用 {n} / {total}", {
+                    n: p.enabled.length,
+                    total: p.models.models.length,
+                  })
+                }}
+                ·
+                {{
+                  p.syncing
+                    ? t("正在同步…")
+                    : p.models.error
+                      ? t("需要处理")
+                      : p.models.syncedAt
+                        ? t("已连通")
+                        : t("尚未同步")
+                }}
+              </span>
+            </button>
+          </li>
+        </ul>
+      </section>
       <div class="ov-bar">
         <Seg
           v-model="period"
@@ -284,12 +323,23 @@ watch(period, () => void loadUsage().catch(() => {}));
           <h2>{{ t("按供应商") }}</h2>
           <ul class="ov-list" id="overview-providers">
             <li v-for="p in usage.providers" :key="p.key">
-              <button class="ov-row provider" @click="openProvider(p.key)">
-                <strong>{{ p.name }}</strong>
+              <component
+                :is="providerHost.has(p.key) ? 'button' : 'div'"
+                class="ov-row provider"
+                @click="providerHost.has(p.key) && openProvider(p.key)"
+              >
+                <strong class="provider-heading"
+                  ><ProviderIcon
+                    :image="
+                      state!.providers.find((item) => item.id === p.key)?.icon
+                    "
+                  />{{ p.name || p.key || t("未关联供应商") }}</strong
+                >
                 <b class="num">{{ count(tokens(p)) }}</b>
                 <span class="who"
-                  >{{ providerHost.get(p.key) }} ·
-                  <span class="num">{{ p.requests }}</span> {{ t("次请求") }}
+                  ><template v-if="providerHost.has(p.key)"
+                    >{{ providerHost.get(p.key) }} · </template
+                  ><span class="num">{{ p.requests }}</span> {{ t("次请求") }}
                   <template v-if="p.failures">
                     ·
                     <b class="bad"
@@ -300,7 +350,7 @@ watch(period, () => void loadUsage().catch(() => {}));
                   · {{ t("平均") }}
                   <span class="num">{{ seconds(p.avgMs) }}</span></span
                 >
-              </button>
+              </component>
             </li>
           </ul>
         </section>

@@ -152,7 +152,7 @@ func (h *Handler) vendor(w http.ResponseWriter, r *http.Request, rest string, bo
 		}
 	}
 	if chosen == nil {
-		writeError(w, http.StatusBadRequest, "模型 "+model+" 不可用：供应商未在 aicat 中保存、不支持 Responses 接口，或模型不在已同步的列表里、没有启用。请在 aicat 的“接入供应商”中重新同步或勾选这个模型。")
+		writeError(w, http.StatusBadRequest, "模型 "+model+" 不可用：供应商未在 aicat 中保存，或模型不在已同步的列表里、没有启用。请在 aicat 的“接入供应商”中重新同步或勾选这个模型。")
 		return
 	}
 	if _, err := withModel(body, name); err != nil {

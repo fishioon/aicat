@@ -5,7 +5,7 @@ ROOT=pathlib.Path(__file__).resolve().parent
 CASES=[('weixin','2.4.8','text'),('weixin','3.0.0-beta-0','text'),('wecom','2026.10.19','text'),('wecom','2026.10.26','text'),('feishu','2026.7.16','registration'),('feishu','2026.7.16','root-alias'),('feishu','2026.8.5-beta.0','root-alias')]
 NAMES={'weixin':'@tencent-weixin/openclaw-weixin','wecom':'@wecom/wecom-openclaw-plugin','feishu':'@larksuite/openclaw-lark'}
 BASE={'weixin':'2.4.10','wecom':'2026.10.30'}
-FILES=['host.mjs','runtime.mjs','store.mjs','network.mjs','profiles.mjs','fixtures.mjs','e2e.mjs','registration-probe.mjs']
+FILES=['loader.mjs','feishu-frame.mjs','host.mjs','runtime.mjs','store.mjs','network.mjs','profiles.mjs','fixtures.mjs','e2e.mjs','registration-probe.mjs']
 
 def run_case(case,out):
  kind,version,mode=case;name=NAMES[kind];directory=out/(kind+'-'+version+'-'+mode);directory.mkdir(parents=True,exist_ok=True)

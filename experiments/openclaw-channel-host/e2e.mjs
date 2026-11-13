@@ -3,18 +3,22 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import readline from 'node:readline';
-import {spawn} from 'node:child_process';
+import {spawn, execFileSync} from 'node:child_process';
 import {setTimeout as sleep} from 'node:timers/promises';
 import {createPlatform} from './fixtures.mjs';
 import {profiles} from './profiles.mjs';
 
-const selected = process.argv[2] ?? 'all';
-if (!['all', 'weixin', 'wecom'].includes(selected)) throw Error('Usage: npm run e2e -- [all|weixin|wecom]');
+const args = process.argv.slice(2);
+const selected = args.shift() ?? 'all';
+if (!['all', 'weixin', 'wecom', 'feishu'].includes(selected) || (args.length && (args.length !== 2 || args[0] !== '--runtime'))) throw Error('Usage: node e2e.mjs [all|weixin|wecom|feishu] [--runtime /absolute/path/to/node-or-bun]');
+const hostExecutable = args.length ? args[1] : process.execPath;
+if (!path.isAbsolute(hostExecutable)) throw Error('RUNTIME_PATH_MUST_BE_ABSOLUTE');
+const hostVersion = execFileSync(hostExecutable, ['--version'], {encoding: 'utf8'}).trim();
 const runDir = path.join(import.meta.dirname, 'artifacts', new Date().toISOString().replace(/[:.]/g, '-'));
 fs.mkdirSync(runDir, {recursive: true});
 const dependencyLock = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'package-lock.json')));
 const hostDigest = crypto.createHash('sha256').update(fs.readFileSync(path.join(import.meta.dirname, 'host.mjs'))).update(fs.readFileSync(path.join(import.meta.dirname, 'runtime.mjs'))).digest('hex');
-const report = {hostDigest, startedAt: new Date().toISOString(), node: process.version, coverage: 'synthetic HTTP/WebSocket; real official plugin packages; no aicat, browser, native desktop or real accounts', scenarios: []};
+const report = {hostDigest, startedAt: new Date().toISOString(), node: process.version, hostRuntime: {executable: hostExecutable, version: hostVersion}, coverage: 'synthetic HTTP/WebSocket; real official plugin packages; no aicat, browser, native desktop or real accounts', scenarios: []};
 function fingerprint(profile) {
   const dir = path.join(import.meta.dirname, 'node_modules', profile.package), hash = crypto.createHash('sha256');
   function visit(relative) {
@@ -34,7 +38,7 @@ async function eventually(fn, description, timeout = 10000) {
 function startHost(directory, kind, number) {
   const log = fs.createWriteStream(path.join(runDir, `${kind}-${number}.stderr.log`));
   const transcript = fs.createWriteStream(path.join(runDir, `${kind}-${number}.ndjson`));
-  const child = spawn(process.execPath, [path.join(import.meta.dirname, 'host.mjs'), directory, '--synthetic'], {
+  const child = spawn(hostExecutable, [path.join(import.meta.dirname, 'host.mjs'), directory, '--synthetic'], {
     cwd: import.meta.dirname, stdio: ['pipe', 'pipe', 'pipe'],
     env: {HOME: directory, TMPDIR: directory, LANG: 'en_US.UTF-8'},
   });
@@ -52,7 +56,10 @@ function startHost(directory, kind, number) {
       if (!call) throw Error(`UNEXPECTED_RESPONSE: ${line}`);
       clearTimeout(call.timer); pending.delete(value.id);
       if (value.error) call.reject(Error(value.error)); else call.resolve(value.result);
-    } catch (error) {for (const call of pending.values()) call.reject(error);}
+    } catch (error) {
+      for (const call of pending.values()) {clearTimeout(call.timer); call.reject(error);}
+      pending.clear();
+    }
   });
   return {child, exit, async call(method, params = {}) {
     const id = ++next;
@@ -71,8 +78,8 @@ async function scenario(kind) {
   const check = (description, condition) => {assert.ok(condition, description); result.assertions.push(description);};
   const platform = await createPlatform(kind);
   const explicitDeliveries = () => platform.deliveries.filter(value => {
-    const text = value.msg?.item_list?.[0]?.text_item?.text ?? value.body?.markdown?.content ?? '';
-    return text.startsWith('synthetic ');
+    const text = value.msg?.item_list?.[0]?.text_item?.text ?? value.body?.markdown?.content ?? value.content ?? '';
+    return text.includes('synthetic ');
   });
   const state = path.join(runDir, kind, 'state');
   fs.mkdirSync(state, {recursive: true});
@@ -102,6 +109,8 @@ async function scenario(kind) {
     check('non-loopback configuration rejected before plugin import', platform.requests.length === 0);
     const opened = await host.call('open', {kind, endpoint: platform.endpoint, send: true});
     check('official plugin registered requested channel', opened.plugin.channel === profile.channel);
+    result.loader = opened.loader;
+    result.hostRuntime = opened.runtime;
     await eventually(() => platform.connected, 'official SDK connected');
     platform.publish();
     const read = await eventually(async () => {const value = await host.call('read'); return value.events.length ? value : null;}, 'official inbound reaches durable host buffer');
@@ -125,13 +134,18 @@ async function scenario(kind) {
     check('official outbound sends reply', receipt.status === 'sent' && explicitDeliveries().length === 1);
     if (kind === 'weixin') check('original context_token reaches Weixin endpoint', explicitDeliveries()[0].msg.context_token === 'synthetic-context-token');
     if (kind === 'wecom') check('official SDK sends aibot_send_msg', explicitDeliveries()[0].cmd === 'aibot_send_msg');
+    if (kind === 'feishu') {
+      check('official SDK discovers WebSocket endpoint', platform.requests.some(value => value.path === '/callback/ws/endpoint'));
+      check('official SDK acknowledges binary platform frames', platform.requests.some(value => value.protobufBase64));
+      check('official API sends to correct Feishu peer', explicitDeliveries()[0].receive_id === 'ou_synthetic_owner');
+    }
     await host.call('send', send);
     check('same requestId does not send twice', explicitDeliveries().length === 1);
     await assert.rejects(host.call('send', {...send, text: 'conflict'}), /REQUEST_ID_CONFLICT/);
     check('conflicting payload rejected', explicitDeliveries().length === 1);
     const observed = await host.call('status');
     result.calls = observed.calls; result.registrations = observed.registrations;
-    check('same runtime records routing, session and dispatch', observed.calls['inbound.dispatch'] === 2 && observed.calls['session.recordInboundSession'] === 2);
+    check('same runtime records routing and dispatch', observed.calls['inbound.dispatch'] === 2 && observed.calls['routing.resolveAgentRoute'] === 2);
     await graceful();
     await launch();
     const restored = await host.call('read');
@@ -169,7 +183,7 @@ async function scenario(kind) {
   }
 }
 try {
-  for (const kind of selected === 'all' ? ['weixin', 'wecom'] : [selected]) await scenario(kind);
+  for (const kind of selected === 'all' ? ['weixin', 'wecom', 'feishu'] : [selected]) await scenario(kind);
   report.harnessPassed = true; report.textTransportPassed = true; report.policyCompatible = report.scenarios.every(s => s.policyCompatible);
 } catch (error) {report.harnessPassed = false; report.textTransportPassed = false; console.error(error); process.exitCode = 1;}
 finally {

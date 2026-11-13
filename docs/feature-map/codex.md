@@ -14,7 +14,7 @@
 ## How to get to it (user POV)
 
 - 导航栏“扩展” → 已安装 → Codex → 启用/停用；齿轮菜单里是接入供应商、代理设置、复制扩展标识符。
-- 概览 → 接入供应商 → 保存后在“模型列表”里查看同步结果，`#provider-sync` 重新同步。
+- 主页 → 接入供应商 → 保存后在“模型列表”里查看同步结果，`#provider-sync` 重新同步。
 - Codex 侧：开启系统代理并重启 Codex；或按扩展详情里的那一行设置 `openai_base_url`。
 
 ## Driving it with Playwright and fixtures
@@ -23,12 +23,13 @@
 
 - **默认停用。** `state().extensions` 里 `codex` 一项的 `enabled` 为 false；直连入口返回 503；经网关 CONNECT 到后端时看到后端自己的证书（未解密）；没有下载 models.dev，Home 下没有 `cache/models-dev.json`。
 - **启用。** `#nav-extensions` → `#extension-codex` → `#feature-codex`。未信任证书时出现“需要先安装证书”对话框；取消后保持停用，点“安装证书”后启用，`aicat.yaml` 写入 `extensions.codex.enabled: true`，详情显示 `#codex-status`。
-- **同步模型。** 接入供应商选 `#preset-custom`，名称填 `Compat`（ID 为 `compat`），填 fixture 地址与密钥保存；`providers[0].models` 自动出现，向量、出图模型被滤掉，只声明 Chat Completions 的模型留在列表里但不提供给 Codex。
+- **同步模型。** 直接接入供应商，名称填 `Compat`（ID 为 `compat`），填 fixture 地址与密钥保存；`providers[0].models` 自动出现，向量、出图模型被滤掉，只声明 Chat Completions 的模型也提供给 Codex，不据此预判协议。
 - **模型列表。** 直连与经网关两种入口的 `/backend-api/codex/models` 都返回 ChatGPT 条目加 `compat/...` 条目；上下文窗口、推理强度、默认强度、图片输入先取供应商列表，缺少时取 models.dev；Codex 不支持的 `max` 强度被丢弃；ETag 形如 `"<后端 ETag>+aicat-<标记>"`；后端收到原始 Authorization，没有条件请求头。
 - **勾选。** 在供应商页取消 `vision-x` 后 `/backend-api/codex/models` 不再有 `compat/vision-x`，`compat/vision-x` 的回合在本机返回 400；重新勾选后回来。
 - **供应商回合。** zstd 压缩的请求被解开，供应商收到 `Bearer <保管密钥>`、去掉前缀的模型名，没有 `ChatGPT-Account-Id` 等头，也没有 `stream_options.reasoning_summary_delivery`、`configuration_update` 与消息元数据；文本中的 `<` `&` 不被转义；SSE 分段到达。后端收不到这次请求。
 - **ChatGPT 回合。** 原样到达后端（正文与账号头不变），响应的 `X-Models-Etag` 与列表 ETag 一致。
-- **本地拒绝。** 未知供应商、不在列表或不支持 Responses 的模型返回 400，`/responses/compact` 和带 `compaction_trigger` 的供应商回合返回 400，供应商和后端都收不到。WebSocket 握手在两个入口都得到 426。
+- **本地拒绝。** 未知供应商、不在列表或没有启用的模型返回 400，`/responses/compact` 和带 `compaction_trigger` 的供应商回合返回 400，供应商和后端都收不到。WebSocket 握手在两个入口都得到 426。
+- **上游拒绝。** 只声明 Chat 的模型仍被转发；fixture 返回 422，Codex 收到相同错误，ChatGPT 后端收不到这次请求。
 - **流量。** 供应商回合按供应商 URL 记录，密钥不出现在任何记录里；经网关的 ChatGPT 回合由普通采集记录。
 - **停用。** 再点 `#feature-codex`；`extensions.codex.enabled: false`，直连入口 503，新建的 CONNECT 不再解密。
 
@@ -37,7 +38,7 @@
 - 解密只影响新连接：启用或停用后，已在运行的 Codex 需要重新启动，界面在切换后和扩展详情里都会提示。
 - 供应商模型的对话暂不支持压缩；从 ChatGPT 模型中途切到供应商模型时，历史中的加密内容供应商读不了，建议新开对话。
 - 启用期间 Codex 回落到 HTTP/SSE，不使用 WebSocket 优化。
-- 只提供协议为 `openai` 的供应商；协议为 `anthropic` 或 `chat`（仅 Chat Completions）的供应商模型列表仍会同步但不提供给 Codex。没有协议转换。
+- 提供所有供应商启用的模型，不根据旧协议设置或模型元数据过滤。Codex 发起 Responses 请求，上游不支持时原样返回其错误，不转换协议、不回落 ChatGPT。
 - 只提供供应商页勾选启用的模型，没有启用的模型在 Codex 里不能使用（经模型入口带前缀调用不受影响）；没取消勾选的非对话模型（未被关键词滤掉的）仍会出现。
 - 经网关的模型列表与供应商回合由扩展直接应答，流量记录里只有发往上游的一条，没有改写前后对照和应用归属。
 - 只用本机 fixture 验证过，没有经真实 Codex、chatgpt.com 或真实供应商验证。

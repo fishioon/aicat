@@ -4,7 +4,7 @@ package main
 
 import (
 	"crypto/x509"
-	"log"
+	"log/slog"
 	"os"
 )
 
@@ -14,11 +14,13 @@ func init() {
 	if path := os.Getenv("AICAT_E2E_ROOT"); path != "" {
 		pem, err := os.ReadFile(path)
 		if err != nil {
-			log.Fatal(err)
+			slog.Error("read fixture CA failed", "err", err)
+			os.Exit(1)
 		}
 		roots := x509.NewCertPool()
 		if !roots.AppendCertsFromPEM(pem) {
-			log.Fatal("invalid fixture CA")
+			slog.Error("invalid fixture CA")
+			os.Exit(1)
 		}
 		x509.SetFallbackRoots(roots)
 	}

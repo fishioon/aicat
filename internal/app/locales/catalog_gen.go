@@ -848,18 +848,6 @@ func (msgs Messages) ThisRequestWasForwardedUnchanged() string {
 	return Catalog.Format(msgs.locale, "thisRequestWasForwardedUnchanged", nil)
 }
 
-// ThePrototypeDoesNotRunMoejsRewritePluginsYet says "原型暂未接入 moejs 改写插件。"
-// in the language the app shows.
-func ThePrototypeDoesNotRunMoejsRewritePluginsYet() string {
-	return In(i18n.Locale()).ThePrototypeDoesNotRunMoejsRewritePluginsYet()
-}
-
-// ThePrototypeDoesNotRunMoejsRewritePluginsYet says "原型暂未接入 moejs 改写插件。"
-// in the language of msgs.
-func (msgs Messages) ThePrototypeDoesNotRunMoejsRewritePluginsYet() string {
-	return Catalog.Format(msgs.locale, "thePrototypeDoesNotRunMoejsRewritePluginsYet", nil)
-}
-
 // RequestIdDMethodSUrlSStartedSStateS says "请求编号: %d\n方法: %s\nURL: %s\n开始时间: %s\n状态: %s"
 // in the language the app shows.
 func RequestIdDMethodSUrlSStartedSStateS() string {

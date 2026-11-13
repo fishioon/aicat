@@ -19,6 +19,7 @@ import (
 	"github.com/fishioon/aicat/internal/extension"
 	"github.com/fishioon/aicat/internal/gateway"
 	"github.com/fishioon/aicat/internal/listenaddr"
+	"github.com/fishioon/aicat/internal/messages"
 	"github.com/fishioon/aicat/internal/provider"
 	"github.com/fishioon/aicat/internal/systemproxy"
 	"github.com/fishioon/aicat/internal/traffic"
@@ -31,23 +32,24 @@ type Desktop struct{ app *application }
 
 // DesktopState is a coherent snapshot of settings and live desktop state.
 type DesktopState struct {
-	Preferences      config.Preferences  `json:"preferences"`
-	Language         string              `json:"language"`
-	TrafficEnabled   bool                `json:"trafficEnabled"`
-	Extensions       []extension.State   `json:"extensions"`
-	Recording        bool                `json:"recording"`
-	CaptureStarted   bool                `json:"captureStarted"`
-	NavigationPins   []string            `json:"navigationPins"`
-	PinnedDomains    []string            `json:"pinnedDomains"`
-	Gateway          gateway.Status      `json:"gateway"`
-	Addresses        []string            `json:"addresses"`
-	Certificate      certificate.Status  `json:"certificate"`
-	CertificateError string              `json:"certificateError"`
-	Proxy            systemproxy.Status  `json:"proxy"`
-	Domains          []string            `json:"domains"`
-	Providers        []provider.Provider `json:"providers"`
-	Production       bool                `json:"production"`
-	Revision         uint64              `json:"revision"`
+	Preferences      config.Preferences        `json:"preferences"`
+	Language         string                    `json:"language"`
+	TrafficEnabled   bool                      `json:"trafficEnabled"`
+	Extensions       []extension.State         `json:"extensions"`
+	MessageChannels  map[string]messages.State `json:"messageChannels"`
+	Recording        bool                      `json:"recording"`
+	CaptureStarted   bool                      `json:"captureStarted"`
+	NavigationPins   []string                  `json:"navigationPins"`
+	PinnedDomains    []string                  `json:"pinnedDomains"`
+	Gateway          gateway.Status            `json:"gateway"`
+	Addresses        []string                  `json:"addresses"`
+	Certificate      certificate.Status        `json:"certificate"`
+	CertificateError string                    `json:"certificateError"`
+	Proxy            systemproxy.Status        `json:"proxy"`
+	Domains          []string                  `json:"domains"`
+	Providers        []provider.Provider       `json:"providers"`
+	Production       bool                      `json:"production"`
+	Revision         uint64                    `json:"revision"`
 }
 
 // StateChange invalidates the page's snapshot after a committed mutation.
@@ -74,7 +76,7 @@ func (d *Desktop) State(ctx context.Context) (DesktopState, error) {
 		a.checkedAt = time.Now()
 	}
 	addresses, _ := listenaddr.Addresses()
-	return DesktopState{Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, Extensions: a.r.extensions.List(), Recording: a.recording, CaptureStarted: a.captureStarted, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Providers: a.r.providers.List(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
+	return DesktopState{Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, Extensions: a.r.extensions.List(), MessageChannels: a.r.extensions.MessageStates(), Recording: a.recording, CaptureStarted: a.captureStarted, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Providers: a.r.providers.List(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
 }
 func (d *Desktop) mutate(ctx context.Context, operation func() error) error {
 	a := d.app
@@ -121,6 +123,11 @@ func (d *Desktop) SetExtensionEnabled(ctx context.Context, id string, enabled bo
 		known, needsTrust := a.r.extensions.Known(id)
 		if !known {
 			return errors.New("没有这个扩展：" + id)
+		}
+		if enabled {
+			if err := a.r.extensions.CanEnable(id); err != nil {
+				return err
+			}
 		}
 		if enabled && needsTrust {
 			status, err := a.r.connection.inspect(ctx)

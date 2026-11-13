@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"github.com/fishioon/aicat/internal/rewrite"
 	"github.com/fishioon/aicat/internal/traffic"
 	"gopkg.in/yaml.v3"
 	"net"
@@ -12,8 +11,7 @@ import (
 )
 
 type Config struct {
-	Rewrite    rewrite.Config `yaml:"rewrite,omitempty"`
-	UI         Preferences    `yaml:"ui"`
+	UI         Preferences `yaml:"ui"`
 	Navigation struct {
 		Pinned []string `yaml:"pinned"`
 	} `yaml:"navigation"`
@@ -41,7 +39,9 @@ type Config struct {
 // Extension is an extension's section in aicat.yaml.
 type Extension struct {
 	// Enabled is off by default except for the traffic extension.
-	Enabled bool `yaml:"enabled"`
+	Enabled bool           `yaml:"enabled"`
+	Agent   MessageAgent   `yaml:"agent,omitempty"`
+	Local   *LocalMessages `yaml:"local,omitempty"`
 }
 
 // ExtensionEnabled reports whether the extension of this ID is turned on.
@@ -72,6 +72,19 @@ func Load(home string) (Config, error) {
 	}
 	if err != nil {
 		return c, fmt.Errorf("read %s: %w", path, err)
+	}
+	// Do not silently ignore configured script rules after removing their executor.
+	var legacy struct {
+		Rewrite struct {
+			Enabled bool        `yaml:"enabled"`
+			Rules   []yaml.Node `yaml:"rules"`
+		} `yaml:"rewrite"`
+	}
+	if err := yaml.Unmarshal(data, &legacy); err != nil {
+		return c, fmt.Errorf("read %s: %w", path, err)
+	}
+	if legacy.Rewrite.Enabled || len(legacy.Rewrite.Rules) > 0 {
+		return c, fmt.Errorf("%s: script rewrite is no longer supported; remove the rewrite settings before starting", path)
 	}
 	if _, ok := c.Extensions["traffic"]; !ok {
 		if c.Extensions == nil {

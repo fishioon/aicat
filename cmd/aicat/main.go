@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fishioon/aicat/internal/app"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -17,7 +17,7 @@ var version = "dev"
 
 func main() {
 	if err := run(); err != nil {
-		log.Print(err)
+		slog.Error("aicat exited", "err", err)
 		os.Exit(1)
 	}
 }

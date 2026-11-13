@@ -324,10 +324,6 @@ export interface Messages {
    */
   thisRequestWasForwardedUnchanged(): string;
   /**
-   * `原型暂未接入 moejs 改写插件。`
-   */
-  thePrototypeDoesNotRunMoejsRewritePluginsYet(): string;
-  /**
    * `请求编号: %d 方法: %s URL: %s 开始时间: %s 状态: %s`
    */
   requestIdDMethodSUrlSStartedSStateS(): string;
@@ -1113,7 +1109,6 @@ const catalog = createCatalog<Messages>({
     "responsePending": [],
     "thisRequestHasNoBody": [],
     "thisRequestWasForwardedUnchanged": [],
-    "thePrototypeDoesNotRunMoejsRewritePluginsYet": [],
     "requestIdDMethodSUrlSStartedSStateS": [],
     "statusCodeDTimeSErrorS": [],
     "notCaptured": [],
@@ -1371,7 +1366,6 @@ const catalog = createCatalog<Messages>({
       "responsePending": "响应尚未到达",
       "thisRequestHasNoBody": "此请求没有正文",
       "thisRequestWasForwardedUnchanged": "此请求按原始内容转发。",
-      "thePrototypeDoesNotRunMoejsRewritePluginsYet": "原型暂未接入 moejs 改写插件。",
       "requestIdDMethodSUrlSStartedSStateS": "请求编号: %d\n方法: %s\nURL: %s\n开始时间: %s\n状态: %s",
       "statusCodeDTimeSErrorS": "状态码: %d\n耗时: %s\n错误: %s",
       "notCaptured": "\n[未采集]",
@@ -1628,7 +1622,6 @@ const catalog = createCatalog<Messages>({
       "responsePending": "Response pending",
       "thisRequestHasNoBody": "This request has no body",
       "thisRequestWasForwardedUnchanged": "This request was forwarded unchanged.",
-      "thePrototypeDoesNotRunMoejsRewritePluginsYet": "The prototype does not run moejs rewrite plugins yet.",
       "requestIdDMethodSUrlSStartedSStateS": "Request ID: %d\nMethod: %s\nURL: %s\nStarted: %s\nState: %s",
       "statusCodeDTimeSErrorS": "Status code: %d\nTime: %s\nError: %s",
       "notCaptured": "\n[Not captured]",

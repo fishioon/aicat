@@ -45,8 +45,10 @@ def main():
         total = 0
         report['assets'] = {}
         for asset in assets:
-            assert asset.suffix in ('.html', '.js', '.css'), str(asset)
+            assert asset.suffix in ('.html', '.js', '.css', '.png'), str(asset)
             data = asset.read_bytes()
+            if asset.suffix == '.png':
+                assert data.startswith(b'\x89PNG\r\n\x1a\n'), str(asset)
             assert not any(marker in data for marker in (b'X-Aicat-Preview', b'PreviewChannel', b'__aicatPreview', b'/rpc', b'desktopapi:')), str(asset)
             total += len(data)
             report['assets'][str(asset)] = hashlib.sha256(data).hexdigest()

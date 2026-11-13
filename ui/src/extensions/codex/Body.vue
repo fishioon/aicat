@@ -30,7 +30,7 @@ const baseURL = computed(
     <p>
       {{
         t(
-          "只提供支持 Responses 接口的供应商，即 OpenAI 和兼容 OpenAI 的服务。模型名称、上下文窗口和推理强度先取供应商返回的信息，缺少的部分参考 models.dev。",
+          "提供供应商已启用的模型。Codex 使用 Responses 接口，上游不支持时返回其错误。模型信息优先取供应商返回的内容，缺少的部分参考 models.dev。",
         )
       }}
     </p>

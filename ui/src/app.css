@@ -967,6 +967,7 @@ select.field {
   margin-top: 16px;
 }
 .ov-usage h2,
+.ov-providers h2,
 .ov-cols h2 {
   font-size: var(--t15);
   font-weight: 600;
@@ -1220,6 +1221,9 @@ select.field {
   user-select: all;
   -webkit-user-select: all;
 }
+.ov-providers {
+  margin-top: 16px;
+}
 .ov-list li {
   border-top: 1px solid var(--line);
 }
@@ -1379,33 +1383,36 @@ button.ov-row:hover {
 .model-list summary {
   cursor: pointer;
 }
-.presets {
-  margin-top: 24px;
-  max-width: 720px;
+.provider-content {
+  max-width: 560px;
 }
-.presets h2 {
-  font-size: var(--t15);
-  font-weight: 600;
-  margin-bottom: 12px;
+.provider-form {
+  grid-template-columns: 68px minmax(0, 1fr);
+  max-width: none;
 }
-.presets > div {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+.provider-heading {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
-.presets p {
+.provider-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-3);
+  flex: none;
+}
+.provider-icon img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+.provider-key-note {
+  color: var(--ink-3);
+  font-size: var(--t12);
+  margin: 16px 0;
+}
+.provider-content > .note {
   margin-top: 12px;
-  color: var(--ink-2);
-  font-size: var(--t12);
-}
-.step h2 .link {
-  margin-left: 12px;
-  font-size: var(--t12);
-  font-weight: 400;
-}
-.step .note {
-  margin: 12px 0 0;
-  max-width: 60ch;
 }
 .model-list ul {
   display: grid;
@@ -1942,10 +1949,17 @@ pre.body {
   place-items: center;
   width: 36px;
   height: 36px;
-  border: 1px solid var(--line);
   border-radius: var(--r2);
-  background: var(--surface);
   color: var(--ink-2);
+}
+.xicon:not(.branded) {
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.xicon .extension-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .xicon .icon {
   width: 20px;
@@ -2007,6 +2021,8 @@ pre.body {
   width: 64px;
   height: 64px;
   border-radius: var(--r3);
+}
+.xd-head .xicon:not(.branded) {
   background: var(--sunken);
 }
 .xd-head .xicon .icon {
@@ -2093,7 +2109,8 @@ pre.body {
   gap: 32px;
   margin-top: 20px;
 }
-.xd-body h2 {
+.xd-body h2,
+.extension-panel h2 {
   font-size: var(--t13);
   font-weight: 600;
   margin: 20px 0 4px;
@@ -2101,12 +2118,16 @@ pre.body {
 .xd-body h2:first-child {
   margin-top: 0;
 }
-.xd-body p {
+.xd-body p,
+.extension-panel p {
   color: var(--ink-2);
   max-width: 60ch;
 }
 .xd-body p + p {
   margin-top: 8px;
+}
+.extension-panel > .acts {
+  margin-top: 12px;
 }
 .feat {
   width: 100%;

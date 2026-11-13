@@ -21,7 +21,7 @@ func (r *Recorder) Begin(start Start) (ID, error) {
 	}
 	s.next++
 	id := s.next
-	s.records[id] = &Record{Summary: Summary{ID: id, Revision: 1, StartedAt: start.At, Method: start.Request.Method, URL: start.Request.URL, State: Requesting, Tunnel: start.Tunnel, ClientApp: start.ClientApp}, RequestReceived: cloneRequest(start.Request), RuleRevision: start.RuleRevision, pendingClient: start.PendingClient}
+	s.records[id] = &Record{Summary: Summary{ID: id, Revision: 1, StartedAt: start.At, Method: start.Request.Method, URL: start.Request.URL, State: Requesting, Tunnel: start.Tunnel, ClientApp: start.ClientApp}, RequestReceived: cloneRequest(start.Request), pendingClient: start.PendingClient}
 	s.order = append(s.order, id)
 	if len(s.order) > s.opts.MaxRecords {
 		old := s.order[0]
@@ -93,12 +93,6 @@ func (r *Recorder) Update(id ID, o Observation) error {
 		rec.State = Responding
 	default:
 		return fmt.Errorf("traffic: unknown observation point")
-	}
-	if o.Executions != nil {
-		rec.Executions = cloneExecutions(o.Executions)
-	}
-	if o.Synthetic {
-		rec.Synthetic = true
 	}
 	rec.Revision++
 	s.notify(Change{Kind: "updated", ID: id})

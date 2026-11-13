@@ -30,7 +30,7 @@ Preconditions:
 
 ## Gotchas
 
-- 桌面当前请求侧显示 `RequestReceived`、响应侧显示 `ResponseSent`，没有四阶段对比切换器。完整改写前后快照通过 API/MCP 读取。
+- 桌面当前请求侧显示 `RequestReceived`、响应侧显示 `ResponseSent`，没有四阶段对比切换器。完整观测位置快照通过 API/MCP 读取。
 - Raw 基于已解析的 HTTP 消息重建；不能证明原始 header 大小写和顺序。响应协议版本不可得时显示 HTTP。
 - 响应未到达、body pending/truncated/omitted/error 都需要按实际状态断言。采集截断不意味着网络转发也被截断。
 - 导出跟随当前过滤结果，不只导出选中请求，也不默认导出被筛掉的记录。需要正文或四阶段证明时另从 API/MCP 保存。

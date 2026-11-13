@@ -9,8 +9,10 @@
     "e2e": "node e2e.mjs"
   },
   "dependencies": {
+    "@larksuite/openclaw-lark": "2026.7.16",
     "@tencent-weixin/openclaw-weixin": "2.4.10",
     "@wecom/wecom-openclaw-plugin": "2026.10.30",
+    "jiti": "2.7.0",
     "openclaw": "file:./shim",
     "ws": "8.22.2"
   }

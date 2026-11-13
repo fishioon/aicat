@@ -9,7 +9,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -105,7 +105,7 @@ func (s *Store) Append(r Record) {
 	}
 	if s.file != nil {
 		if _, err := s.file.Write(append(line, '\n')); err != nil {
-			log.Printf("usage: %v", err)
+			slog.Error("append usage failed", "err", err)
 		}
 	}
 }

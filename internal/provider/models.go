@@ -27,9 +27,6 @@ type Model struct {
 	Efforts []string `json:"efforts,omitempty"`
 	// Images is the vendor's answer on image input; nil when it didn't say.
 	Images *bool `json:"images,omitempty"`
-	// APIs are the APIs the vendor says the model is served on ("chat",
-	// "responses", "anthropic"); empty is not known.
-	APIs []string `json:"apis,omitempty"`
 }
 
 // ModelList is a provider's model list as last synced.
@@ -65,69 +62,17 @@ func errorKind(err error) string {
 // fetchTimeout bounds each list URL asked.
 const fetchTimeout = 8 * time.Second
 
-// fetchModels asks the vendor at base which models it serves. The usual list
-// paths are tried around base: an OpenAI-style base with a version in its
-// path is asked only as written, at base/models.
-func fetchModels(ctx context.Context, client *http.Client, proto, base, key string) ([]Model, string, error) {
-	base = strings.TrimRight(strings.TrimSpace(base), "/")
-	anthropic := proto == "anthropic"
-	var urls []string
-	add := func(u string) {
-		if !slices.Contains(urls, u) {
-			urls = append(urls, u)
-		}
+// fetchModels asks only the model-list endpoint under the configured API base.
+func fetchModels(ctx context.Context, client *http.Client, base, key string) ([]Model, string, error) {
+	endpoint := strings.TrimRight(strings.TrimSpace(base), "/") + "/models"
+	models, err := fetchList(ctx, client, endpoint, key)
+	if err != nil {
+		return nil, "", err
 	}
-	add(base + "/models")
-	if anthropic || !versioned(base) {
-		add(base + "/v1/models")
-		root := base
-		for _, suffix := range []string{"/anthropic", "/v1", "/api", "/api/v1"} {
-			root = strings.TrimSuffix(root, suffix)
-		}
-		add(root + "/v1/models")
-		add(root + "/models")
+	if len(models) == 0 {
+		return nil, "", &fetchError{"endpoint", endpoint + "：列表为空"}
 	}
-	var errs []string
-	// A refused key at any URL is the answer; the vendor not being reached
-	// is, only when no URL answered at all.
-	kinds := map[string]int{}
-	for _, u := range urls {
-		ms, err := fetchList(ctx, client, proto, u, key)
-		if err == nil && len(ms) > 0 {
-			return ms, u, nil
-		}
-		if err == nil {
-			err = &fetchError{"endpoint", u + "：列表为空"}
-		}
-		errs = append(errs, err.Error())
-		kinds[errorKind(err)]++
-		if ctx.Err() != nil {
-			break
-		}
-	}
-	kind := "endpoint"
-	if kinds["auth"] > 0 {
-		kind = "auth"
-	} else if kinds["network"] == len(errs) {
-		kind = "network"
-	}
-	return nil, "", &fetchError{kind, "没有取得模型列表：" + strings.Join(errs, "；")}
-}
-
-// versioned reports whether a base URL has a version segment in its path
-// (v1, v3, v4, v1beta) and so names the vendor's API as it is.
-func versioned(base string) bool {
-	rest := base
-	if _, after, ok := strings.Cut(base, "://"); ok {
-		rest = after
-	}
-	_, path, _ := strings.Cut(rest, "/")
-	for _, seg := range strings.Split(path, "/") {
-		if len(seg) >= 2 && (seg[0] == 'v' || seg[0] == 'V') && seg[1] >= '0' && seg[1] <= '9' {
-			return true
-		}
-	}
-	return false
+	return models, endpoint, nil
 }
 
 type listedModel struct {
@@ -137,14 +82,13 @@ type listedModel struct {
 	Modalities  struct {
 		Input []string `json:"input"`
 	} `json:"modalities"`
-	Endpoints []string `json:"supported_endpoints"`
 	// any: a vendor's odd value must not lose the whole list
 	ContextLength any `json:"context_length"`
 	Output        any `json:"max_output_tokens"`
 	Levels        any `json:"supported_reasoning_levels"`
 }
 
-func fetchList(ctx context.Context, client *http.Client, proto, url, key string) ([]Model, error) {
+func fetchList(ctx context.Context, client *http.Client, url, key string) ([]Model, error) {
 	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -153,15 +97,12 @@ func fetchList(ctx context.Context, client *http.Client, proto, url, key string)
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "aicat")
-	k := protocols[proto]
-	req.Header.Set(k.header, k.prefix+key)
-	if proto == "anthropic" {
-		req.Header.Set("Anthropic-Version", "2023-06-01")
-		// Anthropic takes x-api-key only; the vendors that speak its
-		// protocol often list their models behind a bearer token.
-		if req.URL.Hostname() != "api.anthropic.com" {
-			req.Header.Set("Authorization", "Bearer "+key)
-		}
+	// Model discovery uses the public list endpoint's common authentication
+	// forms. This does not infer or restrict which inference APIs are served.
+	req.Header.Set("X-Api-Key", key)
+	req.Header.Set("Anthropic-Version", "2023-06-01")
+	if req.URL.Hostname() != "api.anthropic.com" {
+		req.Header.Set("Authorization", "Bearer "+key)
 	}
 	res, err := client.Do(req)
 	if err != nil {
@@ -199,7 +140,7 @@ func fetchList(ctx context.Context, client *http.Client, proto, url, key string)
 		if id == "" || !chatModel(id) {
 			continue
 		}
-		m := Model{ID: id, Name: r.DisplayName, APIs: endpointAPIs(r.Endpoints), Efforts: levelsOf(r.Levels)}
+		m := Model{ID: id, Name: r.DisplayName, Efforts: levelsOf(r.Levels)}
 		if m.Name == "" && r.Name != id {
 			m.Name = r.Name
 		}
@@ -230,27 +171,6 @@ func chatModel(id string) bool {
 		}
 	}
 	return true
-}
-
-// endpointAPIs names the APIs of a list's supported_endpoints; nil when it
-// names none aicat knows.
-func endpointAPIs(endpoints []string) []string {
-	var out []string
-	for _, e := range endpoints {
-		var api string
-		switch strings.TrimPrefix(strings.TrimSuffix(e, "/"), "/v1") {
-		case "/chat/completions":
-			api = "chat"
-		case "/responses":
-			api = "responses"
-		case "/messages":
-			api = "anthropic"
-		}
-		if api != "" && !slices.Contains(out, api) {
-			out = append(out, api)
-		}
-	}
-	return out
 }
 
 // levelsOf reads supported_reasoning_levels as Codex writes them

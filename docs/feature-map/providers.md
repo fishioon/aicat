@@ -1,61 +1,52 @@
 # 供应商接入
 
-aicat 保管模型供应商的 API Key。本机的 Agent 把模型地址指向 aicat，请求由 aicat 带上密钥转发给供应商，Agent 自己不用保存密钥。
+aicat 保管供应商的 API Key。Agent 请求按模型选择供应商，协议由请求路径决定；不预判上游支持情况，也不转换或切换协议。
 
 ## 能力
 
-- `provider-save`：新增、修改或移除供应商。每个供应商是一个命名实例，有自己的 ID、名称、接口协议（`anthropic`、`openai`、仅 Chat 的 `chat`）、接口地址和 API Key；同一家可以接入多次。ID 由预置或名称生成，保存后不变。新增或改了地址、协议、密钥时，保存前先取模型列表，取不到（密钥被拒、连不上、这个地址没有模型列表）就不保存，原因显示在表单下方。
-- `provider-presets`：新增时先从预置目录选供应商，接口地址和协议自动带出，只需填密钥，“获取密钥”打开供应商的密钥页面；列表里没有的选“自定义”。预置在 `ui/src/state/providers.ts`，地址取自 Magpie。
-- `provider-forward`：所有供应商共用一个入口，按请求正文里的 `model` 选择供应商，附上保管的密钥转发，流式响应边到边发。入口是 `/v1/messages`（Anthropic 协议的供应商）、`/v1/chat/completions`（`openai`、`chat`）和 `/v1/responses`（`openai`）。模型写作 `供应商 ID/模型`，前缀在转发前去掉；不带前缀的模型名在提供该接口的供应商里只有一家启用了它时也能命中，这时正文原样转发。带前缀的模型不论是否启用都转发。
-- `provider-pick`：供应商页的模型列表逐个勾选要启用的模型，可按名称筛选，全选、全不选只作用于筛选出的模型；显示“已启用 X / 总数”。没勾选过时全部启用，供应商新增的模型随之出现；勾选过后新模型不自动启用。改接口地址或协议时回到全部启用，只换密钥时保留。
-- `provider-models`：`GET /v1/models` 返回各供应商启用的模型，写作 `供应商 ID/模型`；带 `Anthropic-Version` 头时只列 Anthropic 协议的供应商，否则列 `openai` 与 `chat` 的。
-- `provider-status`：已保存的供应商以最近一次同步的结果作为连通状态：已连通、密钥被拒（401/403）、连不上、这个地址没有模型列表。重新同步失败时保留上次列表，第二步不标记为可用，概览的待办显示“供应商 X 不可用”及“密钥无效”“连不上”或“没有模型列表”，点“管理”回到供应商页。
-- `provider-records`：转发的请求出现在流量里，不含任何凭据。
-- `provider-usage`：每次转发记一条用量（Token、耗时、首字时间、Agent），概览的用量看板和 `GET /api/usage` 按今天、7 天、30 天汇总；流式 Chat 请求没要求 usage 时 aicat 补上 `stream_options.include_usage`。不依赖流量扩展，见领域文档的“用量”。
-- `provider-model-sync`：保存时（地址、协议或密钥有变化）向供应商的 `/models` 取模型列表，可手动重新同步；Codex 扩展用其中启用的模型向 Codex 提供模型，见 [Codex 扩展](codex.md)。
+- `provider-save`：直接填写名称、接口地址和 API Key，标签在输入框左侧，三个输入框等宽对齐。没有预置、协议选择、ID 编辑或 Agent 对接步骤。内部 ID 优先取英文名称，纯中文名称改取域名，冲突追加数字；保存后固定。保存前验证模型列表，失败时不保存并提示原因。编辑时 Key 留空保持不变。
+- `provider-icon`：只在模型同步时从接口地址对应站点读取 favicon，或站点 HTML 的图标链接；API 子域名没有时尝试去掉 `api.`。图标只在已保存供应商的详情页标题和主页供应商列表展示，添加表单不展示；不可编辑，缺省使用立方体图标。请求不带保管密钥，结果转为位图/ICO 的 data URL 后交给页面，失败保留上次图标或显示默认图标，随供应商信息持久化。页面展示、输入地址、筛选、改名和启动只读本地数据，不获取图标或模型；旧配置缺少列表时由用户手动重新同步。
+- `provider-forward`：共用 `/v1/messages`、`/v1/chat/completions` 和 `/v1/responses`。按正文的 `model` 选择供应商，接口路径追加到保存的 API 基址；Messages 换用 `x-api-key`，Chat/Responses 换用 Bearer。模型前缀在转发前去掉，不做协议能力判断。上游错误的状态码、响应头和正文直接返回，不重试或回落。流式响应边到边发，流式 Chat 仍按用量统计约定补 `include_usage`。
+- `provider-models`：添加成功后在表单下方显示模型列表。支持筛选、逐项勾选启用、全选、全不选和重新同步；全选与全不选仅作用于筛选出的模型。没勾选过时全部启用，勾选过后新模型不自动启用。改地址重置勾选，只改密钥保留。
+- `provider-model-sync`：新增或地址、密钥变化时自动同步模型列表，也可手动重新同步。只请求配置 API 基址后的 `/models`，不猜测其他路径、不自动改写基址；失败提示错误。只提供模型列表的供应商才能保存；同步失败保留之前的列表。模型列表不作为协议支持的证明。
+- `provider-status`：最近一次同步决定连通状态：已连通、密钥被拒、连不上或没有模型列表。异常也出现在主页待办中。
+- `provider-pick`：`GET /v1/models` 与 Codex 列表提供所有供应商启用的模型，不根据请求头、旧协议设置或模型的 `supported_endpoints` 过滤。不带前缀的模型只有一家启用时命中，否则返回 400；写明供应商前缀不受启用勾选限制（Codex 扩展只接受其列表里启用的模型）。
+- `provider-records`、`provider-usage`：转发记录与用量统计保持可用，流量与用量工件不包含保管密钥或 Agent 凭据。
 
 ## 入口
 
-- 概览 → “接入供应商”；有调用的供应商出现在概览的“按供应商”里，点这一行回到这一页；同步失败的供应商出现在待办里，点“管理”。
-- Agent 侧：页面第二步给出的环境变量，Anthropic 协议是 `ANTHROPIC_BASE_URL=http://127.0.0.1:9981`，OpenAI 协议是 `OPENAI_BASE_URL=http://127.0.0.1:9981/v1`；模型名写作 `供应商 ID/模型`。
+- 主页 → 接入供应商；已保存的供应商始终显示在“已接入供应商”中，点击“管理模型”打开表单与模型列表，不受是否有调用或用量时段影响。
+- 首页“按供应商”统计只在供应商仍存在时进入管理页；未关联或已移除的供应商保留统计、不跳转，缺失名称时显示 ID 或“未关联供应商”。
+- Agent 地址配置在“接入 Agent”页面查看。供应商页只负责接入信息与模型管理。
 
-## 前提
+## 定向验收
 
-- 使用隔离的 `--home`。上游用本机的 HTTP fixture（接口地址允许 `http://127.0.0.1:<端口>`）。
-- 运行 `node e2e/provider.cjs bin/aicat-e2e build/provider-e2e` 即覆盖下列配方。
+```sh
+make e2e-build
+node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
+# 仅检查首页统计中未关联、已移除与现有供应商的跳转
+node e2e/provider.cjs bin/aicat-e2e build/provider-overview-e2e --overview-provider
+# 仅检查模型路径、保存与同步失败提示
+node e2e/provider.cjs bin/aicat-e2e build/provider-model-path-e2e --model-path
+# 仅检查默认图标、添加页无图标和表单对齐
+node e2e/provider.cjs bin/aicat-e2e build/provider-appearance-e2e --appearance
+node e2e/codex.cjs bin/aicat-e2e build/codex-e2e
+```
 
-## 配方
+两组使用独立 Home、本机上游 fixture、headless Chromium 和隐藏原生窗口；报告、日志和浅深色截图保存在指定输出目录。验证内容：
 
-- **旧文件。** 启动前在 Home 放一份旧格式的 `providers.json`（`{"openai":{...}}`，地址不带 `/v1`）。启动后 `state().providers[0]` 的 ID 是 `openai`；模型列表只在 `/v1/models` 有回答，接口地址被补上 `/v1`。
-- **按模型路由。** 向 `/v1/chat/completions` 发 `{"model":"openai/gpt-x","n":1}`，fixture 在 `/v1/chat/completions` 收到 `{"model":"gpt-x","n":1}` 和保管的密钥。向 `/v1/messages` 发 `openai/claude-test`（协议不符）或没有供应商提供的模型返回 400；`/v1/embeddings`、`/openai/v1/...`、`/p/openai/...` 返回 404；fixture 都收不到。
-- **预置。** 点击 `#connect-provider` 出现 `#provider-presets`，点击 `#preset-anthropic`，`#provider-name` 与 `#provider-url` 已填好；`#preset-custom` 是自定义。
-- **保存。** 在 `#provider-url` 填 fixture 地址，在 `#provider-key` 填密钥，点击 `#provider-save`。出现 `#provider-status.ok`，`window.desktop.state().providers` 里该项的 `keyHint` 是密钥末四位；`#provider-key` 被清空。
-- **只进文件。** Home 下 `providers.json` 权限为 0600 且含密钥；`aicat.yaml`、页面内容和 `state()` 都不含密钥。
-- **拒绝明文地址。** 接口地址填 `http://example.com` 保存，`#provider-status.bad` 提示 https，`providers.json` 不含这把密钥。
-- **取不到模型列表不保存。** fixture 的列表有 `claude-test`、`claude-other` 两个模型，只在 `/v1/models` 回答。填 fixture 不认的密钥保存，`#provider-status.bad` 提示密钥被拒；接口地址填 fixture 的 `/nolist` 保存，提示没有模型列表。两次都只剩旧文件那一家供应商，`providers.json` 不含这把密钥，请求返回 400。
-- **转发。** 向 `http://127.0.0.1:<监听端口>/v1/messages` 发 POST，模型写 `anthropic/claude-test`，自带一个假的 `x-api-key` 和 `Authorization`。fixture 收到的 `x-api-key` 是保管的密钥，没有 `Authorization`，路径、查询串和其他请求头原样到达，正文里的模型是 `claude-test`；SSE 的两段数据分开到达客户端。
-- **流量记录。** `/api/traffic` 里有这条记录，URL 是上游地址，状态 200，类型 SSE。`/api/traffic/{id}` 的全文不含保管的密钥和 Agent 自带的假密钥，`X-Api-Key` 记为 `[aicat]`，没有 `requestSent`；请求和响应正文可读。
-- **用量。** fixture 的 SSE 在 `message_start` 报输入 120、缓存读 300、缓存写 30，隔 400 ms 发正文后在 `message_delta` 报输出 45；请求带 `User-Agent: claude-cli/…`。`/api/usage?period=today` 里 `anthropic` 供应商的四类 Token 是每次调用的整数倍，首字时间不少于 300 ms，Agent 是 Claude Code；概览 `#usage-tokens` 非零，`#overview-providers` 有 Anthropic，`#overview-agents` 有 Claude Code。流式 Chat 请求到达 fixture 时带 `"stream_options":{"include_usage":true}`，非流式请求原样到达。`usage.jsonl` 权限为 0600，不含密钥。
-- **改地址不丢密钥。** 在概览“按供应商”点 Anthropic，只改 `#provider-url` 后保存；再发请求仍然带着原密钥。
-- **移除。** 点击 `#provider-delete` 并确认，回到概览；`providers.json` 不再含密钥，请求返回 400，fixture 不再收到请求。
-- **同步模型列表。** 保存后 fixture 收到一次带保管密钥的 `GET /v1/models`；转发断言只看 `/v1/messages` 请求。模型列表本身的配方见 [Codex 扩展](codex.md)。
-- **不带前缀与模型列表。** 模型只写 `claude-test` 也到达 Anthropic 协议的那家（OpenAI 协议的那家列表里也有它，但不提供这个接口）。`GET /v1/models` 带 `Anthropic-Version` 返回 `anthropic/claude-test`，不带返回 `openai/claude-test`。
-- **勾选模型。** 保存后两个勾选框都选中，`#provider-models-enabled` 显示“已启用 2 / 2”。取消 `claude-test`：`state()` 里该供应商 `enabled` 是 `["claude-other"]`、`picked` 为 true，`providers.json` 记下 `enabled`；带 `Anthropic-Version` 的 `/v1/models` 只剩 `anthropic/claude-other`；不带前缀的 `claude-test` 返回 400，`anthropic/claude-test` 仍然 200。`#provider-models-none` 后列表为空；在 `#provider-models-filter` 填 `other` 只剩一个勾选框，`#provider-models-all` 只启用 `claude-other`；清空筛选再全选恢复两个。
-- **未接入与浏览器来源。** 保存前请求返回 400；带 `Origin` 头的请求返回 403。
+- 三项表单、左右边缘对齐，无预置、协议、ID 或对接步骤；添加成功后模型列表出现，未调用过也能在主页管理。
+- 中文名称生成 ASCII ID、重名追加编号，改名不影响 ID；同模型多供应商时无前缀请求被拒。
+- 模型同步、筛选、启用勾选、重新同步及失败保留列表；不提供模型列表、拒绝密钥和非本机明文 HTTP 地址不保存。
+- 同一供应商的三种接口都到达上游，鉴权按请求路径替换；旧协议也不拦截。上游不支持时返回原始错误，只有一次上游请求；模型元数据不触发本机协议拒绝。
+- 模型同步后才获取图标，输入与页面展示不触发请求；图标请求不带凭据，页面用 data URL 展示；无效图标回退且不阻止保存。
+- 密钥只进入 0600 的 `providers.json`，不回传页面、配置、流量或用量记录；保留流式、查询串、用量与本机来源限制。
+- 旧文件迁移保留 ID、密钥和模型勾选，旧 Anthropic 基址补 `/v1`，所有接口统一按 API 基址拼接。
 
 ## 边界
 
-- 一个供应商只有一种协议、一个地址和一把密钥；同一家的两种协议要接入两次。没有多密钥、失败切换或协议转换。模型只能从同步到的列表里勾选，不能手填列表外的模型；不提供模型列表的供应商不能接入。
-- 连通状态只来自模型列表请求，不发真实的模型请求。模型列表只在保存和手动重新同步时更新，没有后台定期刷新。
-- 勾选只决定提供给 Agent 的列表和不带前缀的匹配，不限制写明供应商前缀的请求。
-- 协议是 Anthropic 且地址不是 `api.anthropic.com` 时，模型列表请求同时带 `x-api-key` 和 `Authorization: Bearer`；转发仍只带 `x-api-key`。
-- 没有本机服务（如 Ollama）的预置：密钥必填。
-- 只路由带 `model` 的 POST 请求；文件、批处理、向量等其他接口返回 404。压缩的请求正文（`Content-Encoding`）不接受，正文上限 64 MiB。
-- 没有默认供应商，也没有模型别名：Agent 自己写死的模型名（如 Claude Code 后台用的小模型）没有供应商提供时返回 400，需要在 Agent 里把模型改成带前缀的写法。
-- 供应商 ID 与模型名的第一段相同时按供应商解释：接入了 ID 为 `anthropic` 的供应商后，别家的 `anthropic/claude-x` 要写成 `别家 ID/anthropic/claude-x`。
-- 每种协议一份的旧格式 `providers.json` 在启动时读成 ID 为 `anthropic`、`openai`、`compat` 的供应商，下次保存时改写。
-- 路由只接受本机请求，监听在 `0.0.0.0` 时也一样。
-- 密钥是明文文件，靠文件权限保护；备份或同步 `~/.aicat/` 时会带上它。
-- 转发的记录没有应用归属，在侧栏归到“未知应用”。暂停采集或停用流量时不记录，转发照常。
-- Token、费用等用量统计还没有实现。
-- 没有经真实的 Anthropic 或 OpenAI 服务验证，只用本机 fixture 验证过。
+- 每个供应商只有一个 API 基址和一把密钥；不同协议若需不同基址，可分开添加。没有协议转换、多密钥、失败切换或默认供应商。
+- 模型列表仅在保存变更和手动同步时更新，不进行真实推理探测或后台定期刷新。
+- 路由只接受本机请求并拒绝浏览器 Origin；仅提供带 `model` 的模型 POST 与模型列表，不支持文件、批处理、向量等其他接口。压缩正文不接受，上限 64 MiB。
+- 密钥以明文文件保存，靠权限保护；备份 Home 会包含密钥。图标随供应商信息持久化，重启后只读本地数据；SVG 等非位图图标回退默认图标。
+- 本机 fixture 覆盖保存、同步和转发；真实私云已验证 `/v1/models` 同步，真实供应商推理和真实 Codex 尚未验证。

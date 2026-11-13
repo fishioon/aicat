@@ -100,7 +100,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "请求不是有效的 JSON")
 		return
 	}
-	e, name, err := h.store.resolve(api, model)
+	e, name, err := h.store.resolve(model)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -122,11 +122,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body = io.NopCloser(bytes.NewReader(body))
 	r.ContentLength = int64(len(body))
 	r.Header.Del("Content-Length")
-	// An OpenAI-style base URL ends where /v1 does; Anthropic's is the origin.
-	rest := r.URL.Path
-	if api != "anthropic" {
-		rest = strings.TrimPrefix(rest, "/v1")
-	}
+	// All providers store the API base; the incoming endpoint selects the path.
+	rest := strings.TrimPrefix(r.URL.Path, "/v1")
 	meter := h.usage.Begin(usage.Record{Agent: agent, Provider: e.ID, Model: name, API: api}, start)
 	h.forward(w, r, e, rest, meter)
 }
@@ -154,14 +151,9 @@ func askUsage(q map[string]json.RawMessage) bool {
 	return true
 }
 
-// models answers the model list: every model of the providers serving the
-// caller's API (Anthropic's when it sends Anthropic-Version), each named
+// models answers all enabled provider models, each named
 // "<provider ID>/<model>". The shape reads as both vendors' lists do.
 func (h *Handler) models(w http.ResponseWriter, r *http.Request) {
-	api := "chat"
-	if r.Header.Get("Anthropic-Version") != "" {
-		api = "anthropic"
-	}
 	type row struct {
 		ID          string `json:"id"`
 		Object      string `json:"object"`
@@ -178,7 +170,7 @@ func (h *Handler) models(w http.ResponseWriter, r *http.Request) {
 		FirstID string `json:"first_id,omitempty"`
 		LastID  string `json:"last_id,omitempty"`
 	}{Object: "list", Data: []row{}}
-	for _, m := range h.store.catalog(api) {
+	for _, m := range h.store.catalog() {
 		list.Data = append(list.Data, row{ID: m.ID, Object: "model", Type: "model", DisplayName: m.Name, OwnedBy: m.Provider, CreatedAt: "1970-01-01T00:00:00Z"})
 	}
 	if n := len(list.Data); n > 0 {
@@ -200,7 +192,6 @@ func writeError(w http.ResponseWriter, status int, message string) {
 
 // forward sends r to the provider's endpoint at rest, with the saved key.
 func (h *Handler) forward(w http.ResponseWriter, r *http.Request, e entry, rest string, meter *usage.Meter) {
-	k := protocols[e.Protocol]
 	target, err := url.Parse(e.BaseURL + rest)
 	if err != nil {
 		meter.Fail(err)
@@ -222,7 +213,11 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, e entry, rest 
 			// Let the transport negotiate and undo compression, so captured
 			// bodies stay readable.
 			pr.Out.Header.Del("Accept-Encoding")
-			pr.Out.Header.Set(k.header, k.prefix+e.Key)
+			if apiOf(r.URL.Path) == "anthropic" {
+				pr.Out.Header.Set("X-Api-Key", e.Key)
+			} else {
+				pr.Out.Header.Set("Authorization", "Bearer "+e.Key)
+			}
 		},
 		ModifyResponse: func(res *http.Response) error {
 			res.Body = rec.Response(res)

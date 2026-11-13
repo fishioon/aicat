@@ -125,6 +125,7 @@ func Run(o Options) error {
 			a.captureStarted = a.enabled && a.recording
 			// model list syncs end on their own time
 			r.providers.OnChange(a.notifyState)
+			r.extensions.OnChange(a.notifyState)
 			stop, err := desktopPreview(a.service)
 			result <- startupResult{runtime: r, stopPreview: stop, err: err}
 			if err != nil {

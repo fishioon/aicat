@@ -12,7 +12,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -24,29 +25,14 @@ import (
 	"time"
 )
 
-// protocol is how a vendor is spoken to: how its key is sent, and whether
-// it serves the OpenAI Responses API, so its models can be offered to Codex.
-type protocol struct {
-	header, prefix string
-	responses      bool
-}
-
-var protocols = map[string]protocol{
-	"anthropic": {header: "X-Api-Key"},
-	"openai":    {header: "Authorization", prefix: "Bearer ", responses: true},
-	// chat: OpenAI Chat Completions only
-	"chat": {header: "Authorization", prefix: "Bearer "},
-}
-
 type entry struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
-	// Preset is the catalog entry the page made it from; empty for a custom
-	// one. The store only keeps it.
-	Preset   string `json:"preset,omitempty"`
-	Protocol string `json:"protocol"`
+	// Protocol is read only to migrate legacy Anthropic base URLs.
+	Protocol string `json:"protocol,omitempty"`
 	BaseURL  string `json:"baseUrl"`
 	Key      string `json:"key"`
+	Icon     string `json:"icon,omitempty"`
 	// Enabled are the model IDs the user ticked; nil, before any was
 	// ticked, is every model the list has. Only these are offered to
 	// agents and matched by a bare model name.
@@ -65,26 +51,21 @@ type file struct {
 // Input is a provider as the page saves it. An empty ID adds one; an empty
 // Key keeps the saved key.
 type Input struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Preset   string `json:"preset"`
-	Protocol string `json:"protocol"`
-	BaseURL  string `json:"baseUrl"`
-	Key      string `json:"key"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	BaseURL string `json:"baseUrl"`
+	Key     string `json:"key"`
 }
 
 // Provider is what the UI may know about a saved provider. The key stays behind;
 // KeyHint is its last four characters, enough to tell two keys apart.
 type Provider struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Preset   string `json:"preset"`
-	Protocol string `json:"protocol"`
-	BaseURL  string `json:"baseUrl"`
-	KeyHint  string `json:"keyHint"`
-	// Responses: the provider's models can be offered to Codex.
-	Responses bool      `json:"responses"`
-	Models    ModelList `json:"models"`
+	ID      string    `json:"id"`
+	Name    string    `json:"name"`
+	BaseURL string    `json:"baseUrl"`
+	KeyHint string    `json:"keyHint"`
+	Icon    string    `json:"icon"`
+	Models  ModelList `json:"models"`
 	// Enabled are the IDs of the listed models offered to agents; Picked
 	// is whether the user chose them, or they are every listed model.
 	Enabled []string `json:"enabled"`
@@ -127,7 +108,7 @@ func Open(home string) (*Store, error) {
 	// The model lists are a cache of what the vendors said: an unreadable
 	// file is synced again rather than stopping aicat.
 	if data, err = os.ReadFile(s.modelsPath); err == nil {
-		if json.Unmarshal(data, &s.models) != nil {
+		if json.Unmarshal(data, &s.models) != nil || s.models == nil {
 			s.models = map[string]ModelList{}
 		}
 	}
@@ -150,12 +131,12 @@ func parse(data []byte) ([]entry, error) {
 	if _, ok := top["providers"]; ok || len(top) == 0 {
 		var f file
 		err := json.Unmarshal(data, &f)
-		return f.Providers, err
+		return migrateEntries(f.Providers), err
 	}
 	var entries []entry
 	for _, old := range []entry{
-		{ID: "anthropic", Name: "Anthropic", Preset: "anthropic", Protocol: "anthropic"},
-		{ID: "openai", Name: "OpenAI", Preset: "openai", Protocol: "openai"},
+		{ID: "anthropic", Name: "Anthropic", Protocol: "anthropic"},
+		{ID: "openai", Name: "OpenAI", Protocol: "openai"},
 		{ID: "compat", Name: "OpenAI-compatible", Protocol: "openai"},
 	} {
 		raw, ok := top[old.ID]
@@ -167,7 +148,20 @@ func parse(data []byte) ([]entry, error) {
 		}
 		entries = append(entries, old)
 	}
-	return entries, nil
+	return migrateEntries(entries), nil
+}
+
+// Old Anthropic addresses excluded /v1. All addresses now name the API base,
+// so every incoming /v1/<endpoint> is appended in the same way. IDs and keys stay.
+func migrateEntries(entries []entry) []entry {
+	for i := range entries {
+		e := &entries[i]
+		if e.Protocol == "anthropic" {
+			e.BaseURL = strings.TrimSuffix(strings.TrimRight(e.BaseURL, "/"), "/v1") + "/v1"
+		}
+		e.Protocol = ""
+	}
+	return entries
 }
 
 // OnChange is told when a model list sync starts or ends, outside any save
@@ -203,14 +197,17 @@ func (s *Store) List() []Provider {
 		}
 		list := s.models[e.ID]
 		list.Models = slices.Clone(list.Models)
+		if list.Models == nil {
+			list.Models = []Model{}
+		}
 		enabled := []string{}
 		for _, m := range list.Models {
 			if e.offers(m.ID) {
 				enabled = append(enabled, m.ID)
 			}
 		}
-		views = append(views, Provider{ID: e.ID, Name: e.Name, Preset: e.Preset, Protocol: e.Protocol, BaseURL: e.BaseURL,
-			KeyHint: hint, Responses: protocols[e.Protocol].responses, Models: list, Enabled: enabled, Picked: e.Enabled != nil,
+		views = append(views, Provider{ID: e.ID, Name: e.Name, BaseURL: e.BaseURL,
+			KeyHint: hint, Icon: e.Icon, Models: list, Enabled: enabled, Picked: e.Enabled != nil,
 			Syncing: s.syncing[e.ID]})
 	}
 	return views
@@ -221,7 +218,7 @@ func (s *Store) List() []Provider {
 // the key ever travelling back to it.
 //
 // A provider is one whose model list can be had: a new one, or one saved
-// with another endpoint, protocol or key, is asked for its list first, and
+// with another endpoint or key, is asked for its list first, and
 // is not saved when the vendor gives none. The vendor is asked holding no
 // lock.
 func (s *Store) Save(ctx context.Context, in Input) (string, error) {
@@ -229,16 +226,9 @@ func (s *Store) Save(ctx context.Context, in Input) (string, error) {
 	if name == "" || len([]rune(name)) > 40 {
 		return "", errors.New("供应商名称需要填写，且不超过 40 个字符")
 	}
-	if _, ok := protocols[in.Protocol]; !ok {
-		return "", fmt.Errorf("未知的接口协议：%s", in.Protocol)
-	}
 	baseURL := strings.TrimRight(strings.TrimSpace(in.BaseURL), "/")
 	if baseURL != "" && !strings.Contains(baseURL, "://") {
 		baseURL = "https://" + baseURL
-	}
-	if in.Protocol == "anthropic" {
-		// agents add /v1/messages themselves
-		baseURL = strings.TrimSuffix(strings.TrimSuffix(baseURL, "/messages"), "/v1")
 	}
 	if err := validateBaseURL(baseURL); err != nil {
 		return "", err
@@ -248,7 +238,7 @@ func (s *Store) Save(ctx context.Context, in Input) (string, error) {
 		return "", errors.New("API Key 不能包含空白字符")
 	}
 	s.mu.Lock()
-	e := entry{ID: in.ID, Name: name, Preset: in.Preset, Protocol: in.Protocol, BaseURL: baseURL, Key: key}
+	e := entry{ID: in.ID, Name: name, BaseURL: baseURL, Key: key}
 	var old entry
 	if in.ID != "" {
 		i := s.find(in.ID)
@@ -261,12 +251,15 @@ func (s *Store) Save(ctx context.Context, in Input) (string, error) {
 			e.Key = old.Key
 		}
 		e.Enabled = old.Enabled
+		if old.BaseURL == e.BaseURL {
+			e.Icon = old.Icon
+		}
 	}
 	if e.Key == "" {
 		s.mu.Unlock()
 		return "", errors.New("接口地址和 API Key 都要填")
 	}
-	if in.ID != "" && old.BaseURL == e.BaseURL && old.Key == e.Key && old.Protocol == e.Protocol {
+	if in.ID != "" && old.BaseURL == e.BaseURL && old.Key == e.Key {
 		defer s.mu.Unlock()
 		next := slices.Clone(s.entries)
 		next[s.find(in.ID)] = e
@@ -282,7 +275,12 @@ func (s *Store) Save(ctx context.Context, in Input) (string, error) {
 		defer s.changed()
 	}
 
-	models, source, err := fetchModels(ctx, s.client, e.Protocol, e.BaseURL, e.Key)
+	models, source, err := fetchModels(ctx, s.client, e.BaseURL, e.Key)
+	if err == nil {
+		if image := fetchIcon(ctx, e.BaseURL); image != "" {
+			e.Icon = image
+		}
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -295,19 +293,14 @@ func (s *Store) Save(ctx context.Context, in Input) (string, error) {
 	if err != nil {
 		return "", saveError(err)
 	}
-	// The list answered only under /v1: the address was typed without it,
-	// and requests need it as much as the list does.
-	if e.Protocol != "anthropic" && source == e.BaseURL+"/v1/models" {
-		e.BaseURL += "/v1"
-	}
 	// Another endpoint serves other models: what was ticked for the old one
 	// does not carry over. A new key for the same endpoint keeps it.
-	if old.BaseURL != e.BaseURL || old.Protocol != e.Protocol {
+	if old.BaseURL != e.BaseURL {
 		e.Enabled = nil
 	}
 	next := slices.Clone(s.entries)
 	if in.ID == "" {
-		e.ID = s.newIDLocked(firstOf(in.Preset, name))
+		e.ID = s.newIDLocked(name, e.BaseURL)
 		next = append(next, e)
 	} else {
 		next[s.find(in.ID)] = e
@@ -315,13 +308,10 @@ func (s *Store) Save(ctx context.Context, in Input) (string, error) {
 	if err := s.saveLocked(next); err != nil {
 		return "", err
 	}
-	lists := make(map[string]ModelList, len(s.models)+1)
-	for k, v := range s.models {
-		lists[k] = v
-	}
+	lists := maps.Clone(s.models)
 	lists[e.ID] = ModelList{Models: models, SyncedAt: time.Now(), Source: source}
 	if err := s.saveModelsLocked(lists); err != nil {
-		log.Printf("provider models: %v", err)
+		slog.Warn("save provider model cache failed", "provider", e.ID, "err", err)
 	}
 	return e.ID, nil
 }
@@ -357,10 +347,35 @@ func (s *Store) SetEnabled(id string, models []string) error {
 	return s.saveLocked(next)
 }
 
-// newIDLocked makes an unused ID from a preset or a name: the ID is the
+// newIDLocked makes an unused ID from the name or endpoint host: the ID is the
 // provider's path on the gateway and the prefix of its models in Codex, so
 // it is plain ASCII and never changes afterwards.
-func (s *Store) newIDLocked(from string) string {
+func (s *Store) newIDLocked(from, baseURL string) string {
+	id := slug(from)
+	if id == "" {
+		u, _ := url.Parse(baseURL)
+		if u != nil && net.ParseIP(u.Hostname()) == nil {
+			labels := strings.Split(u.Hostname(), ".")
+			if len(labels) > 1 {
+				labels = labels[:len(labels)-1]
+			}
+			for len(labels) > 1 && (labels[0] == "api" || labels[0] == "www") {
+				labels = labels[1:]
+			}
+			id = slug(strings.Join(labels, "-"))
+		}
+	}
+	if id == "" {
+		id = "custom"
+	}
+	base := id
+	for n := 2; s.find(id) >= 0; n++ {
+		id = fmt.Sprintf("%s-%d", base, n)
+	}
+	return id
+}
+
+func slug(from string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(from) {
 		switch {
@@ -370,15 +385,7 @@ func (s *Store) newIDLocked(from string) string {
 			b.WriteByte('-')
 		}
 	}
-	id := strings.Trim(b.String(), "-")
-	if id == "" {
-		id = "provider"
-	}
-	base := id
-	for n := 2; s.find(id) >= 0; n++ {
-		id = fmt.Sprintf("%s-%d", base, n)
-	}
-	return id
+	return strings.Trim(b.String(), "-")
 }
 
 func firstOf(values ...string) string {
@@ -407,18 +414,6 @@ func (s *Store) Delete(id string) error {
 	return nil
 }
 
-// SyncMissing asks each saved provider without a model list for one, in the
-// background: providers saved before lists were kept, or whose list was lost.
-func (s *Store) SyncMissing() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, e := range s.entries {
-		if _, ok := s.models[e.ID]; !ok && !s.syncing[e.ID] {
-			s.syncLocked(e.ID)
-		}
-	}
-}
-
 // Sync asks the provider for its model list now and waits for the answer. A
 // failure keeps the list an earlier sync found, with the error beside it.
 func (s *Store) Sync(ctx context.Context, id string) error {
@@ -435,19 +430,6 @@ func (s *Store) Sync(ctx context.Context, id string) error {
 	return err
 }
 
-// syncLocked starts a sync in the background.
-func (s *Store) syncLocked(id string) {
-	gen := s.startLocked(id)
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 4*fetchTimeout)
-		defer cancel()
-		if err := s.sync(ctx, id, gen); err != nil {
-			log.Printf("provider %s models: %v", id, err)
-		}
-		s.changed()
-	}()
-}
-
 func (s *Store) startLocked(id string) uint64 {
 	s.generation[id]++
 	s.syncing[id] = true
@@ -461,7 +443,11 @@ func (s *Store) sync(ctx context.Context, id string, gen uint64) error {
 		e = s.entries[i]
 	}
 	s.mu.RUnlock()
-	models, source, err := fetchModels(ctx, s.client, e.Protocol, e.BaseURL, e.Key)
+	models, source, err := fetchModels(ctx, s.client, e.BaseURL, e.Key)
+	image := ""
+	if err == nil {
+		image = fetchIcon(ctx, e.BaseURL)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.generation[id] != gen {
@@ -473,20 +459,15 @@ func (s *Store) sync(ctx context.Context, id string, gen uint64) error {
 		list.Error, list.ErrorKind = err.Error(), errorKind(err)
 	} else {
 		list = ModelList{Models: models, SyncedAt: time.Now(), Source: source}
-		// The list answered only under /v1: the address was typed without
-		// it, and requests need it as much as the list does.
-		if i := s.find(id); i >= 0 && e.Protocol != "anthropic" && source == e.BaseURL+"/v1/models" {
+		if image != "" && image != e.Icon {
 			fixed := slices.Clone(s.entries)
-			fixed[i].BaseURL = e.BaseURL + "/v1"
+			fixed[s.find(id)].Icon = image
 			if saveErr := s.saveLocked(fixed); saveErr != nil {
-				log.Printf("provider %s: %v", id, saveErr)
+				slog.Warn("save provider icon failed", "provider", id, "err", saveErr)
 			}
 		}
 	}
-	next := make(map[string]ModelList, len(s.models)+1)
-	for k, v := range s.models {
-		next[k] = v
-	}
+	next := maps.Clone(s.models)
 	next[id] = list
 	if saveErr := s.saveModelsLocked(next); saveErr != nil {
 		return errors.Join(err, saveErr)
@@ -498,14 +479,10 @@ func (s *Store) forgetModelsLocked(id string) {
 	if _, ok := s.models[id]; !ok {
 		return
 	}
-	next := make(map[string]ModelList, len(s.models))
-	for k, v := range s.models {
-		if k != id {
-			next[k] = v
-		}
-	}
+	next := maps.Clone(s.models)
+	delete(next, id)
 	if err := s.saveModelsLocked(next); err != nil {
-		log.Printf("provider models: %v", err)
+		slog.Warn("remove provider model cache failed", "err", err)
 	}
 }
 
@@ -518,8 +495,8 @@ func (s *Store) changed() {
 	}
 }
 
-// ResponsesModel is a model of a saved provider that speaks the Responses
-// API, as its list has it.
+// ResponsesModel is an enabled provider model offered to Codex. The upstream
+// decides whether it can answer a Responses request.
 type ResponsesModel struct {
 	Provider     string // the provider's ID
 	ProviderName string
@@ -529,20 +506,16 @@ type ResponsesModel struct {
 	Model
 }
 
-// ResponsesModels lists what Codex may be offered: the enabled models of each
-// saved provider that speaks the Responses API, leaving out any its vendor
-// says is served on other APIs only.
+// ResponsesModels lists enabled models for Codex without guessing protocol
+// support from a provider setting or its model metadata.
 func (s *Store) ResponsesModels() []ResponsesModel {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var out []ResponsesModel
 	for _, e := range s.entries {
-		if !protocols[e.Protocol].responses {
-			continue
-		}
 		u, _ := url.Parse(e.BaseURL)
 		for _, m := range s.models[e.ID].Models {
-			if !e.offers(m.ID) || len(m.APIs) > 0 && !slices.Contains(m.APIs, "responses") {
+			if !e.offers(m.ID) {
 				continue
 			}
 			out = append(out, ResponsesModel{Provider: e.ID, ProviderName: e.Name, OpenAI: u != nil && u.Hostname() == "api.openai.com", Model: m})
@@ -613,27 +586,12 @@ func validateBaseURL(raw string) error {
 	return errors.New("接口地址需要使用 https；http 只允许本机地址")
 }
 
-// serves reports whether a provider of this protocol answers an API: the
-// Anthropic Messages API ("anthropic"), OpenAI Chat Completions ("chat") or
-// OpenAI Responses ("responses"). Nothing is translated between them.
-func serves(protocol, api string) bool {
-	switch api {
-	case "anthropic":
-		return protocol == "anthropic"
-	case "chat":
-		return protocol == "openai" || protocol == "chat"
-	case "responses":
-		return protocols[protocol].responses
-	}
-	return false
-}
-
 // resolve finds the provider a request's model names, and the model's name
 // as that provider knows it. "<provider ID>/<model>" names the provider; a
 // model without one goes to the provider that enabled it in its synced list,
-// when exactly one serving this API does. A prefixed model is forwarded
+// when exactly one enabled it. A prefixed model is forwarded
 // whether or not it is enabled.
-func (s *Store) resolve(api, model string) (entry, string, error) {
+func (s *Store) resolve(model string) (entry, string, error) {
 	if model == "" {
 		return entry{}, "", errors.New("请求里没有 model；aicat 按 model 选择供应商，写作“供应商 ID/模型”")
 	}
@@ -642,15 +600,12 @@ func (s *Store) resolve(api, model string) (entry, string, error) {
 	if id, name, ok := strings.Cut(model, "/"); ok && name != "" {
 		if i := s.find(id); i >= 0 {
 			e := s.entries[i]
-			if !serves(e.Protocol, api) {
-				return entry{}, "", fmt.Errorf("供应商 %s 不提供这个接口（它的接口协议是 %s）；aicat 不做协议转换", id, e.Protocol)
-			}
 			return e, name, nil
 		}
 	}
 	var found []entry
 	for _, e := range s.entries {
-		if serves(e.Protocol, api) && e.offers(model) && slices.ContainsFunc(s.models[e.ID].Models, func(m Model) bool { return m.ID == model }) {
+		if e.offers(model) && slices.ContainsFunc(s.models[e.ID].Models, func(m Model) bool { return m.ID == model }) {
 			found = append(found, e)
 		}
 	}
@@ -672,16 +627,13 @@ type listed struct {
 	ID, Name, Provider string
 }
 
-// catalog lists the enabled models of the providers serving an API, each named
+// catalog lists the enabled models of all providers, each named
 // "<provider ID>/<model>".
-func (s *Store) catalog(api string) []listed {
+func (s *Store) catalog() []listed {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := []listed{}
 	for _, e := range s.entries {
-		if !serves(e.Protocol, api) {
-			continue
-		}
 		for _, m := range s.models[e.ID].Models {
 			if !e.offers(m.ID) {
 				continue

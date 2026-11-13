@@ -15,6 +15,8 @@ const paths: Record<string, string> = {
   home: '<path d="M2.5 7.5 8 3l5.5 4.5v5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1Z"/><path d="M6.5 13.5v-4h3v4"/>',
   traffic:
     '<path d="M2.5 5.5h10M10 3l2.5 2.5L10 8M13.5 10.5h-10M6 8l-2.5 2.5L6 13"/>',
+  provider:
+    '<path d="m8 1.5 6 3.25v6.5L8 14.5l-6-3.25v-6.5Z"/><path d="m2 4.75 6 3.5 6-3.5M8 8.25v6.25"/>',
   extensions:
     '<rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/><path d="M11.25 2.5V7M9 4.75h4.5"/>',
   more: '<circle cx="3.5" cy="8" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="12.5" cy="8" r=".6"/>',

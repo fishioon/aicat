@@ -15,7 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -99,7 +99,7 @@ func (c *Catalog) KeepFresh(ctx context.Context) {
 	for {
 		if c.Stale() {
 			if err := c.Sync(ctx); err != nil && ctx.Err() == nil {
-				log.Printf("models.dev: %v", err)
+				slog.Warn("sync models.dev failed", "err", err)
 			}
 		}
 		select {
@@ -178,7 +178,7 @@ func (c *Catalog) load() map[string]Info {
 			if byID, err := parse(b); err == nil {
 				c.byID = byID
 			} else {
-				log.Printf("models.dev: %s: %v", c.path, err)
+				slog.Warn("read models.dev cache failed", "path", c.path, "err", err)
 			}
 		}
 	}

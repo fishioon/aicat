@@ -58,7 +58,7 @@ def main():
  parser=argparse.ArgumentParser();parser.add_argument('--out',required=True);args=parser.parse_args();out=pathlib.Path(args.out).resolve();out.mkdir(parents=True,exist_ok=True)
  jobs=[(kind,name,version) for kind,(name,versions) in SAMPLES.items() for version in versions]
  with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:results=list(executor.map(lambda job:inventory(*job,out),jobs))
- shim=(ROOT/'shim/sdk.mjs').read_text();exports=set(re.findall(r'export\s+(?:async\s+)?(?:function|const)\s+(\w+)',shim))
+ shim='\n'.join(file.read_text() for file in sorted((ROOT/'shim').glob('*.mjs')));exports=set(re.findall(r'export\s+(?:async\s+)?(?:function|const)\s+(\w+)',shim))
  report={'scope':'Literal shipped JavaScript imports/calls; excludes computed paths and plugin-internal SDK behavior. Counts are lower bounds, not implementation estimates.','samples':results,'sdkExportsInPrototype':sorted(exports),'comparisons':[]}
  for kind,(_,versions) in SAMPLES.items():
   samples=[next(x for x in results if x['kind']==kind and x['version']==v) for v in versions]

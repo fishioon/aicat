@@ -11,7 +11,7 @@ import (
 )
 
 // Reconfiguration shares the OS/settings/quit lock. Traffic storage, the CA,
-// rewrite runtime and subscriptions keep their identities across the switch.
+// traffic subscriptions keep their identities across the switch.
 func (c *connection) rebind(ctx context.Context, g *gateway.Gateway, address string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

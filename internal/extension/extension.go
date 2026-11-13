@@ -8,6 +8,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/fishioon/aicat/internal/channelhost"
+	"github.com/fishioon/aicat/internal/config"
+	"github.com/fishioon/aicat/internal/messages"
 	"github.com/fishioon/aicat/internal/provider"
 	"github.com/fishioon/aicat/internal/traffic"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
@@ -18,7 +21,10 @@ import (
 type Extension struct {
 	// ID names its section in aicat.yaml (extensions.<ID>). A built-in's ID
 	// has no dot; a community package's is publisher.name.
-	ID string `json:"id"`
+	ID        string `json:"id"`
+	Package   string `json:"package"`
+	Version   string `json:"version"`
+	Publisher string `json:"publisher"`
 	// Name, Summary, Lede and Categories are shown on the extensions page,
 	// in the source language; the page translates them.
 	Name       string   `json:"name"`
@@ -38,8 +44,9 @@ type Extension struct {
 
 // Env is the core services an extension may use.
 type Env struct {
-	Home      string
-	Providers *provider.Store
+	Home        string
+	ChannelHost *channelhost.Manager
+	Providers   *provider.Store
 	// Forward is the model endpoint: a request sent through it goes to the
 	// provider its model names, with the provider's key.
 	Forward   http.Handler
@@ -49,6 +56,7 @@ type Env struct {
 
 // Parts is what an extension adds to aicat. Every part is optional.
 type Parts struct {
+	Messages MessageChannel
 	// Addon runs in the gateway, before traffic capture.
 	Addon proxy.Addon
 	// Intercepts names CONNECT targets to decrypt beyond the user's list.
@@ -59,4 +67,15 @@ type Parts struct {
 	// Run is the extension's background work. It starts when the extension
 	// is turned on and its ctx ends when it is turned off.
 	Run func(ctx context.Context)
+}
+
+type MessageChannel interface {
+	Snapshot() messages.State
+	OnChange(func())
+	Configure(messages.AccountConfig) error
+	Validate(context.Context) error
+	Installed() bool
+	Validated() bool
+	ConfigureAgent(config.MessageAgent) error
+	Send(context.Context, messages.Event) (messages.Receipt, error)
 }

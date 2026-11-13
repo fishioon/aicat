@@ -62,7 +62,7 @@ const endpoints = computed(() => [
   <div class="main" id="connect">
     <div class="ov">
       <button class="btn back" id="connect-back" @click="navigate('overview')">
-        <Icon name="back" />{{ t("返回概览") }}
+        <Icon name="back" />{{ t("返回主页") }}
       </button>
       <div class="ov-head">
         <div>

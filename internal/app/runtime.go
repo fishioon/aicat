@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/fishioon/aicat/internal/certificate"
+	"github.com/fishioon/aicat/internal/channelhost"
 	"github.com/fishioon/aicat/internal/config"
 	"github.com/fishioon/aicat/internal/extension"
 	"github.com/fishioon/aicat/internal/gateway"
@@ -11,12 +12,11 @@ import (
 	capture "github.com/fishioon/aicat/internal/gateway/addons/traffic"
 	"github.com/fishioon/aicat/internal/mcpserver"
 	"github.com/fishioon/aicat/internal/provider"
-	"github.com/fishioon/aicat/internal/rewrite"
 	"github.com/fishioon/aicat/internal/systemproxy"
 	"github.com/fishioon/aicat/internal/traffic"
 	"github.com/fishioon/aicat/internal/usage"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -42,7 +42,6 @@ type runtime struct {
 	initialNavigationPins []string
 	initialPins           []string
 	connection            *connection
-	rules                 *rewrite.Service
 	providers             *provider.Store
 	usage                 *usage.Store
 	extensions            *extension.Host
@@ -74,17 +73,8 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 	if err != nil {
 		return nil, err
 	}
-	rules := rewrite.New(ctx, o.Home, cfg.Rewrite, func(next rewrite.Config) error { return config.SetRewrite(o.Home, next) })
-	addon := capture.New(service.Recorder(), rules)
+	addon := capture.New(service.Recorder())
 	endpoints := http.NewServeMux()
-	tools, toolsErr := mcpserver.New(o.Home, rules, service)
-	if toolsErr != nil {
-		log.Printf("MCP unavailable: %v", toolsErr)
-		tools = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, "MCP credentials unavailable", http.StatusServiceUnavailable)
-		})
-	}
-	endpoints.Handle("/mcp", tools)
 	providers, err := provider.Open(o.Home)
 	if err != nil {
 		service.Close()
@@ -99,7 +89,7 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 	endpoints.Handle(provider.Path, models)
 	endpoints.Handle(usage.Path, usage.Handler(calls, providers.Name))
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	extensions, err := extension.New(runCtx, extension.Env{Home: o.Home, Providers: providers, Forward: models, Recorder: service.Recorder(), Recording: addon.Recording}, builtins)
+	extensions, err := extension.New(runCtx, extension.Env{Home: o.Home, ChannelHost: channelhost.New(o.Home), Providers: providers, Forward: models, Recorder: service.Recorder(), Recording: addon.Recording}, builtins)
 	if err != nil {
 		cancel()
 		service.Close()
@@ -107,6 +97,14 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 		return nil, err
 	}
 	extensions.Mount(endpoints)
+	tools, toolsErr := mcpserver.New(o.Home, service, extensions.SendMessage)
+	if toolsErr != nil {
+		slog.Warn("MCP unavailable", "err", toolsErr)
+		tools = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "MCP credentials unavailable", http.StatusServiceUnavailable)
+		})
+	}
+	endpoints.Handle("/mcp", tools)
 	endpoints.Handle("/", api.Handler(service))
 	addon.SetRecording(cfg.ExtensionEnabled("traffic") && cfg.Traffic.Recording)
 	policy := newInterception(o.Home, cfg.Gateway.InterceptHosts)
@@ -123,8 +121,7 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 		calls.Close()
 		return nil, err
 	}
-	r := &runtime{traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.ExtensionEnabled("traffic"), initialRecording: cfg.Traffic.Recording, rules: rules, providers: providers, usage: calls, extensions: extensions}
-	providers.SyncMissing()
+	r := &runtime{traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.ExtensionEnabled("traffic"), initialRecording: cfg.Traffic.Recording, providers: providers, usage: calls, extensions: extensions}
 	for id, section := range cfg.Extensions {
 		if known, _ := extensions.Known(id); known && section.Enabled {
 			_ = extensions.Set(id, true)
@@ -137,14 +134,14 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 	go func() {
 		r.err = gw.Run(runCtx)
 		if e := r.connection.prepareQuit(); e != nil {
-			log.Printf("restore system proxy: %v", e)
+			slog.Error("restore system proxy failed", "err", e)
 		}
 		close(r.done)
 	}()
 	select {
 	case <-gw.Ready():
 		r.connection.startup()
-		log.Printf("aicat ready at %s; CA %s; HTTPS interception: %v", cfg.Gateway.Addr, filepath.Join(caDir, "mitmproxy-ca-cert.pem"), cfg.Gateway.InterceptHosts)
+		slog.Info("aicat ready at", "addr", cfg.Gateway.Addr, "ca", filepath.Join(caDir, "mitmproxy-ca-cert.pem"), "interceptHosts", cfg.Gateway.InterceptHosts)
 		return r, nil
 	case <-r.done:
 		cancel()

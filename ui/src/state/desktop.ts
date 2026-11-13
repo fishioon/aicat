@@ -10,6 +10,8 @@ export type Route =
   | "traffic"
   | "proxy"
   | "general"
+  | "extension-settings"
+  | "extension-diagnostics"
   | "extensions";
 export interface Location {
   route: Route;
@@ -18,6 +20,8 @@ export interface Location {
   app: string | null;
   query: string;
   selected: number;
+  extension: string;
+  provider: string;
 }
 export const state = shallowRef<DesktopState | null>(null);
 export const shell = reactive({
@@ -29,6 +33,7 @@ export const shell = reactive({
   selected: 0,
   extensionQuery: "",
   extension: "traffic",
+  provider: "",
   sidebarHidden: false,
   historyAt: -1,
   history: [] as Location[],
@@ -53,8 +58,9 @@ export function say(text: string) {
   show(text, "", 2600);
 }
 function snapshot(): Location {
-  const { route, host, path, app, query, selected } = shell;
-  return { route, host, path, app, query, selected };
+  const { route, host, path, app, query, selected, extension, provider } =
+    shell;
+  return { route, host, path, app, query, selected, extension, provider };
 }
 export function navigate(
   route: Route,
@@ -73,6 +79,8 @@ export function navigate(
       app: null,
       query: shell.query,
       selected: shell.selected,
+      extension: shell.extension,
+      provider: shell.provider,
       ...filter,
     });
     shell.historyAt++;
