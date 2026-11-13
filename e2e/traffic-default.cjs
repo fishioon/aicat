@@ -370,6 +370,7 @@ async function run({
         root,
         home,
         proxyPort,
+        fixturePort,
         wait,
         launch,
         stop,

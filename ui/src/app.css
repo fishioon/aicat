@@ -1485,7 +1485,7 @@ button.ov-row:hover {
 }
 .cols {
   display: grid;
-  grid-template-columns: 32px 56px minmax(0, 1fr) 112px 84px 64px 64px 72px 80px;
+  grid-template-columns: 32px 56px minmax(0, 1fr) 112px 84px 84px 64px 72px 80px;
   align-items: center;
   font-size: var(--t12);
 }
@@ -2407,7 +2407,7 @@ dialog footer {
 
 @media (max-width: 1000px) {
   .cols {
-    grid-template-columns: 32px 56px minmax(0, 1fr) 84px 64px;
+    grid-template-columns: 32px 56px minmax(0, 1fr) 84px 84px;
   }
   .cols .opt {
     display: none;

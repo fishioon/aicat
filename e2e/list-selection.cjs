@@ -14,7 +14,8 @@ module.exports = async function verifyListSelection({
   auto,
 }) {
   await page.locator("#nav-traffic").click();
-  await page.locator("#clear").click();
+  if (await page.locator("#clear").isEnabled())
+    await page.locator("#clear").click();
   await page.waitForFunction(() => window.trafficView.state().total === 0);
   for (let i = 0; i < 100; i++)
     await send("/list-selection/" + String(i).padStart(3, "0"));
@@ -126,49 +127,52 @@ module.exports = async function verifyListSelection({
   await page.keyboard.press("Escape");
   await expectPosition(before.domScrollTop);
 
-  // Native coverage uses real WebView DOM events, not native pointer input.
-  // The WebView keeps its own filters from earlier scenarios; start unfiltered.
-  await evaluate("(window.desktop.navigate('traffic', { query: '' }),true)");
-  await wait(
-    async () => await evaluate("window.trafficView.state().total === 100"),
-  );
-  await evaluate(
-    "(document.querySelector('#rows-viewport').scrollTop = 1500, true)",
-  );
-  await wait(
-    async () =>
-      (await evaluate("window.trafficView.state().scrollTop")) >= 1200,
-  );
-  const native = await evaluate(`(() => {
-    const viewport = document.querySelector('#rows-viewport');
-    const rect = viewport.getBoundingClientRect();
-    const row = [...document.querySelectorAll('.traffic-row')].find(row => {
-      const r = row.getBoundingClientRect();
-      return r.top >= rect.top && r.bottom <= rect.bottom;
-    });
-    const result = { id: Number(row.dataset.id), scrollTop: viewport.scrollTop };
-    row.click();
-    return result;
-  })()`);
-  await wait(
-    async () =>
-      await evaluate(
-        `window.trafficView.state().selected === ${native.id} && window.trafficView.state().detailRevision > 0`,
-      ),
-  );
-  assert.equal(
-    await evaluate("document.querySelector('#rows-viewport').scrollTop"),
-    native.scrollTop,
-  );
-  assert.equal(
-    await evaluate("window.trafficView.state().scrollTop"),
-    native.scrollTop,
-  );
-  const capture = await auto.call("capture");
-  fs.writeFileSync(
-    path.join(root, "list-selection-wkwebview.png"),
-    Buffer.from(capture.png, "base64"),
-  );
+  let native = null;
+  if (evaluate && auto) {
+    // Native coverage uses real WebView DOM events, not native pointer input.
+    // The WebView keeps its own filters from earlier scenarios; start unfiltered.
+    await evaluate("(window.desktop.navigate('traffic', { query: '' }),true)");
+    await wait(
+      async () => await evaluate("window.trafficView.state().total === 100"),
+    );
+    await evaluate(
+      "(document.querySelector('#rows-viewport').scrollTop = 1500, true)",
+    );
+    await wait(
+      async () =>
+        (await evaluate("window.trafficView.state().scrollTop")) >= 1200,
+    );
+    native = await evaluate(`(() => {
+      const viewport = document.querySelector('#rows-viewport');
+      const rect = viewport.getBoundingClientRect();
+      const row = [...document.querySelectorAll('.traffic-row')].find(row => {
+        const r = row.getBoundingClientRect();
+        return r.top >= rect.top && r.bottom <= rect.bottom;
+      });
+      const result = { id: Number(row.dataset.id), scrollTop: viewport.scrollTop };
+      row.click();
+      return result;
+    })()`);
+    await wait(
+      async () =>
+        await evaluate(
+          `window.trafficView.state().selected === ${native.id} && window.trafficView.state().detailRevision > 0`,
+        ),
+    );
+    assert.equal(
+      await evaluate("document.querySelector('#rows-viewport').scrollTop"),
+      native.scrollTop,
+    );
+    assert.equal(
+      await evaluate("window.trafficView.state().scrollTop"),
+      native.scrollTop,
+    );
+    const capture = await auto.call("capture");
+    fs.writeFileSync(
+      path.join(root, "list-selection-wkwebview.png"),
+      Buffer.from(capture.png, "base64"),
+    );
+  }
 
   await page.locator("#search").fill("/list-selection/099");
   await page.waitForFunction(() => window.trafficView.state().visible === 1);
@@ -183,7 +187,12 @@ module.exports = async function verifyListSelection({
   await page.waitForFunction(() => window.trafficView.state().scrollTop > 600);
   await page.locator('[data-group="domains"] .group-title').click();
   await expectPosition(0);
-  assert.deepEqual(await evaluate("window.trafficView.metrics.errors"), []);
+  assert.deepEqual(
+    evaluate
+      ? await evaluate("window.trafficView.metrics.errors")
+      : await page.evaluate(() => window.trafficView.metrics.errors),
+    [],
+  );
   await page.locator("#clear").click();
   await page.waitForFunction(() => window.trafficView.state().total === 0);
   return {
@@ -195,6 +204,6 @@ module.exports = async function verifyListSelection({
     },
     native,
     chromium: "wheel and pointer input",
-    wkwebview: "DOM scroll and click",
+    wkwebview: native ? "DOM scroll and click" : "not run",
   };
 };

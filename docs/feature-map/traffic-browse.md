@@ -20,6 +20,8 @@
 
 ## Driving it with Playwright
 
+`node e2e/traffic-browse.cjs bin/aicat-e2e build/traffic-browse-<run>` 在后台运行浏览器场景，覆盖滚动后选中、右键、历史、两个真实进程的应用/域名/路径筛选与固定重启；不覆盖 WKWebView 原生输入。
+
 Preconditions:
 
 - 流量功能启用，并已点击“开始采集”；本地上游准备 `/chat/completions`、`/responses`、`/api/a`、`/api/ab` 和 `/api/a/child`，并包含不同方法、两个域名/端口及 CONNECT 数据。

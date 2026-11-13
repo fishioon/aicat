@@ -112,10 +112,11 @@ watch(
         const snapshot = await body(info, attempt !== (previous?.[2] ?? 0));
         if (stale) return;
         content.value = decode(snapshot);
+        const formatNote = bodyNote.value;
         const state = snapshot.info.state;
         if (state === "truncated")
           bodyNote.value = t(
-            "正文过大，只保留了前 {kept}（共 {total}）。实际转发不受影响。",
+            "只保留了前 {kept}（共 {total}）。转发不受影响。",
             {
               kept: size(snapshot.info.captured),
               total: size(snapshot.info.observed),
@@ -125,6 +126,8 @@ watch(
           bodyNote.value = t("正文未采集。实际转发不受影响。");
         else if (state === "error")
           bodyNote.value = t("正文读取出错，只保留了已收到的部分。");
+        if (formatNote && bodyNote.value !== formatNote)
+          bodyNote.value = `${formatNote} · ${bodyNote.value}`;
       } catch (error) {
         if (!stale) {
           bodyError.value = true;
@@ -163,23 +166,30 @@ const pretty = computed<Token[] | null>(() => {
   tokens.push({ text: text.slice(last) });
   return tokens;
 });
-const events = computed(() =>
-  (content.value ?? "")
-    .split(/\r?\n\r?\n/)
-    .map((block) => {
-      let name = "",
-        data: string[] = [];
-      for (const line of block.split(/\r?\n/)) {
-        if (line.startsWith("event:")) name = line.slice(6).trim();
-        else if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
-      }
-      return {
-        name: name || (data.length ? "message" : ""),
-        data: data.join("\n"),
-      };
-    })
-    .filter((event) => event.name),
-);
+const events = computed(() => {
+  const result: { name: string; data: string }[] = [];
+  let name = "";
+  let data: string[] = [];
+  const lines = (content.value ?? "")
+    .replace(/^\uFEFF/, "")
+    .split(/\r\n|\r|\n/)
+    .slice(0, -1);
+  for (const line of lines) {
+    if (!line) {
+      if (data.length)
+        result.push({ name: name || "message", data: data.join("\n") });
+      name = "";
+      data = [];
+      continue;
+    }
+    const colon = line.indexOf(":");
+    const field = colon < 0 ? line : line.slice(0, colon);
+    const value = colon < 0 ? "" : line.slice(colon + 1).replace(/^ /, "");
+    if (field === "event") name = value;
+    else if (field === "data") data.push(value);
+  }
+  return result;
+});
 const headerText = computed(() =>
   headers.value.map(([name, value]) => `${name}: ${value}`).join("\n"),
 );
@@ -221,8 +231,14 @@ async function copySide() {
     query: query.value.map(([k, v]) => `${k}=${v}`).join("\n"),
     body: content.value ?? "",
     events: events.value
-      .map((e) => `event: ${e.name}\ndata: ${e.data}\n`)
-      .join("\n"),
+      .map(
+        (e) =>
+          `event: ${e.name}\n${e.data
+            .split("\n")
+            .map((line) => `data: ${line}\n`)
+            .join("")}\n`,
+      )
+      .join(""),
     raw: rawText.value,
   }[view.value];
   await copy(

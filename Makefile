@@ -78,6 +78,10 @@ frontend-check: ui/node_modules/.aicat-install bindings channel-check
 	node --check e2e/connect.cjs
 	node --check e2e/provider-lifecycle.cjs
 	node --check e2e/overview.cjs
+	node --check e2e/traffic-browse.cjs
+	node --check e2e/traffic-content.cjs
+	node --check e2e/traffic-events.cjs
+	node --check e2e/ipv6-tunnel.cjs
 	node --check e2e/traffic-default.cjs
 	node --check e2e/system-proxy.cjs
 	node --check e2e/tray.cjs

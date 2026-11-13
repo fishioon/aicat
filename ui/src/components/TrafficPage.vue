@@ -163,11 +163,17 @@ async function key(event: KeyboardEvent) {
             >{{ t(recordingAction) }}</span
           >
         </button>
-        <button id="clear" class="btn" @click="clearTraffic">
+        <button
+          id="clear"
+          class="btn"
+          :disabled="!records.size && !filteredOut"
+          @click="clearTraffic"
+        >
           {{ t("清空") }}
         </button>
         <button
           id="export"
+          :disabled="!filtered.length"
           class="icon-btn"
           :aria-label="t('导出为 JSON')"
           :title="t('导出为 JSON')"

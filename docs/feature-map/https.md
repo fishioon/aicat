@@ -18,6 +18,8 @@
 
 ## Driving it with Playwright and TLS fixture
 
+`node e2e/ipv6-tunnel.cjs bin/aicat-e2e build/ipv6-tunnel-<run>` 使用真实 IPv6 TCP CONNECT，核对 `[::1]` 与规范化规则 `::1` 的对应、移除与重新启用；不代表 IPv6 TLS 正文解密或原生授权验收。
+
 Preconditions:
 
 - 使用独立 Home、OS 信任适配器、测试 TLS 上游；最初解密名单为空。准备新的 CONNECT 连接，不能复用旧连接验证名单变更。

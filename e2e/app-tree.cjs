@@ -23,7 +23,8 @@ module.exports = async function verifyAppTree({
   auto,
 }) {
   await navigate("traffic");
-  await page.locator("#clear").click();
+  if (await page.locator("#clear").isEnabled())
+    await page.locator("#clear").click();
   await page.waitForFunction(() => window.trafficView.state().total === 0);
   const domain = `127.0.0.1:${fixturePort}`;
   for (const target of [
@@ -265,53 +266,57 @@ c.close()
     await settled();
     await page.screenshot({ path: path.join(root, "app-tree-dark.png") });
 
-    // The native WebView uses the same live data, with its own local tree state.
-    const nativeClick = async (selector, toggle = false) => {
-      await evaluate(
-        `(() => { const node = document.querySelector(${JSON.stringify(selector)}); ${toggle ? '["click", "click", "dblclick"].forEach((type, i) => node.dispatchEvent(new MouseEvent(type, { bubbles: true, detail: i === 0 ? 1 : 2 })))' : "node.click()"}; return true; })()`,
-      );
-    };
-    const nativeRoot = `[data-group="apps"] button[data-app=${JSON.stringify(key)}]:not([data-host])`;
-    await wait(
-      async () =>
+    let nativeErrors = null;
+    if (evaluate && auto) {
+      // The native WebView uses the same live data, with its own local tree state.
+      const nativeClick = async (selector, toggle = false) => {
         await evaluate(
-          `!!document.querySelector(${JSON.stringify(nativeRoot)})`,
+          `(() => { const node = document.querySelector(${JSON.stringify(selector)}); ${toggle ? '["click", "click", "dblclick"].forEach((type, i) => node.dispatchEvent(new MouseEvent(type, { bubbles: true, detail: i === 0 ? 1 : 2 })))' : "node.click()"}; return true; })()`,
+        );
+      };
+      const nativeRoot = `[data-group="apps"] button[data-app=${JSON.stringify(key)}]:not([data-host])`;
+      await wait(
+        async () =>
+          await evaluate(
+            `!!document.querySelector(${JSON.stringify(nativeRoot)})`,
+          ),
+      );
+      assert.equal(
+        await evaluate(
+          'document.querySelectorAll("#traffic-sidebar input").length',
         ),
-    );
-    assert.equal(
-      await evaluate(
-        'document.querySelectorAll("#traffic-sidebar input").length',
-      ),
-      0,
-    );
-    await nativeClick(nativeRoot, true);
-    assert.equal(
-      await evaluate(
-        `document.querySelector(${JSON.stringify(nativeRoot)}).parentElement.querySelector('.tree-toggle').getAttribute('aria-expanded')`,
-      ),
-      "true",
-    );
-    const nativeBranch = (pathname) =>
-      `[data-group="apps"] button[data-app=${JSON.stringify(key)}][data-host=${JSON.stringify(domain)}][data-path=${JSON.stringify(pathname)}]`;
-    for (const pathname of ["", "/app-tree", "/app-tree/v1"])
-      await nativeClick(nativeBranch(pathname), true);
-    await nativeClick(nativeBranch("/app-tree/v1/a"));
-    await wait(
-      async () => (await evaluate("window.trafficView.state().visible")) === 2,
-    );
-    assert.equal(
-      await evaluate(
-        'document.querySelectorAll(\'[data-group="apps"] .tree-row[data-selected="true"]\').length',
-      ),
-      1,
-    );
-    const nativeErrors = await evaluate("window.trafficView.metrics.errors");
-    assert.deepEqual(nativeErrors, []);
-    const capture = await auto.call("capture");
-    fs.writeFileSync(
-      path.join(root, "app-tree-wkwebview.png"),
-      Buffer.from(capture.png, "base64"),
-    );
+        0,
+      );
+      await nativeClick(nativeRoot, true);
+      assert.equal(
+        await evaluate(
+          `document.querySelector(${JSON.stringify(nativeRoot)}).parentElement.querySelector('.tree-toggle').getAttribute('aria-expanded')`,
+        ),
+        "true",
+      );
+      const nativeBranch = (pathname) =>
+        `[data-group="apps"] button[data-app=${JSON.stringify(key)}][data-host=${JSON.stringify(domain)}][data-path=${JSON.stringify(pathname)}]`;
+      for (const pathname of ["", "/app-tree", "/app-tree/v1"])
+        await nativeClick(nativeBranch(pathname), true);
+      await nativeClick(nativeBranch("/app-tree/v1/a"));
+      await wait(
+        async () =>
+          (await evaluate("window.trafficView.state().visible")) === 2,
+      );
+      assert.equal(
+        await evaluate(
+          'document.querySelectorAll(\'[data-group="apps"] .tree-row[data-selected="true"]\').length',
+        ),
+        1,
+      );
+      nativeErrors = await evaluate("window.trafficView.metrics.errors");
+      assert.deepEqual(nativeErrors, []);
+      const capture = await auto.call("capture");
+      fs.writeFileSync(
+        path.join(root, "app-tree-wkwebview.png"),
+        Buffer.from(capture.png, "base64"),
+      );
+    }
     await page.locator("#theme").click();
     await settled();
     await page.locator("#clear").click();
@@ -325,7 +330,8 @@ c.close()
       doubleClick: {
         chromium:
           "pointer: groups, app/domain/path/pinned rows, arrows, leaf and history",
-        wkwebview: "DOM events: app/domain/path rows",
+        wkwebview:
+          evaluate && auto ? "DOM events: app/domain/path rows" : "not run",
       },
       nativeErrors,
     };

@@ -14,7 +14,9 @@ import { host } from "../host";
 import { t } from "../i18n";
 import Icon from "./Icon.vue";
 const props = defineProps<{ record: TrafficRecord }>();
-const domain = computed(() => new URL(props.record.url).hostname);
+const domain = computed(() =>
+  new URL(props.record.url).hostname.replace(/^\[|\]$/g, ""),
+);
 const rule = computed(() => decryptionRule(domain.value));
 const unavailable = computed(() => {
   const certificate = state.value?.certificate;
@@ -79,11 +81,7 @@ function decrypt() {
     <div class="tunnel-body" tabindex="0">
       <div class="tunnel">
         <h3><Icon name="lock" />{{ t("HTTPS 响应") }}</h3>
-        <p>
-          {{ t("此 HTTPS 响应已加密。") }}<br />{{
-            t("启用 SSL 代理以查看内容。")
-          }}
-        </p>
+        <p>{{ t("此连接未解密，无法查看响应内容。") }}</p>
         <div v-if="rule && unavailable" class="note plain">
           {{ t("已配置 {rule}，根证书不可用，HTTPS 暂不解密。", { rule }) }}
           <button id="repair-certificate" class="btn" @click="decrypt">
@@ -93,14 +91,8 @@ function decrypt() {
         <div v-else-if="rule" id="decryption-covered" class="note plain">
           {{
             rule === domain
-              ? t(
-                  "{domain} 已在解密域名里。这条隧道建立得更早，保持未解密；新连接会被解密。",
-                  { domain },
-                )
-              : t(
-                  "{domain} 匹配解密域名 {rule}。这条隧道建立得更早，保持未解密；新连接会被解密。",
-                  { domain, rule },
-                )
+              ? t("{domain} 已配置解密，仅新连接生效。", { domain })
+              : t("{domain} 匹配 {rule}，仅新连接生效。", { domain, rule })
           }}
         </div>
         <button
