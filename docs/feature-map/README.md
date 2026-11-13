@@ -75,6 +75,7 @@ npm --prefix e2e ci
 | 供应商保存的页面生命周期与重试（无头） | `node e2e/provider-lifecycle.cjs bin/aicat-e2e build/feature-map-provider-lifecycle-<run>` |
 | 供应商密钥与转发 | `node e2e/provider.cjs bin/aicat-e2e build/feature-map-provider-<run>` |
 | 企业微信客户端读取与恢复 | `python3 e2e/wecom-local.py` |
+| 企业微信客户端配置与消息展示（无头） | 先运行 `python3 e2e/wecom-local-fixture.py --output build/client-fixture-<run>`，再运行 `node e2e/wecom-local-ui.cjs bin/aicat-e2e build/client-fixture-<run> build/client-ui-<run> review` |
 | 企业微信 BOT 配置、收发与恢复 | `node e2e/wecom.cjs bin/aicat-e2e` |
 | 企业微信 BOT 表单并发编辑、发送恢复与长文本（无头） | `node e2e/wecom.cjs bin/aicat-e2e build/feature-map-wecom-ui-<run> ui` |
 | 整组桌面验收 | `python3 e2e/prototype.py --only desktop --output build/feature-map-desktop-<run>` |

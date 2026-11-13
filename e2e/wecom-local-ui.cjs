@@ -20,6 +20,10 @@ fs.writeFileSync(
   JSON.stringify({ trusted: false, available: false, taken: false }),
 );
 const report = {
+  binarySHA256: require("node:crypto")
+    .createHash("sha256")
+    .update(fs.readFileSync(binary))
+    .digest("hex"),
   passed: false,
   checks: [],
   coverage:
@@ -112,6 +116,53 @@ async function main() {
         (await rpc("State")).messageChannels["wecom-local"].configured,
     );
     await page.screenshot({ path: path.join(root, "local-settings.png") });
+    if (process.argv[5] === "review") {
+      const account = page.locator("#wecom-local-account");
+      const directory = page.locator("#wecom-local-dir");
+      await account.fill("next-account-draft");
+      await directory.fill("/next/database/draft");
+      if (
+        (await page.locator("#wecom-local-key").getAttribute("type")) ===
+        "password"
+      ) {
+        assert(await page.locator("#wecom-local-save").isDisabled());
+        assert.equal(
+          await page.locator("#wecom-local-key").getAttribute("required"),
+          "",
+        );
+      }
+      await page.locator("#theme").click();
+      await page.waitForFunction(
+        () => !document.body.classList.contains("busy"),
+      );
+      assert.equal(
+        await account.inputValue(),
+        "next-account-draft",
+        "unrelated preference refresh must preserve the account draft",
+      );
+      assert.equal(
+        await directory.inputValue(),
+        "/next/database/draft",
+        "unrelated preference refresh must preserve the directory draft",
+      );
+      await page.screenshot({
+        path: path.join(root, "local-draft-preserved.png"),
+      });
+      await account.fill("synthetic-account");
+      await directory.fill(path.join(fixture, "database"));
+      if (
+        (await page.locator("#wecom-local-key").getAttribute("type")) ===
+        "password"
+      ) {
+        assert(await page.locator("#wecom-local-save").isEnabled());
+        await directory.fill(path.join(fixture, "database") + "/.");
+        assert(await page.locator("#wecom-local-save").isEnabled());
+        await directory.fill(path.join(fixture, "database"));
+      }
+      report.checks.push(
+        "unrelated preference refresh preserves unsaved local account and database drafts",
+      );
+    }
     report.checks.push(
       "client settings save paths in aicat.yaml and validate real encrypted snapshot",
     );
@@ -125,6 +176,45 @@ async function main() {
     );
     await page.locator("#extension-diagnostics").click();
     await page.locator("#wecom-local-messages tr").first().waitFor();
+    if (process.argv[5] === "review") {
+      await rpc("SetPreferences", [{ language: "zh-Hans", theme: "light" }]);
+      await page.waitForFunction(
+        () => document.documentElement.lang === "zh-Hans",
+      );
+      const fixtureData = JSON.parse(
+        fs.readFileSync(path.join(fixture, "report.json")),
+      );
+      if (fixtureData.longMessage) {
+        const outgoing = page.locator("#wecom-local-messages tr", {
+          hasText: "自己发出的消息",
+        });
+        assert.equal(
+          (await outgoing.locator(".tag").innerText()).trim(),
+          "发出",
+        );
+        assert(
+          (
+            await page
+              .locator("#wecom-local-messages tr", { hasText: "图片元数据" })
+              .innerText()
+          ).includes("图片（仅元数据）"),
+        );
+        const event = page.locator("#wecom-local-messages details").filter({
+          has: page.locator("pre", { hasText: fixtureData.longMessage }),
+        });
+        assert.equal(await event.getAttribute("open"), null);
+        assert((await event.locator("summary").innerText()).length <= 81);
+        await event.locator("summary").click();
+        assert.equal(
+          await event.locator("pre").textContent(),
+          fixtureData.longMessage,
+        );
+        await event.locator("summary").click();
+        report.checks.push(
+          "incoming/outgoing and media metadata labels are explicit; full Unicode/multiline text survives collapsed previews",
+        );
+      }
+    }
     assert.equal(await page.locator("#wecom-send-form").count(), 0);
     assert.equal(await page.locator("#wecom-agent-form").count(), 0);
     await page.locator("#wecom-local-open-logs").click();
@@ -144,6 +234,18 @@ async function main() {
       await pause(200);
       await page.screenshot({
         path: path.join(root, "diagnostics-" + theme + ".png"),
+      });
+    }
+    if (process.argv[5] === "review") {
+      await rpc("SetPreferences", [{ language: "en", theme: "dark" }]);
+      await page.waitForFunction(() => document.documentElement.lang === "en");
+      assert(
+        (
+          await page.locator("#wecom-local-messages .tag").allTextContents()
+        ).some((value) => value.trim() === "Received"),
+      );
+      await page.screenshot({
+        path: path.join(root, "diagnostics-en-dark.png"),
       });
     }
     report.checks.push(
@@ -186,6 +288,11 @@ async function main() {
   }
 }
 main().catch((e) => {
+  report.error = e.stack;
+  fs.writeFileSync(
+    path.join(root, "report.json"),
+    JSON.stringify(report, null, 2) + "\n",
+  );
   console.error(e);
   process.exitCode = 1;
 });

@@ -9,9 +9,12 @@ const enabled = computed(
 );
 const local = reactive({ accountId: "", dataDir: "", keyFile: "" });
 watch(
-  () => channel.value?.local,
-  (value) =>
-    Object.assign(local, value ?? { accountId: "", dataDir: "", keyFile: "" }),
+  () => JSON.stringify(channel.value?.local),
+  () =>
+    Object.assign(
+      local,
+      channel.value?.local ?? { accountId: "", dataDir: "", keyFile: "" },
+    ),
   { immediate: true },
 );
 async function save() {

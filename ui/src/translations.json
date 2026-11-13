@@ -718,5 +718,12 @@
   "{recipient} 发送结果不明，请勿重新发送": "Delivery to {recipient} is unknown. Do not resend.",
   "已发送": "Sent",
   "开始发送": "Send started",
-  "本次运行的消息流水": "Message events in this session"
+  "本次运行的消息流水": "Message events in this session",
+  "媒体仅保存元数据，群聊与私聊类型尚未识别。": "Media metadata is saved; group and direct chats are not yet distinguished.",
+  "发出": "Outgoing",
+  "语音": "Voice",
+  "视频": "Video",
+  "文件": "File",
+  "不支持的消息": "Unsupported message",
+  "{type}（仅元数据）": "{type} (metadata only)"
 }

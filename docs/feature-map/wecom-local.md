@@ -4,7 +4,7 @@
 
 ## 使用
 
-扩展 → 已安装 → 企业微信客户端 → 配置，填写本地账号 ID、含 `message.db` 的数据库目录和已有 `keys.json` 的绝对路径。保存时验证密钥、数据库完整性与消息表结构；验证不导入消息。启用后开始导入本地历史，之后每秒检查增量。诊断页显示本次运行最近 50 条消息，并提供打开 Room 日志入口。停用回收专用 Bun 宿主，保留配置、游标和 Room。
+扩展 → 已安装 → 企业微信客户端 → 配置，填写本地账号 ID、含 `message.db` 的数据库目录和已有 `keys.json` 的绝对路径。保存时验证密钥、数据库完整性与消息表结构；验证不导入消息。启用后开始导入本地历史，之后每秒检查增量。诊断页显示本次运行最近 50 条消息，区分收到、发出及媒体元数据，正文默认简短预览，可展开阅读原文，并提供打开 Room 日志入口。停用回收专用 Bun 宿主，保留配置、游标和 Room。
 
 也可以在停用时编辑唯一行为配置 `aicat.yaml`，重启后生效：
 
@@ -66,7 +66,18 @@ node e2e/wecom-local-ui.cjs bin/aicat-e2e build/wecom-local-e2e-<run>
 
 `wecom-local.py` 使用独立 Python/OpenSSL 合成加密主库和 WAL，启动真实 CLI、Bun 读取器及 Room 服务。覆盖停用不读取、WAL 增量、64 位 ID、旧时间消息、自发消息、媒体元数据、Room 写入失败、确认重放、崩溃恢复、错误/重复密钥、损坏 WAL、撕裂尾部和数据库锚点变化。工件包含报告、应用日志、合成数据库、游标和 Room，可通过 `--output <新目录>` 固定位置。没有单元测试或真实消息发送。
 
-`wecom-local-ui.cjs` 使用上一条命令的合成夹具，headless Chromium 与 `AICAT_E2E_BACKGROUND=1` 验收配置验证、独立入口、启停和诊断，保存浅深色截图、日志和报告。不覆盖真实 WKWebView 指针事件或原生窗口显示。
+配置草稿仅在已保存的本地配置发生变化时同步；主题、语言或运行状态刷新不会覆盖未保存的账号、目录和密钥路径。
+
+独立界面验收使用固定夹具，包含普通收发、媒体元数据和多行长文本，不依赖读取恢复场景结束时的数据库状态：
+
+```sh
+python3 e2e/wecom-local-fixture.py --output build/wecom-local-ui-fixture-<run>
+node e2e/wecom-local-ui.cjs bin/aicat-e2e build/wecom-local-ui-fixture-<run> build/wecom-local-ui-<run> review
+```
+
+`review` 场景核对无关刷新保留草稿、收发方向、媒体说明、预览展开后的完整原文和英文深色界面。
+
+`wecom-local-ui.cjs` 使用合成夹具，headless Chromium 与 `AICAT_E2E_BACKGROUND=1` 验收配置验证、独立入口、启停和诊断，保存浅深色截图、日志和报告。不覆盖真实 WKWebView 指针事件或原生窗口显示。
 
 真实本地库验收在数据库所在节点运行，输出目录必须全新且私有：
 
