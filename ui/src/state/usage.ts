@@ -2,20 +2,31 @@ import { shallowRef } from "vue";
 import type { Group, Report } from "../generated/mygo";
 import { host } from "../host";
 
-// Usage of the model calls aicat forwarded to providers, summed over a
-// period by the usage service.
 export type Period = "today" | "7d" | "30d";
 export type UsageGroup = Group;
 export const period = shallowRef<Period>("today");
 export const usage = shallowRef<Report | null>(null);
 
+export const usageLoading = shallowRef(false);
+export const usageError = shallowRef("");
+
 let latest = 0;
-// loadUsage reads the selected period; only the latest read is kept, so a
-// slow reply for an earlier period never replaces a newer one.
+let pendingPeriod: Period | undefined;
 export async function loadUsage() {
+  if (usageLoading.value && pendingPeriod === period.value) return;
+  pendingPeriod = period.value;
   const id = ++latest;
-  const report = await host.usage(period.value);
-  if (id === latest) usage.value = report;
+  usageLoading.value = true;
+  usageError.value = "";
+  try {
+    const report = await host.usage(period.value);
+    if (id === latest) usage.value = report;
+  } catch (error) {
+    if (id === latest)
+      usageError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    if (id === latest) usageLoading.value = false;
+  }
 }
 
 export const tokens = (g: UsageGroup) =>

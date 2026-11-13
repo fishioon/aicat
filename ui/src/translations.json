@@ -675,5 +675,10 @@
   "同一入站消息标识不能使用不同内容": "The same inbound message ID cannot have different content",
   "同一消息标识不能使用不同内容": "The same message ID cannot have different content",
   "Room 消息超过大小限制": "Room message exceeds the size limit",
-  "未知渠道宿主": "Unknown channel host"
+  "未知渠道宿主": "Unknown channel host",
+  "无法读取用量": "Unable to load usage",
+  "当前显示上次成功读取的数据": "Showing the last successfully loaded data",
+  "正在读取用量…": "Loading usage…",
+  "重试": "Retry",
+  "错误详情": "Error details"
 }

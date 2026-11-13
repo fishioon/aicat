@@ -162,7 +162,6 @@ async function removeDomain(domain: string) {
           <span class="label">{{ t(extension.name) }}</span>
         </button>
       </section>
-      <div class="side-foot">{{ t("私云未接入") }}</div>
     </aside>
     <section class="main">
       <div class="doc" v-if="shell.route === 'general'">
@@ -171,7 +170,6 @@ async function removeDomain(domain: string) {
           <div class="row">
             <div>
               <h2>{{ t("界面语言") }}</h2>
-              <p>{{ t("选择后立即生效，重启后保留。") }}</p>
             </div>
             <div class="ctl">
               <Seg
@@ -186,7 +184,6 @@ async function removeDomain(domain: string) {
           <div class="row">
             <div>
               <h2>{{ t("主题") }}</h2>
-              <p>{{ t("标题栏右侧的按钮也可以切换。") }}</p>
             </div>
             <div class="ctl">
               <Seg

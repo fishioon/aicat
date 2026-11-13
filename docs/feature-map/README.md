@@ -52,6 +52,7 @@ npm --prefix e2e ci
 | 范围 | 命令 |
 | --- | --- |
 | 托盘菜单模型、采集对号与代理两态（无头） | `node e2e/tray.cjs bin/aicat-e2e build/feature-map-tray-<run>` |
+| 首页用量加载、失败、重试、范围切换及通用设置（无头） | `node e2e/overview.cjs bin/aicat-e2e build/feature-map-overview-<run>` |
 | 流量入口默认可用、采集默认暂停及手动采集 | `node e2e/traffic-default.cjs bin/aicat-e2e build/feature-map-traffic-default-<run>` |
 | 侧边栏顺序、中英文标签和 Domain 计数 | `node e2e/desktop.cjs bin/aicat-e2e build/feature-map-sidebar-<run> sidebar` |
 | 滚动后首次选中、右键、历史与筛选滚动重置 | `node e2e/desktop.cjs bin/aicat-e2e build/feature-map-list-selection-<run> list-selection` |
