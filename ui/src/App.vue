@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   state,
   busy,
@@ -120,6 +120,13 @@ function closeMore(restore = false) {
   more.value = null;
   if (restore) moreButton.value?.focus();
 }
+watch(
+  () => shell.route,
+  () => {
+    closeMore();
+    menu.value = null;
+  },
+);
 function go(route: Route) {
   closeMore();
   navigate(route);
@@ -144,6 +151,7 @@ function outside(event: PointerEvent) {
 }
 
 function keydown(event: KeyboardEvent) {
+  if (event.defaultPrevented || document.querySelector("dialog[open]")) return;
   if (event.key === "Escape") {
     if (more.value) {
       event.preventDefault();

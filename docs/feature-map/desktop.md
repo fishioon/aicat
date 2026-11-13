@@ -27,6 +27,7 @@ Preconditions:
 
 - 本次验收实例已就绪；使用隔离 Home。浏览器与原生壳分别记录结果，涉及原生窗口时要求 macOS 已解锁并事先取得用户同意。
 
+- **快捷键、弹窗与布局。** `node e2e/desktop-shell.cjs bin/aicat-e2e build/desktop-shell-<run>` 后台验证证书确认弹窗的可访问名称、快捷键隔离、Escape 与焦点恢复，导航关闭浮层，真实流量详情分隔条的鼠标/键盘调整，以及搜索/详情快捷键。浏览器结果不替代原生窗口验收。
 - **设置入口。** `await page.locator('#nav-settings').click()`；主面板显示通用页。点击 `#settings-proxy` 进入代理页。另起一步按 `await page.keyboard.press('Meta+,')`，应显示通用页，不能以第一次进入设置代替快捷键验证。
 - **语言。** 点击 `#preference-language-en`，等待 `html[lang="en"]`；设置标签和连接文案变为英文。选择 `zh-Hans` 后恢复中文。只读检查 `aicat.yaml` 的 `ui.language`，重启同一 Home 后再次核对。
 - **主题。** `await page.locator('#preference-theme-dark').click()`，等待 `html[data-theme="dark"]`；切换 light 和 system，检查按钮的 `aria-checked` 与实际系统外观。再点 `#theme` 验证快速切换，并检查配置与重启后的外观。

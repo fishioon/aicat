@@ -81,9 +81,14 @@ onUnmounted(() => document.removeEventListener("pointerdown", outside, true));
       {{ t(item.label) }}
     </button>
   </div>
-  <dialog id="dialog" ref="dialog" @cancel="closeDialog">
+  <dialog
+    id="dialog"
+    ref="dialog"
+    aria-labelledby="dialog-title"
+    @cancel="closeDialog"
+  >
     <template v-if="modal">
-      <h2>{{ t(modal.title) }}</h2>
+      <h2 id="dialog-title">{{ t(modal.title) }}</h2>
       <p v-if="modal.message">{{ modal.message }}</p>
       <input
         v-if="modal.input !== undefined"
