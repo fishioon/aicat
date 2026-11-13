@@ -518,9 +518,7 @@
   "获取密钥": "Get a key",
   "供应商的回答": "What the provider said",
   "正在验证接口地址和密钥…": "Checking the endpoint and key…",
-  "{host} 拒绝了这把密钥。请确认密钥是这家供应商签发的，而不是别家的。": "{host} refused this key. Make sure the key was issued by this provider, not another one.",
   "连不上 {host}。请检查接口地址和网络。": "Can't reach {host}. Check the endpoint and your network.",
-  "已连通，密钥有效。": "Connected. The key works.",
   "密钥无效": "Key refused",
   "连不上": "Unreachable",
   "智谱 GLM": "Zhipu GLM",
@@ -530,7 +528,6 @@
   "模型名写作“供应商 ID/模型”，例如": "Write a model as provider ID/model, for example",
   "。只有一家供应商提供这个模型时，可以只写模型名。": ". When only one provider serves the model, the model name alone works.",
   "模型名": "model",
-  "这次没有在这个地址找到模型列表，接口地址可能不对。": "No model list was found at this endpoint this time, so the endpoint may be wrong.",
   "已启用 {n} / {total}": "{n} / {total} enabled",
   "筛选模型": "Filter models",
   "全选": "All",
@@ -725,5 +722,9 @@
   "视频": "Video",
   "文件": "File",
   "不支持的消息": "Unsupported message",
-  "{type}（仅元数据）": "{type} (metadata only)"
+  "{type}（仅元数据）": "{type} (metadata only)",
+  "模型列表可用": "Model list available",
+  "没有匹配的模型": "No matching models",
+  "{host} 拒绝了密钥，请检查 API Key。": "{host} rejected the key. Check your API Key.",
+  "未找到模型列表，请检查接口地址。": "No model list found. Check the API address."
 }
