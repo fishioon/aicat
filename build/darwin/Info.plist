@@ -11,4 +11,5 @@
 <key>CFBundleVersion</key><string>@VERSION@</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>
+<key>NSAppleEventsUsageDescription</key><string>aicat 通过企业微信客户端发送你请求的消息。</string>
 </dict></plist>

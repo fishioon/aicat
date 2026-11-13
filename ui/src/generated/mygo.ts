@@ -162,10 +162,10 @@ export interface Input {
 export interface LocalMessages {
   accountId: string;
   dataDir: string;
-  keyFile: string;
 }
 
 export interface Message {
+  search_name?: string;
   local_id?: string;
   server_id?: string;
   sequence?: string;
@@ -256,6 +256,7 @@ export interface PlatformResult {
   messageId: string;
   chatId: string;
   channel: string;
+  confirmation?: string;
 }
 
 /** Preferences is the app-wide presentation state in the sole aicat.yaml config. */

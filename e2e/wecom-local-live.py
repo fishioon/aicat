@@ -1,4 +1,6 @@
 import argparse
+import sys
+import base64
 import hashlib
 import json
 import os
@@ -14,7 +16,9 @@ def main():
     parser.add_argument('--binary', required=True)
     parser.add_argument('--account', required=True)
     parser.add_argument('--data-dir', required=True)
-    parser.add_argument('--key-file', required=True)
+    keys = parser.add_mutually_exclusive_group(required=True)
+    keys.add_argument('--key-file')
+    keys.add_argument('--key-stdin', action='store_true')
     parser.add_argument('--output', required=True)
     args = parser.parse_args()
     root = Path(args.output).resolve()
@@ -24,11 +28,23 @@ def main():
     home.mkdir(mode=0o700)
     binary = Path(args.binary).resolve()
     runtime = binary.parent / 'channel-host'
-    report = {'passed': False, 'checks': [], 'binarySHA256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'coverage': 'Read-only real local DB import to isolated Rooms and restart; no real message sent; no native UI; no process-memory key extraction.'}
+    report = {'passed': False, 'checks': [], 'binarySHA256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'coverage': 'Stock SQLite3MC; read-only real local DB import to isolated Rooms and restart; no real message sent; no native UI; no process-memory key extraction.'}
     process, run = None, 0
-    local = {'accountId': args.account, 'dataDir': str(Path(args.data_dir).resolve()), 'keyFile': str(Path(args.key_file).resolve())}
-    source_files = [Path(local['dataDir']) / 'message.db', Path(local['dataDir']) / 'message.db-wal', Path(local['keyFile'])]
-    key_before = hashlib.sha256(source_files[2].read_bytes()).hexdigest()
+    local = {'accountId': args.account, 'dataDir': str(Path(args.data_dir).resolve())}
+    key_source = Path(args.key_file).resolve() if args.key_file else None
+    key_before = hashlib.sha256(key_source.read_bytes()).digest() if key_source else None
+    if args.key_stdin:
+        key = sys.stdin.readline().strip()
+    else:
+        raw = key_source.read_text().strip()
+        key = json.loads(raw)['key'] if raw.startswith('{') else raw
+    if len(base64.b64decode(key, validate=True)) != 16:
+        raise ValueError('expected Base64 encoding of the original 16-byte input')
+    credentials = home / 'credentials'
+    credentials.mkdir(mode=0o700)
+    credential_file = credentials / 'wecom-local.json'
+    credential_file.write_text(json.dumps({**local, 'key': key}))
+    credential_file.chmod(0o600)
     with socket.socket() as listener:
         listener.bind(('127.0.0.1', 0))
         port = listener.getsockname()[1]
@@ -60,18 +76,24 @@ def main():
     def counts():
         files = list((home / 'rooms').glob('*/context/messages.log'))
         total = events = raw = 0
+        ids = set()
         for file in files:
             for line in file.read_text().splitlines():
                 message = json.loads(line)
+                assert message['local_id'] not in ids, 'duplicate local message ID'
+                ids.add(message['local_id'])
                 total += 1
                 raw += bool(message.get('raw_content'))
             events += len((file.parent.parent / 'messages.jsonl').read_text().splitlines())
         return {'rooms': len(files), 'messages': total, 'events': events, 'rawBodies': raw}
 
     try:
-        probe = "import {Source} from " + json.dumps(str(runtime / 'wecom-local/source.ts')) + "; const s = new Source(await Bun.stdin.json()); try {s.refresh(); const db=s['db']; console.log(JSON.stringify({count:String(db.query('SELECT COUNT(*) AS n FROM message_table').get().n),max:String(db.query('SELECT COALESCE(MAX(message_id),0) AS n FROM message_table').get().n)}));} finally {s.close();}"
-        baseline = json.loads(subprocess.check_output([str(runtime / 'bun'), '-e', probe], input=json.dumps(local).encode(), stderr=subprocess.DEVNULL, timeout=45))
-        check('real encrypted DB and WAL decrypt into a verified in-memory SQLite snapshot', int(baseline['count']) > 0)
+        probe = "import {Source} from " + json.dumps(str(runtime / 'wecom-local/source.ts')) + "; const s = new Source(await Bun.stdin.json()); try {s.refresh(); const db=s['db']; db.exec('BEGIN'); const row=db.query('SELECT COUNT(*) AS count,COALESCE(MAX(message_id),0) AS max FROM message_table').get(); console.log(JSON.stringify({count:String(row.count),max:String(row.max)})); db.exec('ROLLBACK');} finally {s.close();}"
+        result = subprocess.run([str(runtime / 'bun'), '-e', probe], input=json.dumps({**local, 'key': key}).encode(), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=45)
+        if result.returncode:
+            raise AssertionError('stock SQLite3MC real database validation failed')
+        baseline = json.loads(result.stdout)
+        check('stock SQLite3MC opens the real DB and WAL using the original Base64 input', int(baseline['count']) > 0)
         start()
         deadline = time.monotonic() + 90
         while time.monotonic() < deadline:
@@ -90,9 +112,10 @@ def main():
         time.sleep(4)
         stop()
         after = counts()
-        check('restart preserves local cursor without duplicate imports', after['messages'] - imported['messages'] == int(cursor()) - int(before) and after['events'] == after['messages'])
-        check('existing key file remains unchanged', hashlib.sha256(source_files[2].read_bytes()).hexdigest() == key_before)
-        check('no BOT credentials, outgoing receipts, Agent tasks, or plaintext databases created', not (home / 'credentials').exists() and not (home / 'messages/receipts').exists() and not list(home.glob('rooms/*/tasks/*')) and not list(home.rglob('*.db')))
+        check('restart preserves local cursor without duplicate imports', int(cursor()) >= int(before) and after['messages'] >= imported['messages'] and after['events'] == after['messages'])
+        check('source credential file remains unchanged', key_source is None or hashlib.sha256(key_source.read_bytes()).digest() == key_before)
+        check('saved Base64 key is private and absent from YAML and application logs', (credential_file.stat().st_mode & 0o777) == 0o600 and all(key not in p.read_text() for p in [home/'aicat.yaml', *root.glob('serve-*.log')]))
+        check('no BOT credentials, outgoing receipts, Agent tasks, or plaintext databases created', not (home / 'credentials/wecom.json').exists() and not (home / 'messages/receipts').exists() and not list(home.glob('rooms/*/tasks/*')) and not list(home.rglob('*.db')))
         report['counts'] = after
         report['newMessagesDuringRestart'] = after['messages'] - imported['messages']
         report['passed'] = True
@@ -101,6 +124,7 @@ def main():
         raise
     finally:
         stop()
+        credential_file.unlink(missing_ok=True)
         (root / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
         print(json.dumps(report, ensure_ascii=False))
 

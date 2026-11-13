@@ -107,14 +107,42 @@ async function main() {
     await page.locator("#extension-configure").click();
     await page.locator("#wecom-local-account").fill("synthetic-account");
     await page.locator("#wecom-local-dir").fill(path.join(fixture, "database"));
+    const key = JSON.parse(
+      fs.readFileSync(path.join(fixture, "fixture-key.json")),
+    ).key;
+    assert.equal(
+      await page.locator("#wecom-local-key").getAttribute("type"),
+      "password",
+    );
     await page
       .locator("#wecom-local-key")
-      .fill(path.join(fixture, "keys.json"));
+      .fill(key);
     await page.locator("#wecom-local-save").click();
     await wait(
       async () =>
         (await rpc("State")).messageChannels["wecom-local"].configured,
     );
+    await wait(async () => (await page.locator("#wecom-local-key").inputValue()) === "");
+    const credentialFile = path.join(home, "credentials/wecom-local.json");
+    const saved = fs.readFileSync(credentialFile, "utf8");
+    assert.equal(fs.statSync(credentialFile).mode & 0o777, 0o600);
+    assert(!JSON.stringify(await rpc("State")).includes(key));
+    assert(!fs.readFileSync(path.join(home, "aicat.yaml"), "utf8").includes(key));
+    await assert.rejects(rpc("ConfigureMessageChannel", ["wecom-local", {
+      local: { accountId: "synthetic-account", dataDir: path.join(fixture, "database") },
+      secret: "/////////////////////w==",
+    }]));
+    assert.equal(fs.readFileSync(credentialFile, "utf8"), saved);
+    await rpc("ConfigureMessageChannel", ["wecom-local", {
+      local: { accountId: "synthetic-account", dataDir: path.join(fixture, "database") },
+      secret: "",
+    }]);
+    assert.equal(fs.readFileSync(credentialFile, "utf8"), saved);
+    await assert.rejects(rpc("ConfigureMessageChannel", ["wecom-local", {
+      local: { accountId: "another-account", dataDir: path.join(fixture, "database") },
+      secret: "",
+    }]));
+    assert.equal(fs.readFileSync(credentialFile, "utf8"), saved);
     await page.screenshot({ path: path.join(root, "local-settings.png") });
     if (process.argv[5] === "review") {
       const account = page.locator("#wecom-local-account");
@@ -164,7 +192,8 @@ async function main() {
       );
     }
     report.checks.push(
-      "client settings save paths in aicat.yaml and validate real encrypted snapshot",
+      "client settings save Base64 key privately and validate stock SQLite3MC encrypted reads",
+      "password input clears after save; public state and YAML omit the key; invalid replacement preserves credentials; blank retains only the matching account and directory",
     );
     await page.locator("#nav-extensions").click();
     await page.locator("#extension-wecom-local").click();
@@ -262,7 +291,8 @@ async function main() {
     );
     assert.throws(() => process.kill(pid, 0));
     assert.equal((await rpc("State")).messageChannels.wecom.phase, "stopped");
-    assert(!fs.existsSync(path.join(home, "credentials")));
+    assert(!fs.existsSync(path.join(home, "credentials/wecom.json")));
+    assert(!fs.readFileSync(path.join(root, "app.log"), "utf8").includes(key));
     assert.deepEqual(errors, []);
     report.checks.push(
       "disabling client reclaims its Bun host and leaves BOT stopped",

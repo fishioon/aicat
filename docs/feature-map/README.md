@@ -16,7 +16,7 @@ aicat 的产品方向是用户节点上的常驻 Agent Gateway：用户主要在
 | [检查与导出请求](traffic-inspect.md) | 阅读请求/响应，复制 URL、cURL 或正文，导出结果 | 请求行、右键菜单、详情、标题栏 |
 | [供应商接入](providers.md) | 让 aicat 保管供应商密钥并同步模型列表，Agent 经 aicat 调用模型 | 主页 → 接入供应商；同一监听地址的 `/v1/messages`、`/v1/chat/completions`、`/v1/responses`、`/v1/models` |
 | [Codex 扩展](codex.md) | 在 Codex 的模型列表中使用供应商的模型，保留 ChatGPT 登录 | 扩展 → 已安装 → Codex；解密 `chatgpt.com` 或 `openai_base_url` 指向 `/backend-api/codex` |
-| [企业微信客户端](wecom-local.md) | 从客户端本地数据库增量读取消息到 Room，只读原型 | 扩展 → 已安装 → 企业微信客户端 |
+| [企业微信客户端](wecom-local.md) | 本地消息增量进入 Room，Agent 通过 MCP 请求客户端脚本发送文本 | 扩展 → 已安装 → 企业微信客户端 |
 | [企业微信 BOT](wecom.md) | 配置机器人、接收私聊文本并通过界面或 MCP 显式发送 | 扩展 → 推荐 → 企业微信 BOT → 安装 → 配置验证 → 启用 |
 | [Agent 查询接口](agent-access.md) | 通过 HTTP 或 MCP 查询实际经过网关的请求 | 同一监听地址的 `/api/*` 与 `/mcp` |
 
@@ -81,6 +81,7 @@ npm --prefix e2e ci
 | 供应商密钥与转发 | `node e2e/provider.cjs bin/aicat-e2e build/feature-map-provider-<run>` |
 | 企业微信客户端读取与恢复 | `python3 e2e/wecom-local.py` |
 | 企业微信客户端配置与消息展示（无头） | 先运行 `python3 e2e/wecom-local-fixture.py --output build/client-fixture-<run>`，再运行 `node e2e/wecom-local-ui.cjs bin/aicat-e2e build/client-fixture-<run> build/client-ui-<run> review` |
+| 企业微信客户端 MCP 发送 | `python3 e2e/wecom-local-send.py` |
 | 企业微信 BOT 配置、收发与恢复 | `node e2e/wecom.cjs bin/aicat-e2e` |
 | 企业微信 BOT 表单并发编辑、发送恢复与长文本（无头） | `node e2e/wecom.cjs bin/aicat-e2e build/feature-map-wecom-ui-<run> ui` |
 | 整组桌面验收 | `python3 e2e/prototype.py --only desktop --output build/feature-map-desktop-<run>` |

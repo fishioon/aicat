@@ -23,7 +23,7 @@ import (
 const ID = "wecom-local"
 
 var Extension = extension.Extension{
-	ID: ID, Name: "企业微信客户端", Summary: "读取企业微信客户端本地数据库，增量保存消息到 Room", Lede: "使用已有密钥读取本地消息。原型仅保存到 Room，不发送消息或自动执行 Agent。", Categories: []string{"消息"},
+	ID: ID, Name: "企业微信客户端", Summary: "读取本地消息到 Room，通过 MCP 调用客户端发送文本", Lede: "使用 Base64 密钥增量读取消息。Agent 通过 MCP 请求回复，客户端脚本发送并回读本地数据库确认。", Categories: []string{"消息"},
 	Build: func(env extension.Env) (extension.Parts, error) {
 		c := &channel{home: env.Home, host: channelhost.New(env.Home), inbox: messages.NewInbox(env.Home, ID), state: messages.State{Phase: "stopped", Records: []messages.Record{}, Tasks: []messages.Task{}, RoomDir: filepath.Join(env.Home, "rooms")}}
 		return extension.Parts{Messages: c, Run: c.Run}, nil
@@ -35,6 +35,8 @@ type channel struct {
 	host     *channelhost.Manager
 	inbox    *messages.Inbox
 	mu       sync.Mutex
+	sendMu   sync.Mutex
+	account  *channelhost.Account
 	state    messages.State
 	onChange func()
 }
@@ -54,11 +56,11 @@ func (c *channel) settings() (*config.LocalMessages, error) {
 		return nil, err
 	}
 	if cfg.Extensions[ID].Agent.Enabled {
-		return nil, errors.New("客户端原型仅保存消息到 Room，不支持自动执行 Agent")
+		return nil, errors.New("客户端扩展通过 MCP 接收发送请求，不自动执行 Agent")
 	}
 	local := cfg.Extensions[ID].Local
 	if local == nil {
-		return nil, errors.New("请配置本地账号、数据库目录和密钥文件")
+		return nil, errors.New("请配置本地账号、数据库目录和 Base64 密钥")
 	}
 	return local, local.Validate()
 }
@@ -68,6 +70,9 @@ func (c *channel) Snapshot() messages.State {
 	state.Records = append([]messages.Record{}, state.Records...)
 	c.mu.Unlock()
 	local, err := c.settings()
+	if err == nil {
+		_, err = c.key(local)
+	}
 	state.Local, state.Configured, state.Validated = local, err == nil, err == nil
 	if local != nil {
 		state.AccountID = local.AccountID
@@ -75,29 +80,63 @@ func (c *channel) Snapshot() messages.State {
 	return state
 }
 func (c *channel) Installed() bool { return true }
-func (c *channel) Validated() bool { _, err := c.settings(); return err == nil }
+func (c *channel) Validated() bool {
+	local, err := c.settings()
+	if err == nil {
+		_, err = c.key(local)
+	}
+	return err == nil
+}
 func (c *channel) Configure(account messages.AccountConfig) error {
-	if account.Local == nil || account.Secret != "" {
+	if account.Local == nil {
 		return errors.New("请填写本地数据库配置")
 	}
-	return config.SetLocalMessages(c.home, ID, *account.Local)
+	local := account.Local
+	if err := local.Validate(); err != nil {
+		return err
+	}
+	key := normalizeKey(account.Secret)
+	if key == "" {
+		var err error
+		key, err = c.key(local)
+		if err != nil {
+			return err
+		}
+	}
+	if !validKey(key) {
+		return errors.New("请输入编码 16 字节原始输入的有效 Base64 密钥")
+	}
+	if err := c.validate(context.Background(), local, key); err != nil {
+		return err
+	}
+	if err := c.saveKey(local, key); err != nil {
+		return err
+	}
+	return config.SetLocalMessages(c.home, ID, *local)
 }
 func (c *channel) ConfigureAgent(config.MessageAgent) error {
-	return errors.New("客户端原型不支持自动执行 Agent")
-}
-func (c *channel) Send(context.Context, messages.Event) (messages.Receipt, error) {
-	return messages.Receipt{}, errors.New("企业微信客户端原型只读，不支持发送")
+	return errors.New("客户端扩展通过 MCP 接收发送请求，不自动执行 Agent")
 }
 func (c *channel) Validate(ctx context.Context) error {
 	local, err := c.settings()
 	if err != nil {
 		return err
 	}
+	key, err := c.key(local)
+	if err != nil {
+		return err
+	}
+	return c.validate(ctx, local, key)
+}
+func (c *channel) validate(ctx context.Context, local *config.LocalMessages, key string) error {
 	dir, err := channelplugin.RuntimeDir()
 	if err != nil {
 		return err
 	}
-	raw, _ := json.Marshal(local)
+	raw, _ := json.Marshal(struct {
+		*config.LocalMessages
+		Key string `json:"key"`
+	}{local, key})
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, filepath.Join(dir, "bun"), filepath.Join(dir, "wecom-local", "validate.ts"))
@@ -123,8 +162,21 @@ func hash(value string) string {
 	return hex.EncodeToString(sum[:])
 }
 func (c *channel) Run(ctx context.Context) {
-	defer func() { c.mu.Lock(); c.state.PID = 0; c.mu.Unlock(); c.status("stopped", ""); c.notify() }()
+	defer func() {
+		c.mu.Lock()
+		c.state.PID = 0
+		c.account = nil
+		c.mu.Unlock()
+		c.status("stopped", "")
+		c.notify()
+	}()
 	local, err := c.settings()
+	if err != nil {
+		c.status("unconfigured", err.Error())
+		<-ctx.Done()
+		return
+	}
+	key, err := c.key(local)
 	if err != nil {
 		c.status("unconfigured", err.Error())
 		<-ctx.Done()
@@ -134,7 +186,7 @@ func (c *channel) Run(ctx context.Context) {
 	for attempt := 0; ctx.Err() == nil; attempt++ {
 		c.status("connecting", "")
 		openCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		account, err := c.host.Open(openCtx, channelhost.Binding{Driver: ID, AccountID: ID, Session: hash(time.Now().String()), Source: source, Local: local}, func(raw json.RawMessage) (any, error) {
+		account, err := c.host.Open(openCtx, channelhost.Binding{Driver: ID, AccountID: ID, Session: hash(time.Now().String()), Source: source, Local: local, Secret: key, SendScript: sendScript()}, func(raw json.RawMessage) (any, error) {
 			record, err := c.inbox.Receive(source, raw)
 			if err != nil {
 				c.status("error", "Room 日志保存失败，等待重试")
@@ -161,6 +213,7 @@ func (c *channel) Run(ctx context.Context) {
 		cancel()
 		if err == nil {
 			c.mu.Lock()
+			c.account = account
 			c.state.PID = account.PID()
 			c.mu.Unlock()
 			c.notify()
@@ -170,6 +223,7 @@ func (c *channel) Run(ctx context.Context) {
 			}
 			c.host.Close(account)
 			c.mu.Lock()
+			c.account = nil
 			c.state.PID = 0
 			c.mu.Unlock()
 			if ctx.Err() != nil {

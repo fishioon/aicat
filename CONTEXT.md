@@ -1,6 +1,6 @@
 # aicat
 
-本仓库是 aicat 桌面端：以 MyGo + WebView 和 go-mitmproxy，由 Go 主进程提供代理、流量检查、模型供应商接入与 Agent 工具能力，企业微信 BOT 与只读企业微信客户端扩展按需启动各自的应用内 Bun 宿主。
+本仓库是 aicat 桌面端：以 MyGo + WebView 和 go-mitmproxy，由 Go 主进程提供代理、流量检查、模型供应商接入与 Agent 工具能力，企业微信 BOT 与企业微信客户端扩展按需启动各自的应用内 Bun 宿主。
 
 ## 产品定位与设计方向
 
@@ -42,7 +42,7 @@ aicat 是安装在用户节点上的常驻 Agent Gateway，为接入的 Agent �
 - **用量**：`internal/usage` 为供应商入口转发的每次模型调用记一条（Agent 直连与 Codex 的供应商回合都经过这里），追加到 Home 下的 `usage.jsonl`（0600），写入失败不影响调用；不依赖流量扩展，最近 31 天读入内存供查询。记录有时间、Agent、供应商 ID、请求的模型（去掉前缀）与回复的模型、接口、状态码或错误、耗时、首字时间，以及输入、输出、缓存读、缓存写四类 Token。Token 在转发给 Agent 的同时从回复中读出：Anthropic 读 `message_start` 与 `message_delta` 的 usage，Chat Completions 读 `usage`（输入扣除 `cached_tokens` 或 `prompt_cache_hit_tokens`），Responses 读 `response.completed` 的 usage（输入扣除 `cached_tokens`）；流式 Chat 请求没写 `stream_options.include_usage` 时由 aicat 补上。首字时间是第一个正文、推理或工具调用事件到达的时间；输出速度是输出 Token 除以首字之后的耗时，只统计首字后超过 100 ms 的流式回答。缓存命中率为缓存读 /（输入 + 缓存读 + 缓存写）。Agent 取 `User-Agent` 的产品名（如 `claude-cli` 记为 Claude Code），aicat 内部调用以 `X-Aicat-Agent` 标明（Codex 扩展），转发前去掉。在本机返回的 400（模型无人提供等）不记录。汇总按今天（逐小时）、近 7 天、近 30 天（逐日），分模型、供应商与 Agent；`Desktop.Usage` 与 `GET /api/usage?period=today|7d|30d` 返回同一份汇总。不计费用。
 - **主页**：首页展示网关状态、需要处理的事项（监听失败、证书删除未完成或过期、系统代理待恢复、供应商同步失败）与用量看板：可选今天、7 天、30 天，显示 Token、请求与失败、缓存命中率、平均耗时与首字和输出速度，按模型拆分的 Token 柱状图（最大的四个模型各占一色，其余归入“其他”），以及按模型、供应商与 Agent 的用量。打开期间每 5 秒刷新。没有调用时引导接入供应商或 Agent。“接入 Agent”子页给出各客户端的 MCP 配置与接入地址（MCP、模型入口、HTTP 代理、HTTP API），“接入供应商”子页保存供应商并在表单下方管理模型列表，不显示 Agent 对接步骤。
 - **流量界面**：对齐 `docs/design/aicat-redesign.html` 的 MyGo + WebView；44 DIP 标题栏（前进后退、面包屑、常驻监听地址、主题），52 DIP 导航栏、224 DIP 侧边栏（扩展 272 DIP），主面板上列表/下详情。列表行首状态点区分成功、出错、3xx、未解密隧道与进行中，列含应用、类型（取自响应 Content-Type）；↑ ↓ 移动选择，⌘K 聚焦搜索。详情为请求与响应双栏，按内容提供 Header / Query / Body / 事件（SSE）/ Raw，默认 Header；两侧分别记住本次运行选择，切换请求不重置，列表只同步摘要，详情与正文按需读取有界快照。Header 按名称和值显示，重复值分别保留；复制跟随当前视图，并在按钮旁提示结果。请求行右键支持复制 URL、复制 cURL、固定/取消固定所属域名；cURL 仅从完整 HTTP 请求生成，CONNECT 与正文采集不完整时禁用。侧边栏分组与域名行只保留展开箭头、文字与数量，不显示固定、文件夹、地球或显示器装饰图标。域名/路径树聚合请求、右键固定持久化于 traffic.pinnedDomains；主搜索仅对完整 URL 做大小写不敏感的模糊匹配，字符按顺序出现但不必连续，空白分隔的词全部命中；前端按大小写不敏感、归一化后的字符顺序做模糊匹配，不支持扩展查询语法，保持采集顺序。实际数据行隔行底色，空白区域纯色。前进/后退恢复筛选、搜索与所选请求，失效记录不复活；清空同时复位域名与 URL 筛选，保留固定项。私云未接入时以状态说明呈现。
-- **企业微信客户端**：内置只读扩展 `wecom-local`，与 BOT 独立配置和启停。应用内 Bun 运行 TS 读取器，使用已有密钥在内存解密客户端本地数据库并重放已提交 WAL；按本地消息 ID 增量写入 Room，确认落盘后保存游标，重启续读并校验消息锚点。原型保留原始载荷与媒体元数据，不识别群聊/私聊、不发送消息、不自动执行 Agent 或获取密钥，范围见[企业微信客户端](docs/feature-map/wecom-local.md)。
+- **企业微信客户端**：内置扩展 `wecom-local`，与 BOT 独立配置和启停。应用内 Bun 运行 TS 读取器，手动输入 Base64 编码的 16 字节派生前密钥，交给未修改的 SQLite3 Multiple Ciphers 只读打开客户端数据库及 WAL，密钥独立私有保存；按本地消息 ID 增量写入 Room，确认落盘后保存游标，重启续读并校验消息锚点。原型保留原始载荷与媒体元数据，不识别群聊/私聊；Agent 通过 MCP messages_send 请求客户端脚本发送文本并回读本地库确认，不自动执行 Agent 或获取密钥，范围见[企业微信客户端](docs/feature-map/wecom-local.md)。
 - **企业微信 BOT**：从扩展推荐列表安装的官方 OpenClaw 长连接机器人插件。应用内置 Bun 和兼容宿主，插件与依赖安装到 Home，禁止安装脚本，不随 app 内置。保存 Bot ID、Secret 后通过 SDK 短连接鉴权验证，验证通过才允许启用正式收发。账号绑定的 source 标识来源；CloudEvent data 直接承载旧版消息正文，包含 roomid 与 text.content，不重复嵌套 account/message。事件流水、纯消息上下文、任务和发送回执分开持久化。Codex 直接接收完整 trigger_messages；Room 空闲用 turn/start，执行中用 turn/steer，普通回复自动经主动发送服务回发，结果不明不重跑。当前支持单账号私聊文本，群聊、媒体与插件附带工具尚未开放，验证入口见[企业微信 BOT](docs/feature-map/wecom.md)。
 - **MCP**：`internal/mcpserver` 在同一 9981 的 `/mcp` 提供 Streamable HTTP，使用 Home 中 0600 的 mcp-token 做 Bearer 认证，拒绝浏览器 Origin。提供 traffic_list、traffic_get、traffic_body 流量查询，以及 messages_send 文本发送；后者复用桌面消息渠道的账号开关与发送服务。
 

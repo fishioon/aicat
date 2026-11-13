@@ -1,4 +1,5 @@
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -10,7 +11,36 @@ import struct
 import subprocess
 import time
 
-KEY = bytes.fromhex('00112233445566778899aabbccddeeff')
+INPUT = bytes.fromhex('00112233445566778899aabbccddeeff')
+BASE64_KEY = base64.b64encode(INPUT).decode()
+
+def rc4(key, data):
+    state = list(range(256))
+    j = 0
+    for i in range(256):
+        j = (j + state[i] + key[i % len(key)]) % 256
+        state[i], state[j] = state[j], state[i]
+    i = j = 0
+    out = bytearray()
+    for byte in data:
+        i = (i + 1) % 256
+        j = (j + state[i]) % 256
+        state[i], state[j] = state[j], state[i]
+        out.append(byte ^ state[(state[i] + state[j]) % 256])
+    return bytes(out)
+
+def derive(value):
+    pad = bytes.fromhex('28bf4e5e4e758a4164004e56fffa01082e2e00b6d0683e802f0ca9fe6453697a')
+    user = (value[:32] + pad)[:32]
+    digest = hashlib.md5(pad).digest()
+    for _ in range(50): digest = hashlib.md5(digest).digest()
+    owner = user
+    for i in range(20): owner = rc4(bytes(b ^ i for b in digest), owner)
+    digest = hashlib.md5(user + owner).digest()
+    for _ in range(50): digest = hashlib.md5(digest).digest()
+    return digest
+
+KEY = derive(INPUT)
 
 
 def proto(text):
@@ -92,17 +122,18 @@ def main():
     account = 'synthetic-account'
     source = 'aicat-channel://wecom-local/' + hashlib.sha256((account + '\0' + str(target)).encode()).hexdigest()
     room_dir = lambda room: home / 'rooms' / hashlib.sha256(('wecom-local\0' + source + '\0' + room).encode()).hexdigest()
-    key_file = root / 'keys.json'
-    keys = {'version': 1, 'entries': [{'path': str(target / 'message.db'), 'account': account, 'name': 'message.db', 'key': KEY.hex()}]}
+    (root / 'fixture-key.json').write_text(json.dumps({'key': BASE64_KEY}))
+    key_file = home / 'credentials/wecom-local.json'
+    key_file.parent.mkdir(mode=0o700)
 
-    def save_keys(value=keys):
-        temporary = root / 'keys.next'
-        temporary.write_text(json.dumps(value))
+    def save_keys(value=BASE64_KEY):
+        temporary = key_file.with_suffix('.next')
+        temporary.write_text(json.dumps({'accountId': account, 'dataDir': str(target), 'key': value}))
         temporary.chmod(0o600)
         temporary.replace(key_file)
 
     def config(enabled=True, data_dir=target):
-        (home / 'aicat.yaml').write_text('gateway:\n  addr: 127.0.0.1:' + str(port) + '\nsystemProxy:\n  enabled: false\nextensions:\n  traffic:\n    enabled: false\n  wecom-local:\n    enabled: ' + str(enabled).lower() + '\n    local:\n      accountId: ' + account + '\n      dataDir: ' + json.dumps(str(data_dir)) + '\n      keyFile: ' + json.dumps(str(key_file)) + '\n')
+        (home / 'aicat.yaml').write_text('gateway:\n  addr: 127.0.0.1:' + str(port) + '\nsystemProxy:\n  enabled: false\nextensions:\n  traffic:\n    enabled: false\n  wecom-local:\n    enabled: ' + str(enabled).lower() + '\n    local:\n      accountId: ' + account + '\n      dataDir: ' + json.dumps(str(data_dir)) + '\n')
 
     def lines(file):
         if not file.exists() or not file.is_file():
@@ -139,6 +170,7 @@ def main():
         run += 1
         with (root / ('serve-' + str(run) + '.log')).open('w') as log:
             process = subprocess.Popen([str(binary), 'serve', '--home', str(home)], stdout=log, stderr=subprocess.STDOUT, start_new_session=True, env={**os.environ, 'AICAT_E2E_BACKGROUND': '1'})
+        wait(lambda: 'aicat ready at' in (root / ('serve-' + str(run) + '.log')).read_text(), 'application ready')
 
     def stop(crash=False):
         nonlocal process
@@ -208,12 +240,14 @@ def main():
         check('restart resumes cursor without replaying history', cursor().get('position') == '5' and len(events('group-fixture')) == 4)
         insert(6, 'private-fixture', '轮换密钥后继续读取')
         publish(db_path, target)
-        wrong = json.loads(json.dumps(keys))
-        wrong['entries'][0]['key'] = 'ff' * 16
-        save_keys(wrong)
+        stop()
+        save_keys(base64.b64encode(bytes.fromhex('ff' * 16)).decode())
+        start()
         time.sleep(2)
         check('invalid key does not advance cursor', cursor().get('position') == '5')
+        stop()
         save_keys()
+        start()
         wait(lambda: cursor().get('position') == '6', 'key recovery')
         check('restoring supplied key resumes without dropping messages', len(messages('private-fixture')) == 2)
         insert(7, 'private-fixture', 'WAL 校验恢复')
@@ -226,15 +260,17 @@ def main():
         wal_file.write_bytes(valid_wal + b'torn-tail')
         wait(lambda: cursor().get('position') == '7', 'WAL recovery')
         check('valid committed WAL prefix survives torn tail', len(messages('private-fixture')) == 3)
-        duplicate = json.loads(json.dumps(keys))
-        duplicate['entries'].append(dict(duplicate['entries'][0]))
-        save_keys(duplicate)
-        insert(8, 'private-fixture', '重复密钥条目修复')
+        stop()
+        save_keys('not-base64')
+        insert(8, 'private-fixture', '修复配置密钥后续读')
         publish(db_path, target)
+        start()
         time.sleep(2)
-        check('duplicate key entries do not advance cursor', cursor().get('position') == '7')
+        check('malformed Base64 key does not advance cursor', cursor().get('position') == '7')
+        stop()
         save_keys()
-        wait(lambda: cursor().get('position') == '8', 'duplicate key recovery')
+        start()
+        wait(lambda: cursor().get('position') == '8', 'Base64 configuration recovery')
         db.execute('UPDATE message_table SET content=? WHERE message_id=8', (proto('数据库被替换'),))
         db.commit()
         insert(9, 'private-fixture', '不得在身份变化后继续')
@@ -246,7 +282,8 @@ def main():
         publish(db_path, target)
         time.sleep(2)
         check('local ID rollback rejects reset database without advancing cursor', cursor().get('position') == '8')
-        check('BOT installation, credentials, sends and Agent tasks remain untouched', not (home / 'extensions/wecom').exists() and not (home / 'credentials').exists() and not list((home / 'rooms').glob('*/tasks/*')) and not (home / 'messages/receipts').exists())
+        check('BOT installation, credentials, sends and Agent tasks remain untouched', not (home / 'extensions/wecom').exists() and not (home / 'credentials/wecom.json').exists() and not list((home / 'rooms').glob('*/tasks/*')) and not (home / 'messages/receipts').exists())
+        check('Base64 input stays in private credential storage and out of YAML, logs and Room messages', (key_file.stat().st_mode & 0o777) == 0o600 and all(BASE64_KEY not in p.read_text() for p in [home/'aicat.yaml', *root.glob('serve-*.log'), *home.glob('rooms/*/context/messages.log')]))
         check('plaintext database stays outside app Home and Room logs are private', not list(home.rglob('*.db')) and all((p.stat().st_mode & 0o777) == 0o600 for p in home.glob('rooms/*/context/messages.log')))
         stop()
         report['fixtureMessages'] = db.execute('SELECT COUNT(*) FROM message_table').fetchone()[0]

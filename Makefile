@@ -29,7 +29,7 @@ frontend-e2e: ui/node_modules/.aicat-install bindings
 	npm --prefix ui run check
 	npm --prefix ui run build:e2e
 
-bin/channel-host/.ready: $(wildcard runtime/channel-host/wecom-local/*.ts) runtime/channel-host/host.mjs runtime/channel-host/validate.mjs runtime/channel-host/prepare.mjs runtime/channel-host/shim/sdk.mjs runtime/channel-host/shim/text.mjs runtime/channel-host/shim/package.json
+bin/channel-host/.ready: $(wildcard runtime/channel-host/wecom-local/*.ts) $(wildcard runtime/channel-host/wecom-local/*.applescript) $(wildcard runtime/channel-host/sqlite3mc/*) runtime/channel-host/host.mjs runtime/channel-host/validate.mjs runtime/channel-host/prepare.mjs runtime/channel-host/shim/sdk.mjs runtime/channel-host/shim/text.mjs runtime/channel-host/shim/package.json
 	node runtime/channel-host/prepare.mjs
 
 build: tray-icons frontend bin/channel-host/.ready
@@ -98,7 +98,7 @@ frontend-check: ui/node_modules/.aicat-install bindings channel-check
 	node --check e2e/wecom.cjs
 	node --check e2e/wecom-live.cjs
 	node --check e2e/wecom-local-ui.cjs
-	python3 -m py_compile e2e/mcp.py e2e/os-fixture.py e2e/wecom-local.py e2e/wecom-local-fixture.py e2e/wecom-local-live.py
+	python3 -m py_compile e2e/mcp.py e2e/os-fixture.py e2e/wecom-local.py e2e/wecom-local-fixture.py e2e/wecom-local-live.py e2e/wecom-local-send.py e2e/wecom-local-send-live.py
 	node --check e2e/channel-install-failure.cjs
 
 verify: frontend-check fmt-check vet build cli app

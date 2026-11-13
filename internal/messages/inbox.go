@@ -78,6 +78,9 @@ func (s *Inbox) Receive(source string, raw json.RawMessage) (Record, error) {
 			if err := json.Unmarshal(line, &record); err != nil {
 				return err
 			}
+			if record.Event.Type != Received || record.Event.Source != source {
+				return nil
+			}
 			id, signature := record.Event.ID, jsonDigest(record.Event)
 			record.Event = Event{}
 			events[id] = inboxEntry{record: record, digest: signature}
@@ -130,4 +133,20 @@ func (s *Inbox) Receive(source string, raw json.RawMessage) (Record, error) {
 func jsonDigest(value any) string {
 	raw, _ := json.Marshal(value)
 	return digest(raw)
+}
+
+func (s *Inbox) KnownRoom(source, room string) bool {
+	info, err := os.Stat(filepath.Join(s.rooms.directory(source, room), "messages.jsonl"))
+	return err == nil && info.Mode().IsRegular() && info.Size() > 0
+}
+
+func (s *Inbox) RecordSend(source string, event Event, status string) (Record, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var record Record
+	err := appendJSONL(filepath.Join(s.rooms.directory(source, event.Data.RoomID), "messages.jsonl"), func(offset int64) any {
+		record = Record{ID: newID(), RecordedAt: time.Now().UTC().Format(time.RFC3339Nano), Offset: offset, Event: event, Status: status}
+		return record
+	})
+	return record, err
 }

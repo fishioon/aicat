@@ -1,6 +1,6 @@
 # 架构
 
-aicat 是安装在用户节点上的常驻 Agent Gateway，核心由 Go 进程承载：MyGo + 系统 WebView 提供桌面界面，go-mitmproxy 提供代理入口与流量钩子。`127.0.0.1:9981` 是统一 HTTP 入口，既接收代理流量，也承载 aicat 自身的 API、MCP 与模型转发路由。企业微信 BOT 与只读企业微信客户端扩展按需启动各自的应用内置 Bun 宿主，用户无需安装外部运行时。
+aicat 是安装在用户节点上的常驻 Agent Gateway，核心由 Go 进程承载：MyGo + 系统 WebView 提供桌面界面，go-mitmproxy 提供代理入口与流量钩子。`127.0.0.1:9981` 是统一 HTTP 入口，既接收代理流量，也承载 aicat 自身的 API、MCP 与模型转发路由。企业微信 BOT 与企业微信客户端扩展按需启动各自的应用内置 Bun 宿主，用户无需安装外部运行时。
 
 产品定位与领域术语见 [CONTEXT.md](../CONTEXT.md)，用户可见功能见 [Feature map](feature-map/README.md)，构建与验证见 [开发约定](development.md)。本文只描述模块边界、数据流和需要遵守的约束。
 
@@ -50,7 +50,7 @@ flowchart TB
 | `internal/channelhost` | 应用内 Bun 宿主的 stdio、账号会话、子进程启停 | 不依赖 UI 或具体平台协议 |
 | `internal/messages` | 账号凭据、CloudEvent 校验、Room 追加日志、持久任务调度及发送回执 | 不依赖 MyGo 或具体渠道，复用 channelhost |
 | `internal/agent` | Codex app-server 子进程、JSONL 协议、Room thread 与受限动态工具调用 | 不依赖消息渠道或 UI，发送通过调用方提供的回调 |
-| `internal/wecomlocal` | 企业微信客户端扩展声明、本地读取器生命周期与只读消息接入 | 平台数据库解析留在 Bun TS 读取器，复用 messages 的 Inbox 和 Room 存储 |
+| `internal/wecomlocal` | 企业微信客户端扩展声明、本地读取器生命周期、MCP 发送回执与消息接入 | 平台数据库解析与客户端脚本执行留在 Bun TS 宿主，复用 messages 的 Inbox 和 Room 存储 |
 | `internal/channelplugin` | 官方渠道目录、安装暂存、包声明校验与安装记录 | 不依赖 UI、消息处理或具体平台通信 |
 | `internal/certificate` | 根证书身份、当前用户信任的检测与管理 | 不属于 gateway |
 | `internal/systemproxy` | 系统代理的接管、恢复日志与恢复 | 不属于 gateway |
@@ -149,7 +149,7 @@ UI、HTTP API 与 MCP 读取同一个服务实例；`Recorder` 是只交给代�
 
 消息配置验证与正式启用分开：验证通过官方 SDK 做短连接鉴权，不运行入站消息处理；凭据与安装版本的验证指纹有效后才允许启用。插件原样加载，兼容层当前仅覆盖企业微信长连接私聊文本与主动发送，工具、CLI、Webhook 等能力不注册到应用。messages 的 Room 存储复用 JSONL 追加、尾部修复和原子落盘，任务存储在启动时恢复历史并维护待处理索引及最近快照。消息编排负责提示词、trigger_messages 和发送工具定义；agent 只负责 Codex 协议，按 Room 使用 turn/start 或 turn/steer。普通回复经统一主动发送和分段回执服务处理。详情见[企业微信 BOT](feature-map/wecom.md)。完整目标仍见[渠道扩展草案](message-extension-design.md)和[扩展包草案](extension-packages-design.md)。
 
-企业微信客户端是独立内置扩展 `wecom-local`，运行专用 Bun stdio 宿主，不加载 BOT 插件。`runtime/channel-host/wecom-local/` 负责文件快照、页解密、WAL 校验重放、消息解析及确认后的游标保存；`internal/wecomlocal` 只负责配置和生命周期，消息交给 `messages.Inbox`。Inbox 复用现有 Room 追加和同步落盘，以摘要索引校验确定性事件 ID 的重放并补齐上下文，不创建 Agent 任务。扩展的 Messages 接缝以接口提供配置、状态和发送能力；只读渠道明确拒绝发送及 Agent 配置，详见[企业微信客户端](feature-map/wecom-local.md)。
+企业微信客户端是独立内置扩展 `wecom-local`，运行专用 Bun stdio 宿主，不加载 BOT 插件。`runtime/channel-host/wecom-local/` 负责只读数据库连接、消息解析、客户端脚本发送与本地回读确认及游标保存；随包的原版 SQLite3 Multiple Ciphers 2.7.0 负责密钥派生、页解密与 WAL 事务可见性；`internal/wecomlocal` 负责目录配置、Base64 密钥私有保存和生命周期，消息交给 `messages.Inbox`。Inbox 复用现有 Room 追加和同步落盘，以摘要索引校验确定性事件 ID 的重放并补齐上下文，不创建 Agent 任务。扩展的 Messages 接缝以接口提供配置、状态和发送能力；MCP messages_send 通过客户端脚本发送文本，按请求持久保存 pending/sent/unknown 回执并回读 DB/WAL 确认，客户端不自动运行 Agent，详见[企业微信客户端](feature-map/wecom-local.md)。
 
 旧配置若仍启用 rewrite 或包含规则，启动明确报不支持，不静默跳过。旧插件文件不由主程序加载，也不自动删除。
 
@@ -163,7 +163,8 @@ UI、HTTP API 与 MCP 读取同一个服务实例；`Recorder` 是只交给代�
 | `usage.jsonl` | 模型调用的用量记录（0600，只追加） |
 | `state/system-proxy.json` | 系统代理的恢复日志 |
 | `credentials/wecom.json` | 企业微信 Bot ID 与 Secret，0600，仅配置和连接读取 |
-| `state/wecom-local/` | 企业微信客户端宿主锁与按账号、数据目录隔离的读取游标；密钥只引用外部已有文件 |
+| `credentials/wecom-local.json` | 企业微信客户端的 Base64 派生前密钥，绑定账号和目录，0600，不回传界面 |
+| `state/wecom-local/` | 企业微信客户端宿主锁与按账号、数据目录隔离的读取游标 |
 | `state/channel-host/` | 宿主未确认消息与进程锁，不是 Room 历史 |
 | `rooms/*/messages.jsonl`、`rooms/*/context/messages.log` | 按账号和会话隔离的事件流水与纯消息上下文 |
 | `extensions/<ID>/<版本>/` | 官方渠道包、依赖锁与安装记录 |

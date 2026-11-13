@@ -23,6 +23,7 @@ type Text struct {
 }
 
 type Message struct {
+	SearchName  string          `json:"search_name,omitempty"`
 	LocalID     string          `json:"local_id,omitempty"`
 	ServerID    string          `json:"server_id,omitempty"`
 	Sequence    string          `json:"sequence,omitempty"`
@@ -67,9 +68,10 @@ type Delivery struct {
 }
 
 type PlatformResult struct {
-	MessageID string `json:"messageId"`
-	ChatID    string `json:"chatId"`
-	Channel   string `json:"channel"`
+	MessageID    string `json:"messageId"`
+	ChatID       string `json:"chatId"`
+	Channel      string `json:"channel"`
+	Confirmation string `json:"confirmation,omitempty"`
 }
 
 type Record struct {

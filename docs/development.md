@@ -39,7 +39,7 @@
 | `make e2e` | 构建后运行 WebView/浏览器、HTTP/TLS、规则/插件/MCP 完整验收 |
 | `make design-shots` | 渲染 `aicat-redesign.html` 各场景的浅深色截图到 `build/design-shots/`，`SCENES="overview traffic"` 只渲染指定场景；用于标注评审 |
 
-`runtime/channel-host/` 保存宿主及共享 SDK shim 源文件，prepare.mjs 在构建阶段直接复制源码和 Bun 1.4.4，无需安装宿主依赖。客户端读取器位于 wecom-local/，TS 开发检查使用 runtime/channel-host/package-lock.json 锁定的类型依赖，`make channel-check` 执行严格类型检查；成品不包含这些开发依赖。产物在 bin/channel-host/；make app 将其放入 Contents/Resources/channel-host/。宿主修改后重新构建。官方渠道插件由用户点击安装时用应用内 Bun 下载，禁用安装脚本；用户启动或启用时不安装依赖。
+`runtime/channel-host/` 保存宿主及共享 SDK shim 源文件，prepare.mjs 在构建阶段复制源码和 Bun 1.4.4，无需安装宿主运行依赖；同时用 Python 3.9+ 和 clang 从锁定源码构建原版 SQLite3 Multiple Ciphers 2.7.0，构建缓存位于 build/sqlite3mc-stock/。首次构建需下载归档，可用 AICAT_SQLITE3MC_SOURCE 指定同 SHA-256 的本地归档；成品无需 Python、编译器或网络下载。客户端读取器位于 wecom-local/，TS 开发检查使用 runtime/channel-host/package-lock.json 锁定的类型依赖，`make channel-check` 执行严格类型检查；成品不包含这些开发依赖。产物在 bin/channel-host/；make app 将其放入 Contents/Resources/channel-host/。宿主修改后重新构建。官方渠道插件由用户点击安装时用应用内 Bun 下载，禁用安装脚本；用户启动或启用时不安装依赖。
 
 开发时可在一个终端运行 `npm --prefix ui run dev`，另一个终端运行 `MYGO_DEV_URL=http://127.0.0.1:5173 make run`，或使用构建后的 `MYGO_DEV_URL=http://127.0.0.1:5173 bin/aicat-dev --home <隔离目录>`，在 WebView 中使用 Vite 热更新。首次先执行 `make bindings`。开发 URL 仅对开发二进制生效；生产链接标记优先于 `MYGO_ENV` 和 `MYGO_DEV_URL`。MyGo 配置也保留官方 CLI 的 dev/build 字段，CLI 打包会进行签名，应在明确准备分发时使用。
 
@@ -100,6 +100,8 @@ node e2e/codex.cjs bin/aicat-e2e build/codex-e2e
 # 仅验证客户端本地 DB → Room、WAL 增量与崩溃恢复
 make cli channel-check
 python3 e2e/wecom-local.py
+# 仅验证 MCP → 客户端脚本边界 → DB/WAL 自发消息确认、幂等与崩溃恢复
+python3 e2e/wecom-local-send.py
 # 使用前一步合成工件，后台验证客户端扩展入口、配置、启停与诊断
 node e2e/wecom-local-ui.cjs bin/aicat-e2e build/wecom-local-e2e-<run>
 # 仅验证企业微信 BOT 的配置、私聊收发、Room 确认和重启恢复

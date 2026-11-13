@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
+import { Sender } from "./sender";
 import { Source, digest, type LocalConfig, type Position } from "./source";
 
 const root = path.resolve(process.argv[2]);
@@ -28,6 +29,8 @@ let account:
   | { accountId: string; session: string; source: string; local: LocalConfig }
   | undefined;
 let source: Source | undefined;
+let sender: Sender | undefined;
+let sending = false;
 let cursor: Position = { position: "0", anchor: "" };
 let closed = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -113,6 +116,8 @@ function close() {
   if (timer) clearTimeout(timer);
   for (const resolve of pending.values()) resolve(false);
   pending.clear();
+  sender?.close();
+  sender = undefined;
   source?.close();
   source = undefined;
 }
@@ -136,7 +141,7 @@ lines.on("line", (line) => {
     if (frame.method === "channel_open") {
       if (account || closed) throw Error("ACCOUNT_ALREADY_OPEN");
       const params = frame.params;
-      const local = params.local as LocalConfig;
+      const local: LocalConfig = { ...params.local, key: params.secret };
       const candidate = new Source(local);
       candidate.refresh();
       account = {
@@ -146,6 +151,7 @@ lines.on("line", (line) => {
         local,
       };
       source = candidate;
+      sender = new Sender(candidate, params.sendScript);
       identity = digest(local.accountId + "\0" + path.normalize(local.dataDir));
       cursorFile = path.join(root, "cursor-" + identity + ".json");
       if (fs.existsSync(cursorFile)) {
@@ -161,6 +167,29 @@ lines.on("line", (line) => {
       }
       emit({ id: frame.id, result: { opened: true } });
       timer = setTimeout(poll, 0);
+    } else if (frame.method === "channel_send") {
+      if (
+        !account ||
+        closed ||
+        sending ||
+        frame.params?.accountId !== account.accountId ||
+        frame.params?.session !== account.session
+      )
+        throw Error("LOCAL_SEND_NOT_READY");
+      sending = true;
+      sender!
+        .send(frame.params.event)
+        .then(
+          (result) => emit({ id: frame.id, result }),
+          () =>
+            emit({
+              id: frame.id,
+              error: { message: "LOCAL_SEND_UNCONFIRMED" },
+            }),
+        )
+        .finally(() => {
+          sending = false;
+        });
     } else if (frame.method === "channel_close") {
       close();
       emit({ id: frame.id, result: { closed: true } });

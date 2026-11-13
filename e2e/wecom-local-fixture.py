@@ -28,8 +28,6 @@ try:
     fixture.publish(db_path, target)
 finally:
     db.close()
-(root / 'keys.json').write_text(json.dumps({'version': 1, 'entries': [{'path': str(target / 'message.db'), 'account': 'synthetic-account', 'name': 'message.db', 'key': fixture.KEY.hex()}]}))
-if hasattr(fixture, 'BASE64_KEY'):
-    (root / 'fixture-key.json').write_text(json.dumps({'key': fixture.BASE64_KEY}))
+(root / 'fixture-key.json').write_text(json.dumps({'key': fixture.BASE64_KEY}))
 (root / 'report.json').write_text(json.dumps({'passed': True, 'fixtureMessages': 5, 'longMessage': long}, ensure_ascii=False, indent=2) + '\n')
 print(root)

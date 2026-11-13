@@ -25,14 +25,15 @@ type EventHandler func(json.RawMessage) (any, error)
 type StatusHandler func(string, string)
 
 type Binding struct {
-	Driver    string                `json:"driver,omitempty"`
-	Local     *config.LocalMessages `json:"local,omitempty"`
-	AccountID string                `json:"accountId"`
-	Session   string                `json:"session"`
-	BotID     string                `json:"botId"`
-	Secret    string                `json:"secret"`
-	Source    string                `json:"source"`
-	Endpoint  string                `json:"endpoint,omitempty"`
+	Driver     string                `json:"driver,omitempty"`
+	Local      *config.LocalMessages `json:"local,omitempty"`
+	AccountID  string                `json:"accountId"`
+	Session    string                `json:"session"`
+	BotID      string                `json:"botId"`
+	Secret     string                `json:"secret"`
+	Source     string                `json:"source"`
+	Endpoint   string                `json:"endpoint,omitempty"`
+	SendScript string                `json:"sendScript,omitempty"`
 }
 
 type Manager struct {
