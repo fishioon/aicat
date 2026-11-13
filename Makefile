@@ -70,6 +70,8 @@ frontend-check: ui/node_modules/.aicat-install bindings channel-check
 	node --check e2e/app-tree.cjs
 	node --check e2e/list-selection.cjs
 	node --check e2e/certificate.cjs
+	node --check e2e/certificate-entries.cjs
+	node --check e2e/certificate-fixture.cjs
 	node --check e2e/proxy-settings.cjs
 	node --check e2e/extension-details.cjs
 	node --check e2e/inspector-copy.cjs

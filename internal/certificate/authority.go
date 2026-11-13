@@ -85,7 +85,7 @@ func (a *Authority) PublicPath() string { return filepath.Join(a.directory, "mit
 func (a *Authority) Available() bool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.ca != nil
+	return a.ca != nil && a.root != nil && !expired(a.root)
 }
 func (a *Authority) GetRootCA() *x509.Certificate {
 	a.mu.RLock()
@@ -95,7 +95,7 @@ func (a *Authority) GetRootCA() *x509.Certificate {
 func (a *Authority) GetCert(host string) (*tls.Certificate, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	if a.ca == nil {
+	if a.ca == nil || a.root == nil || expired(a.root) {
 		return nil, errors.New("本机根证书不可用，HTTPS 解密已停用")
 	}
 	return a.ca.GetCert(host)

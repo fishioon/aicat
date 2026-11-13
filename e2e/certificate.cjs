@@ -1,6 +1,5 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const { execFileSync } = require("node:child_process");
 const { X509Certificate } = require("node:crypto");
 const assert = require("node:assert/strict");
 
@@ -133,31 +132,7 @@ async function verify({
   );
 
   await stop();
-  const generator = path.join(root, "expired-root.go");
-  fs.writeFileSync(
-    generator,
-    `package main
-import ("crypto/rand"; "crypto/rsa"; "crypto/x509"; "crypto/x509/pkix"; "encoding/pem"; "math/big"; "os"; "path/filepath"; "time")
-func main() {
- dir := os.Args[1]
- if err := os.MkdirAll(dir,0700); err != nil { panic(err) }
- key,err := rsa.GenerateKey(rand.Reader,2048); if err != nil { panic(err) }
- cert := &x509.Certificate{SerialNumber:big.NewInt(1), Subject:pkix.Name{CommonName:"Expired E2E Root"}, NotBefore:time.Now().Add(-48*time.Hour), NotAfter:time.Now().Add(-24*time.Hour), KeyUsage:x509.KeyUsageCertSign|x509.KeyUsageCRLSign, BasicConstraintsValid:true, IsCA:true}
- der,err := x509.CreateCertificate(rand.Reader,cert,cert,&key.PublicKey,key); if err != nil { panic(err) }
- private,err := x509.MarshalPKCS8PrivateKey(key); if err != nil { panic(err) }
- public := pem.EncodeToMemory(&pem.Block{Type:"CERTIFICATE",Bytes:der})
- pair := append(pem.EncodeToMemory(&pem.Block{Type:"PRIVATE KEY",Bytes:private}), public...)
- if err := os.WriteFile(filepath.Join(dir,"mitmproxy-ca.pem"),pair,0600); err != nil { panic(err) }
- if err := os.WriteFile(filepath.Join(dir,"mitmproxy-ca-cert.pem"),public,0600); err != nil { panic(err) }
-}
-`,
-  );
-  const ca = path.join(home, "ca");
-  fs.rmSync(ca, { recursive: true });
-  execFileSync("go", ["run", generator, ca], {
-    timeout: 30000,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  require("./certificate-fixture.cjs")(root, path.join(home, "ca"), true);
   await launch();
   await settings();
   assert((await current()).certificate.expired);

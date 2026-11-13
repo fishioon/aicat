@@ -222,6 +222,29 @@ export function decryptionRule(domain: string) {
 export function closeDialog() {
   modal.value = null;
 }
+export function showCertificateRecovery(): boolean {
+  const certificate = state.value?.certificate;
+  if (!certificate?.pendingDeletion && !certificate?.expired) return false;
+  modal.value = {
+    title: certificate.pendingDeletion ? "根证书删除未完成" : "根证书已过期",
+    message: t(
+      certificate.pendingDeletion
+        ? "请先在代理设置中完成删除，再安装根证书。"
+        : "请先在代理设置中更换过期证书。",
+    ),
+    actions: [
+      { label: "取消", run: closeDialog },
+      {
+        label: "代理设置",
+        run: () => {
+          closeDialog();
+          navigate("proxy");
+        },
+      },
+    ],
+  };
+  return true;
+}
 export function ask(title: string, message: string, action: () => unknown) {
   modal.value = {
     title,

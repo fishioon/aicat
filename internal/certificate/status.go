@@ -42,7 +42,12 @@ func Inspect(ctx context.Context, path string) (Status, error) {
 }
 
 func statusOf(c *x509.Certificate) Status {
-	return Status{Name: c.Subject.CommonName, Fingerprint: fmt.Sprintf("%X", sha256.Sum256(c.Raw)), NotBefore: c.NotBefore, NotAfter: c.NotAfter, Expired: time.Now().Before(c.NotBefore) || !time.Now().Before(c.NotAfter), Supported: TrustSupported, Exists: true}
+	return Status{Name: c.Subject.CommonName, Fingerprint: fmt.Sprintf("%X", sha256.Sum256(c.Raw)), NotBefore: c.NotBefore, NotAfter: c.NotAfter, Expired: expired(c), Supported: TrustSupported, Exists: true}
+}
+
+func expired(c *x509.Certificate) bool {
+	now := time.Now()
+	return now.Before(c.NotBefore) || !now.Before(c.NotAfter)
 }
 
 func readCertificate(path string) (*x509.Certificate, error) {

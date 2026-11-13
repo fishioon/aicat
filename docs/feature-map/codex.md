@@ -4,7 +4,7 @@
 
 ## Sub-features
 
-- `codex-toggle`：在扩展里启用或停用，持久化为 `extensions.codex.enabled`；根证书未被信任时先提示安装证书，安装后自动启用。
+- `codex-toggle`：在扩展里启用或停用，持久化为 `extensions.codex.enabled`；有效根证书未被信任时先提示安装，安装后自动启用。根证书过期或删除未完成时先引导到代理设置恢复，返回后再次启用。
 - `codex-models`：`GET /backend-api/codex/models` 合并 ChatGPT 的列表与供应商模型，ETag 带上 aicat 的标记，供应商模型变化后 Codex 会重新拉取。
 - `codex-turn`：`POST /backend-api/codex/responses` 按模型分流；供应商模型只带供应商密钥，去掉 OpenAI 专用字段，SSE 边到边发。
 - `codex-entries`：两个入口共用同一个处理器。经系统代理时解密 `chatgpt.com`（不写入用户的解密域名名单）；也可在 `~/.codex/config.toml` 设置 `openai_base_url = "http://<监听地址>/backend-api/codex"` 直连 aicat。

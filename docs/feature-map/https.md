@@ -7,7 +7,7 @@
 - `https-install`：安装或重新检测根证书，展示实际信任与失败状态；过期时在代理设置中使用“更换证书”，确认后删除旧身份并创建、安装新身份。
 - `https-manage`：查看真实名称、有效期、SHA-256，导出公开证书，打开钥匙串。
 - `https-domains`：在代理设置中增删解密域名/IP；`*.example.com` 匹配任意层级子域名，不含域名本身。
-- `https-connect`：从未解密 CONNECT 详情就地启用域名，支持客户端自行信任。
+- `https-connect`：从未解密 CONNECT 详情就地启用域名。有效根证书可由客户端自行信任；身份缺失时可直接安装，过期或删除未完成时引导至代理设置恢复，保留原目标与历史记录。
 - `https-delete`：确认后删除当前用户信任和本地身份，失败重试，删除后重新安装生成新身份。
 
 ## How to get to it (user POV)
@@ -23,6 +23,7 @@ Preconditions:
 - 使用独立 Home、OS 信任适配器、测试 TLS 上游；最初解密名单为空。准备新的 CONNECT 连接，不能复用旧连接验证名单变更。
 
 - **后台设置与证书场景。** `node e2e/proxy-settings.cjs bin/aicat-e2e build/proxy-settings-<run>` 验证域名草稿、重复提交、校验与配置失败恢复、监听切换；`node e2e/certificate.cjs bin/aicat-e2e build/certificate-<run>` 验证授权取消/失败/实际信任、折叠详情、公开导出、删除中断与重启恢复，以及真实过期 CA 的更换与安装重试。两个场景 headless 且隐藏原生窗口，成功路径使用真实服务和文件，只有授权/钥匙串/保存面板由 OS 适配器替代；域名延迟/错误另在预览传输层注入。报告、日志、配置、公开证书、源码和截图保存在输出目录。
+- **异常证书与真实域名规则。** `node e2e/certificate-entries.cjs bin/aicat-e2e build/certificate-entries-<run>` 以真实过期 CA、有效本机 TLS 上游和浏览器入口验证扩展/CONNECT 的恢复指引、返回历史选择、缺失身份安装、安装期间切换目标，以及新连接的实际 TLS 身份。用 `*.localhost` 分别验证一层/多层子域解密、根域直通和移除后的直通；客户端显式信任本次 fixture CA，只有初始过期 CA 的证书身份探测关闭客户端验证以读取对比，应用出站 TLS 验证始终保持开启。
 - **默认直通。** 用配置了代理的 HTTPS 客户端连接测试上游；列表显示 CONNECT，选中后请求侧显示 CONNECT 的 Header/Raw，响应侧居中显示锁图标、“HTTPS 响应”、“此 HTTPS 响应已加密。启用 SSL 代理以查看内容。”和“仅启用此域名”按钮。客户端看到上游原证书。
 - **安装。** 设置 → 代理，点击 `#certificate-install`；无应用内二次“继续”确认。OS fixture 模拟取消、失败和成功，每次都检查 `#certificate-status`、错误提示及重试按钮；仅成功且实际验证通过显示“已信任”。重试期间 CA 指纹保持。
 - **管理。** 展开 `#certificate-details > summary`，核对名称、有效期和指纹；`#certificate-recheck` 更新状态。点 `#certificate-export`，读取本次目录的 `aicat-root-ca.pem`，核对指纹一致且不含私钥；点 `#certificate-keychain`，在 fixture 核对打开操作被请求。真实钥匙串 UI 需要另记原生结果。
@@ -36,7 +37,7 @@ Preconditions:
 ## Gotchas
 
 - 添加域名不自动信任 CA；macOS 系统信任也不代表所有客户端都使用该信任库。客户端可显式指定公开 CA 文件。
-- 名单只影响新连接；旧隧道与历史记录不会变成已解密数据。
+- 名单只影响新连接；旧隧道与历史记录不会变成已解密数据。过期、尚未生效或待删除的根证书不能签发，新连接保持直通；已配置域名的历史 CONNECT 显示证书恢复入口，不承诺当前已可解密。
 - 当前 CA 名称可能来自既有身份；以实际证书和指纹为准，不按名称判定信任或删除。
 - 导出只包含公开证书；私钥不导入钥匙串。取消安装后重试复用已生成身份，删除成功后重装才生成新身份。
 - 原生保存/授权面板在验收中被 OS 边界适配，不把模拟成功称为真实 macOS 授权通过。

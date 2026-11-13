@@ -709,5 +709,10 @@
   "只解密列表中的域名，改动对新连接生效。": "Decrypt only the listed domains. Changes apply to new connections.",
   "通配域名": "Wildcard domains",
   "匹配所有层级的子域名，不含 example.com 本身。": "matches subdomains at every level, excluding example.com itself.",
-  "应用中…": "Applying…"
+  "应用中…": "Applying…",
+  "请先在代理设置中完成删除，再安装根证书。": "Complete removal in Proxy Settings, then install a root certificate.",
+  "请先在代理设置中更换过期证书。": "Replace the expired certificate in Proxy Settings first.",
+  "解密 {domain} 需要先安装根证书。": "Install a root certificate before decrypting {domain}.",
+  "已配置 {rule}，根证书不可用，HTTPS 暂不解密。": "{rule} is configured, but the root certificate is unavailable. HTTPS is passing through.",
+  "处理证书": "Resolve certificate"
 }

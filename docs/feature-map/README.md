@@ -59,6 +59,7 @@ npm --prefix e2e ci
 | 请求详情复制、迟到正文与失败重试（无头） | `node e2e/inspector-copy.cjs bin/aicat-e2e build/feature-map-inspector-copy-<run>` |
 | 扩展详情、空状态与 Codex 接入指引（无头） | `node e2e/extension-details.cjs bin/aicat-e2e build/feature-map-extension-details-<run>` |
 | 代理设置输入、域名草稿与监听恢复（无头） | `node e2e/proxy-settings.cjs bin/aicat-e2e build/feature-map-proxy-settings-<run>` |
+| 证书跨入口恢复、实际 TLS 与通配解密（无头） | `node e2e/certificate-entries.cjs bin/aicat-e2e build/feature-map-certificate-entries-<run>` |
 | 证书安装、管理、过期更换与删除恢复（无头） | `node e2e/certificate.cjs bin/aicat-e2e build/feature-map-certificate-<run>` |
 | CONNECT 双栏及响应侧解密提示 | `node e2e/tunnel.cjs bin/aicat-e2e build/feature-map-tunnel-<run>` |
 | 图标布局 | `node e2e/desktop.cjs bin/aicat-e2e build/feature-map-icons-<run> icons` |
