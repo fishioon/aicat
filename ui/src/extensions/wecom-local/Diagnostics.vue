@@ -48,7 +48,10 @@ function preview(value: string) {
       v-if="channel?.records.length"
     >
       <tbody>
-        <tr v-for="record in [...channel.records].reverse()" :key="record.id">
+        <tr
+          v-for="record in [...channel.records].reverse()"
+          :key="record.event.source + record.event.id"
+        >
           <th scope="row">{{ record.event.data.roomid }}</th>
           <td>
             <span class="tag">{{

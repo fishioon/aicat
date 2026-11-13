@@ -73,6 +73,8 @@ macOS 随包的 `send.applescript` 沿用会话搜索、粘贴和回车流程。
 
 发送串行执行。调用脚本前，0600 回执和 Room 事件流水先记录 pending。脚本结束后，从 DB/WAL 回读同一会话中新出现、正文一致且标记自发的消息；只有唯一匹配才记 sent，返回 `result.confirmation: "local_database"` 和本地消息 ID。这表示客户端已落库，不表示服务器送达、对端收到或已读。脚本异常、超时、确认缺失或歧义记 unknown。
 
+诊断页在本次运行中展示发送请求的 pending、sent 或 unknown；同一请求的状态更新在原行，不追加重复行，已展开正文保持展开。
+
 同一来源和请求 ID、相同完整内容返回原回执，内容变化拒绝；pending 在恢复时转 unknown，unknown 不自动重发。修改搜索名也属于不同内容。出站请求与状态保存在 `messages/receipts/` 和同一 Room 的事件流水；聊天上下文只由数据库读取器追加实际自发消息，避免发送确认与读取回流各追加一次。
 
 ## 验证
@@ -100,7 +102,7 @@ python3 e2e/wecom-local-fixture.py --output build/wecom-local-ui-fixture-<run>
 node e2e/wecom-local-ui.cjs bin/aicat-e2e build/wecom-local-ui-fixture-<run> build/wecom-local-ui-<run> review
 ```
 
-`review` 场景核对无关刷新保留草稿、收发方向、媒体说明、预览展开后的完整原文和英文深色界面。
+`review` 场景核对无关刷新保留草稿、收发方向、媒体说明、预览展开后的完整原文和英文深色界面。将最后一个参数改为 `send-review`，额外通过真实 MCP 与 Bun 验证发送中到结果不明的原行更新、展开状态及幂等重查，并用私有夹具副本的加密本地回流验证已发送状态；仅替换原生脚本边界，不操作真实客户端。
 
 `wecom-local-ui.cjs` 使用合成夹具，headless Chromium 与 `AICAT_E2E_BACKGROUND=1` 验收配置验证、独立入口、启停和诊断，保存浅深色截图、日志和报告。不覆盖真实 WKWebView 指针事件或原生窗口显示。
 

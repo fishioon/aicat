@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const { spawn } = require("node:child_process");
 const { chromium } = require(process.env.AICAT_PLAYWRIGHT || "playwright");
 const binary = path.resolve(process.argv[2] || "bin/aicat-e2e");
-const fixture = path.resolve(process.argv[3]);
+let fixture = path.resolve(process.argv[3]);
 const expectedMessages =
   JSON.parse(fs.readFileSync(path.join(fixture, "report.json")))
     .fixtureMessages ?? 9;
@@ -14,6 +14,11 @@ const root = path.resolve(
 fs.mkdirSync(root, { recursive: true, mode: 0o700 });
 const home = path.join(root, "home");
 fs.mkdirSync(home, { mode: 0o700 });
+if (process.argv[5] === "send-review") {
+  const copy = path.join(root, "fixture");
+  fs.cpSync(fixture, copy, { recursive: true });
+  fixture = copy;
+}
 const osState = path.join(root, "os-state.json");
 fs.writeFileSync(
   osState,
@@ -29,6 +34,8 @@ const report = {
   coverage:
     "Headless Chromium with hidden e2e native app; real TS reader and Room service; no WKWebView pointer or native-window acceptance.",
 };
+const sendReview = process.argv[5] === "send-review";
+const review = process.argv[5] === "review" || sendReview;
 let proc, browser, preview, token;
 const errors = [];
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -67,6 +74,37 @@ async function main() {
       path.join(home, "aicat.yaml"),
       `gateway:\n  addr: 127.0.0.1:${port}\nsystemProxy:\n  enabled: false\nextensions:\n  traffic:\n    enabled: false\n`,
     );
+    const sendScript = path.join(root, "native-send-stub.py");
+    if (sendReview)
+      fs.writeFileSync(
+        sendScript,
+        `#!/usr/bin/python3
+import sys,time,json,sqlite3,importlib.util,os
+from pathlib import Path
+root=Path(${JSON.stringify(root)})
+fixture=Path(${JSON.stringify(fixture)})
+request=json.load(sys.stdin)
+with (root/'script-started').open('a') as f:f.write('started\\n')
+if (root/'script-success').exists():
+ os.environ['PATH']='/usr/bin:/bin'
+ spec=importlib.util.spec_from_file_location('fixture',${JSON.stringify(path.resolve("e2e/wecom-local.py"))})
+ module=importlib.util.module_from_spec(spec)
+ spec.loader.exec_module(module)
+ db=sqlite3.connect(fixture/'plain-fixture.db')
+ db.execute('PRAGMA journal_mode=WAL')
+ db.execute('PRAGMA wal_autocheckpoint=0')
+ number=db.execute('SELECT MAX(message_id) FROM message_table').fetchone()[0]+1
+ db.execute('INSERT INTO message_table VALUES (?,?,?,?,?,?,?,?,?)',(number,number,number,1,'group-fixture',2,2,2,module.proto(request['text'])))
+ db.commit()
+ module.publish(fixture/'plain-fixture.db',fixture/'database')
+ db.close()
+ sys.exit(0)
+limit=time.monotonic()+10
+while not (root/'release-script').exists() and time.monotonic()<limit:time.sleep(.04)
+sys.exit(23)
+`,
+        { mode: 0o700 },
+      );
     const previewFile = path.join(root, "preview-url");
     const log = fs.openSync(path.join(root, "app.log"), "w");
     proc = spawn(binary, ["--home", home], {
@@ -74,6 +112,7 @@ async function main() {
       env: {
         ...process.env,
         AICAT_E2E_BACKGROUND: "1",
+        ...(sendReview ? { AICAT_E2E_WECOM_SEND_SCRIPT: sendScript } : {}),
         AICAT_E2E_PREVIEW: previewFile,
         AICAT_E2E_OS_STATE: osState,
       },
@@ -114,37 +153,61 @@ async function main() {
       await page.locator("#wecom-local-key").getAttribute("type"),
       "password",
     );
-    await page
-      .locator("#wecom-local-key")
-      .fill(key);
+    await page.locator("#wecom-local-key").fill(key);
     await page.locator("#wecom-local-save").click();
     await wait(
       async () =>
         (await rpc("State")).messageChannels["wecom-local"].configured,
     );
-    await wait(async () => (await page.locator("#wecom-local-key").inputValue()) === "");
+    await wait(
+      async () => (await page.locator("#wecom-local-key").inputValue()) === "",
+    );
     const credentialFile = path.join(home, "credentials/wecom-local.json");
     const saved = fs.readFileSync(credentialFile, "utf8");
     assert.equal(fs.statSync(credentialFile).mode & 0o777, 0o600);
     assert(!JSON.stringify(await rpc("State")).includes(key));
-    assert(!fs.readFileSync(path.join(home, "aicat.yaml"), "utf8").includes(key));
-    await assert.rejects(rpc("ConfigureMessageChannel", ["wecom-local", {
-      local: { accountId: "synthetic-account", dataDir: path.join(fixture, "database") },
-      secret: "/////////////////////w==",
-    }]));
+    assert(
+      !fs.readFileSync(path.join(home, "aicat.yaml"), "utf8").includes(key),
+    );
+    await assert.rejects(
+      rpc("ConfigureMessageChannel", [
+        "wecom-local",
+        {
+          local: {
+            accountId: "synthetic-account",
+            dataDir: path.join(fixture, "database"),
+          },
+          secret: "/////////////////////w==",
+        },
+      ]),
+    );
     assert.equal(fs.readFileSync(credentialFile, "utf8"), saved);
-    await rpc("ConfigureMessageChannel", ["wecom-local", {
-      local: { accountId: "synthetic-account", dataDir: path.join(fixture, "database") },
-      secret: "",
-    }]);
+    await rpc("ConfigureMessageChannel", [
+      "wecom-local",
+      {
+        local: {
+          accountId: "synthetic-account",
+          dataDir: path.join(fixture, "database"),
+        },
+        secret: "",
+      },
+    ]);
     assert.equal(fs.readFileSync(credentialFile, "utf8"), saved);
-    await assert.rejects(rpc("ConfigureMessageChannel", ["wecom-local", {
-      local: { accountId: "another-account", dataDir: path.join(fixture, "database") },
-      secret: "",
-    }]));
+    await assert.rejects(
+      rpc("ConfigureMessageChannel", [
+        "wecom-local",
+        {
+          local: {
+            accountId: "another-account",
+            dataDir: path.join(fixture, "database"),
+          },
+          secret: "",
+        },
+      ]),
+    );
     assert.equal(fs.readFileSync(credentialFile, "utf8"), saved);
     await page.screenshot({ path: path.join(root, "local-settings.png") });
-    if (process.argv[5] === "review") {
+    if (review) {
       const account = page.locator("#wecom-local-account");
       const directory = page.locator("#wecom-local-dir");
       await account.fill("next-account-draft");
@@ -205,7 +268,7 @@ async function main() {
     );
     await page.locator("#extension-diagnostics").click();
     await page.locator("#wecom-local-messages tr").first().waitFor();
-    if (process.argv[5] === "review") {
+    if (review) {
       await rpc("SetPreferences", [{ language: "zh-Hans", theme: "light" }]);
       await page.waitForFunction(
         () => document.documentElement.lang === "zh-Hans",
@@ -246,6 +309,134 @@ async function main() {
     }
     assert.equal(await page.locator("#wecom-send-form").count(), 0);
     assert.equal(await page.locator("#wecom-agent-form").count(), 0);
+    if (sendReview) {
+      report.coverage +=
+        " MCP uses real message services and Bun; native send script is replaced by a controlled stub and synthetic encrypted local echo, with no native UI or real messages.";
+      const event = {
+        specversion: "1.0",
+        id: "diagnostics-send",
+        source: "aicat-agent://mcp",
+        type: "org.aicat.message.send.requested.v1",
+        datacontenttype: "application/json",
+        data: {
+          action: "send",
+          roomid: "group-fixture",
+          search_name: "Synthetic room",
+          msgtype: "text",
+          text: { content: "合成发送请求，不操作真实客户端" },
+        },
+      };
+      const send = async () => {
+        const response = await fetch(`http://127.0.0.1:${port}/mcp`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json, text/event-stream",
+            Authorization:
+              "Bearer " +
+              fs.readFileSync(path.join(home, "mcp-token"), "utf8").trim(),
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/call",
+            params: {
+              name: "messages_send",
+              arguments: { channel: "wecom-local", event },
+            },
+          }),
+        });
+        assert.equal(response.status, 200);
+        const result = (await response.json()).result;
+        assert(!result.isError, JSON.stringify(result));
+        return result.structuredContent ?? JSON.parse(result.content[0].text);
+      };
+      const pending = send();
+      pending.catch(() => {});
+      await wait(() => fs.existsSync(path.join(root, "script-started")));
+      const records = (await rpc("State")).messageChannels["wecom-local"]
+        .records;
+      fs.writeFileSync(
+        path.join(root, "send-state-proof.json"),
+        JSON.stringify({
+          pendingVisible: records.some(
+            (row) => row.event.id === event.id && row.status === "pending",
+          ),
+        }),
+      );
+      assert(
+        records.some(
+          (row) => row.event.id === event.id && row.status === "pending",
+        ),
+        "pending MCP submission must appear in diagnostics state",
+      );
+      const row = page.locator("#wecom-local-messages tr", {
+        hasText: event.data.text.content,
+      });
+      await wait(
+        async () =>
+          (await row.locator(".tag").innerText()).trim() === "开始发送",
+      );
+      await row.locator("summary").click();
+      await page.screenshot({ path: path.join(root, "send-pending.png") });
+      fs.writeFileSync(path.join(root, "release-script"), "release");
+      assert.equal((await pending).status, "unknown");
+      await wait(
+        async () =>
+          (await row.locator(".tag").innerText()).trim() === "结果不明",
+      );
+      assert.equal(await row.count(), 1);
+      assert.equal(
+        await row.locator("details").getAttribute("open"),
+        "",
+        "status updates preserve the expanded message",
+      );
+      assert.equal((await send()).status, "unknown");
+      assert.equal(
+        fs
+          .readFileSync(path.join(root, "script-started"), "utf8")
+          .trim()
+          .split("\n").length,
+        1,
+      );
+      assert.equal(
+        (await rpc("State")).messageChannels["wecom-local"].records.length,
+        expectedMessages + 1,
+      );
+      await page.screenshot({ path: path.join(root, "send-unknown.png") });
+      fs.writeFileSync(path.join(root, "script-success"), "success");
+      event.id = "diagnostics-confirmed";
+      event.data.text.content = "合成已确认消息，只写入测试数据库";
+      assert.equal((await send()).status, "sent");
+      const confirmed = page.locator("#wecom-local-messages tr", {
+        hasText: event.data.text.content,
+      });
+      await wait(async () =>
+        (await confirmed.locator(".tag").allTextContents()).some(
+          (value) => value.trim() === "已发送",
+        ),
+      );
+      await wait(async () =>
+        (await confirmed.locator(".tag").allTextContents()).some(
+          (value) => value.trim() === "发出",
+        ),
+      );
+      const sentState = (await rpc("State")).messageChannels["wecom-local"]
+        .records;
+      assert.equal(
+        sentState.filter((item) => item.event.id === event.id).length,
+        1,
+      );
+      assert.equal(
+        sentState.find((item) => item.event.id === event.id).status,
+        "sent",
+      );
+      assert.equal(sentState.length, expectedMessages + 3);
+      await page.screenshot({ path: path.join(root, "send-confirmed.png") });
+      report.checks.push(
+        "real MCP submission appears pending, updates the same row to unknown without collapsing text; idempotent retry does not execute again; encrypted local echo confirms sent and appears separately as an outgoing observation",
+      );
+    }
     await page.locator("#wecom-local-open-logs").click();
     await wait(
       () =>
@@ -265,7 +456,7 @@ async function main() {
         path: path.join(root, "diagnostics-" + theme + ".png"),
       });
     }
-    if (process.argv[5] === "review") {
+    if (review) {
       await rpc("SetPreferences", [{ language: "en", theme: "dark" }]);
       await page.waitForFunction(() => document.documentElement.lang === "en");
       assert(
@@ -299,6 +490,8 @@ async function main() {
     );
     report.passed = true;
   } finally {
+    if (sendReview)
+      fs.writeFileSync(path.join(root, "release-script"), "release");
     await browser?.close();
     if (proc && proc.exitCode === null) {
       const done = new Promise((r) => proc.once("exit", r));

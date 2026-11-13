@@ -53,7 +53,7 @@ func (c *channel) Send(ctx context.Context, event messages.Event) (messages.Rece
 			if err = writePrivate(file, saved); err != nil {
 				return messages.Receipt{}, err
 			}
-			if _, err = c.inbox.RecordSend(source, event, "unknown"); err != nil {
+			if err = c.recordSend(source, event, "unknown"); err != nil {
 				return saved.Receipt, err
 			}
 		}
@@ -75,7 +75,7 @@ func (c *channel) Send(ctx context.Context, event messages.Event) (messages.Rece
 	if err = writePrivate(file, saved); err != nil {
 		return messages.Receipt{}, err
 	}
-	if _, err = c.inbox.RecordSend(source, event, "pending"); err != nil {
+	if err = c.recordSend(source, event, "pending"); err != nil {
 		return messages.Receipt{}, err
 	}
 	sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -98,9 +98,17 @@ func (c *channel) Send(ctx context.Context, event messages.Event) (messages.Rece
 	if err = writePrivate(file, saved); err != nil {
 		return saved.Receipt, err
 	}
-	if _, err = c.inbox.RecordSend(source, event, saved.Receipt.Status); err != nil {
+	if err = c.recordSend(source, event, saved.Receipt.Status); err != nil {
 		return saved.Receipt, err
 	}
-	c.notify()
 	return saved.Receipt, nil
+}
+
+func (c *channel) recordSend(source string, event messages.Event, status string) error {
+	record, err := c.inbox.RecordSend(source, event, status)
+	if err != nil {
+		return err
+	}
+	c.remember(record)
+	return nil
 }

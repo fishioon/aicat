@@ -50,6 +50,25 @@ func (c *channel) notify() {
 		fn()
 	}
 }
+func (c *channel) remember(record messages.Record) {
+	c.mu.Lock()
+	found := false
+	for index, prior := range c.state.Records {
+		if prior.Event.Source == record.Event.Source && prior.Event.ID == record.Event.ID {
+			c.state.Records[index] = record
+			found = true
+			break
+		}
+	}
+	if !found {
+		c.state.Records = append(c.state.Records, record)
+		if len(c.state.Records) > 50 {
+			c.state.Records = c.state.Records[len(c.state.Records)-50:]
+		}
+	}
+	c.mu.Unlock()
+	c.notify()
+}
 func (c *channel) settings() (*config.LocalMessages, error) {
 	cfg, err := config.Load(c.home)
 	if err != nil {
@@ -192,22 +211,7 @@ func (c *channel) Run(ctx context.Context) {
 				c.status("error", "Room 日志保存失败，等待重试")
 				return nil, err
 			}
-			c.mu.Lock()
-			exists := false
-			for _, prior := range c.state.Records {
-				if prior.ID == record.ID {
-					exists = true
-					break
-				}
-			}
-			if !exists {
-				c.state.Records = append(c.state.Records, record)
-				if len(c.state.Records) > 50 {
-					c.state.Records = c.state.Records[len(c.state.Records)-50:]
-				}
-			}
-			c.mu.Unlock()
-			c.notify()
+			c.remember(record)
 			return map[string]string{"source": record.Event.Source, "id": record.Event.ID, "status": "accepted"}, nil
 		}, c.status)
 		cancel()
