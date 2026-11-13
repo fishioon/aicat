@@ -9,7 +9,7 @@
 - `traffic-tree`：固定 → 域名 → 应用分组，域名/路径层级与应用筛选。
 - `traffic-domain-pin`：从侧边栏或请求右键固定域名，跨重启与清空保留。
 - `traffic-history`：前进/后退恢复筛选、搜索及仍有效的选择。
-- `traffic-recording`：暂停/继续采集，清空记录与筛选。
+- `traffic-recording`：暂停/继续采集，清空记录与提交时的筛选；等待期间的新筛选和选择保留。
 
 ## How to get to it (user POV)
 

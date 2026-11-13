@@ -15,11 +15,13 @@ import {
   filtered,
   detail,
   detailError,
+  loadDetail,
   traffic,
   metrics,
   remember,
   choose,
   clearTraffic,
+  clearing,
   rowMenu,
   copied,
   copy,
@@ -166,7 +168,8 @@ async function key(event: KeyboardEvent) {
         <button
           id="clear"
           class="btn"
-          :disabled="!records.size && !filteredOut"
+          :disabled="clearing || (!records.size && !filteredOut)"
+          :aria-busy="clearing"
           @click="clearTraffic"
         >
           {{ t("清空") }}
@@ -342,9 +345,19 @@ async function key(event: KeyboardEvent) {
                     .filter(Boolean)
                     .join("　")
                 }}</span></template
-              ><span v-else class="meta">{{
-                detailError || `#${shell.selected} · ${t("正在读取…")}`
-              }}</span>
+              ><template v-else>
+                <span class="meta">{{
+                  detailError || `#${shell.selected} · ${t("正在读取…")}`
+                }}</span>
+                <button
+                  v-if="detailError"
+                  id="retry-detail"
+                  class="btn"
+                  @click="loadDetail"
+                >
+                  {{ t("重试") }}
+                </button>
+              </template>
             </div>
             <div class="panes inspectors">
               <Inspector

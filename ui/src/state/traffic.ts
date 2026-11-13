@@ -91,7 +91,7 @@ export function clearSelection() {
   selectionGeneration++;
   bodyCache.clear();
 }
-async function loadDetail() {
+export async function loadDetail() {
   const id = shell.selected;
   const generation = ++selectionGeneration;
   detail.value = null;
@@ -132,16 +132,29 @@ export function choose(id: number) {
     selected: id,
   });
 }
+export const clearing = shallowRef(false);
 export async function clearTraffic() {
+  if (clearing.value) return;
+  const { host: hostname, path, app, query, selected } = shell;
+  clearing.value = true;
   try {
     await host.clearTraffic();
-    shell.host = "";
-    shell.path = "";
-    shell.app = null;
-    shell.query = "";
-    clearSelection();
+    if (
+      shell.host === hostname &&
+      shell.path === path &&
+      shell.app === app &&
+      shell.query === query
+    ) {
+      shell.host = "";
+      shell.path = "";
+      shell.app = null;
+      shell.query = "";
+    }
+    if (shell.selected === selected) clearSelection();
   } catch (error) {
     problem(error);
+  } finally {
+    clearing.value = false;
   }
 }
 export const copied = reactive(new Set<string>());

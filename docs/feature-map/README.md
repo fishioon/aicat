@@ -60,6 +60,7 @@ npm --prefix e2e ci
 | 正文、cURL 回放与摘要导出恢复（无头） | `node e2e/traffic-content.cjs bin/aicat-e2e build/feature-map-traffic-content-<run>` |
 | 流式事件显示与复制回放（无头） | `node e2e/traffic-events.cjs bin/aicat-e2e build/feature-map-traffic-events-<run>` |
 | IPv6 CONNECT 规则识别（无头） | `node e2e/ipv6-tunnel.cjs bin/aicat-e2e build/feature-map-ipv6-tunnel-<run>` |
+| 请求详情重试、迟到详情与清空并发（无头） | `node e2e/traffic-lifecycle.cjs bin/aicat-e2e build/feature-map-traffic-lifecycle-<run>` |
 | 请求详情复制、迟到正文与失败重试（无头） | `node e2e/inspector-copy.cjs bin/aicat-e2e build/feature-map-inspector-copy-<run>` |
 | 扩展详情、空状态与 Codex 接入指引（无头） | `node e2e/extension-details.cjs bin/aicat-e2e build/feature-map-extension-details-<run>` |
 | 代理设置输入、域名草稿与监听恢复（无头） | `node e2e/proxy-settings.cjs bin/aicat-e2e build/feature-map-proxy-settings-<run>` |

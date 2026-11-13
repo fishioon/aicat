@@ -26,6 +26,7 @@ Preconditions:
 - **复制与读取恢复。** `node e2e/inspector-copy.cjs bin/aicat-e2e build/inspector-copy-<run>` 在后台应用与 headless 浏览器中延迟/拒绝正文预览传输，核对加载期间不可复制、切换记录的迟到正文、Raw/Header/Query 系统剪贴板内容、复制反馈归属和失败重试；正常数据来自真实请求与业务服务，保存源码、日志和浅深色截图。
 - **正文与文件输出。** `node e2e/traffic-content.cjs bin/aicat-e2e build/traffic-content-<run>` 用真实上游验证 JSON、二进制、HTML、重复头，执行本地 cURL 比较特殊字符正文；导出核对文件、取消保存、写入失败后重试。用受限采集额度核对截断提示与完整转发，再检查记录淘汰后的选择及空结果按钮状态。
 - **事件流。** `node e2e/traffic-events.cjs bin/aicat-e2e build/traffic-events-<run>` 分段发送含 CR/LF/CRLF、多行数据、空数据及未完成结尾的事件流；事件视图只列出完整事件，Raw 保留全部内容。复制结果由独立浏览器页的 `EventSource` 读取，核对事件类型、顺序和数据。
+- **详情恢复与异步取消。** `node e2e/traffic-lifecycle.cjs bin/aicat-e2e build/traffic-lifecycle-<run>` 延迟真实详情响应，在 Escape、筛选排除和清空后放行，核对旧详情不复活。读取失败后点击 `#retry-detail` 原位重试；读取期间复制不可用。清空进行中不可重复提交，迟到成功不覆盖后来编辑的筛选和后来选择的请求。
 - **选择与空状态。** 用真实流量入口进入页面，无选择时不显示 `#details`；点击 `.traffic-row[data-id="实际ID"]`，`#detail-title` 对应目标请求，`#details` 可见。按 `await page.keyboard.press('Escape')` 后详情收起；另分别用清空、排除该行的筛选和容量淘汰验证，不允许旧异步详情重新填回。
 - **双栏视图。** 点击 `[data-side="request"] [data-view="raw"]`，请求侧显示请求行、headers 和正文，响应侧仍为 Header；切换记录不重置两侧选择。响应侧切 Raw 后核对多值 headers、正文空白与换行；二进制显示十六进制，正文不完整时 `.body-notice` 显示采集状态，不能将前缀当作完整正文。
 - **复制详情。** 分别点击 `[data-side-copy="request"]` 和 `[data-side-copy="response"]`；从真实剪贴板读取内容，与当前可见视图比较，Raw 不包含行号，Header 保留多值；复制按钮附近出现反馈。Header 与 Raw、请求与响应分别验证。
