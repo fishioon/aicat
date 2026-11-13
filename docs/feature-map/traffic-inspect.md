@@ -6,14 +6,14 @@
 
 - `inspect-selection`：选中显示详情，Escape、清空、筛选排除或淘汰后取消选择。
 - `inspect-views`：请求与响应各自的 Header/Raw、文本与二进制正文、采集状态提示。
-- `inspect-copy`：按当前视图复制请求/响应，右键复制 URL 或完整请求 cURL。
+- `inspect-copy`：按当前视图复制请求/响应；正文加载或读取失败时禁用复制，读取失败可重试，复制反馈仅属于对应记录和视图。右键复制 URL 或完整请求 cURL。
 - `inspect-export`：导出当前筛选下的请求摘要并核对文件内容。
 
 ## How to get to it (user POV)
 
 - 流量列表单击请求行，下方显示请求/响应双栏；各自点击 Header 或 Raw。
 - 各栏右上角复制按钮；请求行右键 → 复制 URL、复制 cURL、固定/取消固定。
-- 流量页标题栏“导出记录”；按 Escape 返回“未选择请求”。
+- 流量页工具栏下载图标“导出为 JSON”；按 Escape 取消选择并收起详情。
 - CONNECT 响应侧提供加密提示与域名解密入口，见[HTTPS](https.md)。
 
 ## Driving it with Playwright
@@ -22,7 +22,8 @@ Preconditions:
 
 - 准备包含重复 headers、换行文本、二进制、大正文和 CONNECT 的真实请求；复制 cURL 使用完整采集且只指向本地 fixture 的请求。
 
-- **选择与空状态。** 用真实流量入口进入页面，无选择时仅有 `#detail-empty`；点击 `.traffic-row[data-id="实际ID"]`，`#detail-title` 对应目标请求，`#detail-content` 可见。按 `await page.keyboard.press('Escape')` 后为空状态；另分别用清空、排除该行的筛选和容量淘汰验证，不允许旧异步详情重新填回。
+- **复制与读取恢复。** `node e2e/inspector-copy.cjs bin/aicat-e2e build/inspector-copy-<run>` 在后台应用与 headless 浏览器中延迟/拒绝正文预览传输，核对加载期间不可复制、切换记录的迟到正文、Raw/Header/Query 系统剪贴板内容、复制反馈归属和失败重试；正常数据来自真实请求与业务服务，保存源码、日志和浅深色截图。
+- **选择与空状态。** 用真实流量入口进入页面，无选择时不显示 `#details`；点击 `.traffic-row[data-id="实际ID"]`，`#detail-title` 对应目标请求，`#details` 可见。按 `await page.keyboard.press('Escape')` 后详情收起；另分别用清空、排除该行的筛选和容量淘汰验证，不允许旧异步详情重新填回。
 - **双栏视图。** 点击 `[data-side="request"] [data-view="raw"]`，请求侧显示请求行、headers 和正文，响应侧仍为 Header；切换记录不重置两侧选择。响应侧切 Raw 后核对多值 headers、正文空白与换行；二进制显示十六进制，正文不完整时 `.body-notice` 显示采集状态，不能将前缀当作完整正文。
 - **复制详情。** 分别点击 `[data-side-copy="request"]` 和 `[data-side-copy="response"]`；从真实剪贴板读取内容，与当前可见视图比较，Raw 不包含行号，Header 保留多值；复制按钮附近出现反馈。Header 与 Raw、请求与响应分别验证。
 - **右键复制。** 对目标请求行 `click({button: 'right'})`，在 `#popup` 选精确名称“复制 URL”或“复制 cURL”的 menuitem；用 `pbpaste` 核对剪贴板。仅对本次本地 fixture 执行得到的 cURL，比较上游接收的方法、URL、headers 与带单引号/换行的文本正文。CONNECT 或正文非完整状态时 cURL 菜单项应禁用。

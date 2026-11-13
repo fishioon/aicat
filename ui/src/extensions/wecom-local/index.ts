@@ -8,6 +8,7 @@ import type { ExtensionUI } from "../types";
 
 export default {
   Body,
+  features: false,
   Settings,
   Diagnostics,
   iconImage,

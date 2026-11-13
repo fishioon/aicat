@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import {
   state,
   shell,
@@ -116,14 +116,29 @@ function gear(event: MouseEvent) {
     },
   ]);
 }
-const tabs = [
-  ["detail", "详情"],
-  ["features", "功能"],
-] as const;
+const tabs = computed<readonly (readonly ["detail" | "features", string])[]>(
+  () =>
+    ui.value.features === false || !ui.value.Body
+      ? [["detail", "详情"]]
+      : [
+          ["detail", "详情"],
+          ["features", "功能"],
+        ],
+);
+watch(
+  () => current.value?.id,
+  () => {
+    tab.value = "detail";
+  },
+);
 function tabKey(event: KeyboardEvent) {
   if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
   event.preventDefault();
-  tab.value = tab.value === "detail" ? "features" : "detail";
+  const index = tabs.value.findIndex(([id]) => id === tab.value);
+  const next =
+    (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.value.length) %
+    tabs.value.length;
+  tab.value = tabs.value[next][0];
   (event.currentTarget as HTMLElement).parentElement
     ?.querySelector<HTMLElement>(`[data-tab="${tab.value}"]`)
     ?.focus();
@@ -274,7 +289,12 @@ function tabKey(event: KeyboardEvent) {
             <Icon name="info" />{{ status.text }}
           </p>
         </header>
-        <div class="ptabs xtabs" role="tablist" :aria-label="t('扩展信息')">
+        <div
+          v-if="tabs.length > 1"
+          class="ptabs xtabs"
+          role="tablist"
+          :aria-label="t('扩展信息')"
+        >
           <button
             v-for="[id, label] in tabs"
             :key="id"
@@ -289,7 +309,7 @@ function tabKey(event: KeyboardEvent) {
           </button>
         </div>
         <div class="xd-body">
-          <div role="tabpanel">
+          <div :role="tabs.length > 1 ? 'tabpanel' : undefined">
             <component v-if="ui.Body" :is="ui.Body" :tab="tab" />
             <p v-else-if="tab === 'detail'">{{ t(current.lede) }}</p>
           </div>

@@ -17,6 +17,7 @@ export interface ExtensionUI {
   menu?(): MenuEntry[];
   // Body shows the detail and features tabs; it takes a `tab` prop.
   Body?: Component;
+  features?: boolean;
   Settings?: Component;
   Diagnostics?: Component;
 }

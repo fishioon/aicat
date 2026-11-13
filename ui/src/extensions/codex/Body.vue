@@ -12,64 +12,58 @@ const baseURL = computed(
 </script>
 <template>
   <template v-if="tab === 'detail'">
-    <h2>{{ t("这个扩展做什么") }}</h2>
-    <p>
-      {{
-        t(
-          "Codex 读取模型列表时，aicat 在 ChatGPT 自带的模型之后加入供应商的模型，名称写作“供应商/模型”，例如 openai/gpt-5。Codex 保留自己的 ChatGPT 登录。",
-        )
-      }}
-    </p>
-    <p>
-      {{
-        t(
-          "选择供应商的模型时，请求带上 aicat 保管的密钥发给供应商，不带 ChatGPT 的登录凭据；选择 ChatGPT 自带的模型时，请求原样发往 ChatGPT。",
-        )
-      }}
-    </p>
-    <p>
-      {{
-        t(
-          "提供供应商已启用的模型。Codex 使用 Responses 接口，上游不支持时返回其错误。模型信息优先取供应商返回的内容，缺少的部分参考 models.dev。",
-        )
-      }}
-    </p>
-    <h2>{{ t("让 Codex 经过 aicat") }}</h2>
-    <p>
-      {{
-        t(
-          "开启代理设置里的系统代理后，aicat 解密 Codex 到 chatgpt.com 的连接，Codex 不用改配置。也可以不开系统代理，在 ~/.codex/config.toml 里加入下面这一行，让 Codex 直接连接 aicat：",
-        )
-      }}
-    </p>
-    <div class="snippet">
-      <header>
-        <span>~/.codex/config.toml</span
-        ><button
-          id="codex-copy"
-          class="btn"
-          @click="copy('codex-snippet', baseURL, t('配置'))"
+    <h2>{{ t("开始使用") }}</h2>
+    <ol>
+      <li>
+        <button
+          id="codex-manage-models"
+          class="link"
+          @click="navigate('provider')"
         >
-          <Icon name="copy" />{{ t("复制") }}
+          {{ t("接入供应商") }}
         </button>
-      </header>
-      <pre id="codex-snippet">{{ baseURL }}</pre>
-    </div>
-    <h2>{{ t("限制") }}</h2>
+        {{ t("并启用要在 Codex 中使用的模型。") }}
+      </li>
+      <li>
+        {{ t("启用扩展，在") }}
+        <button
+          id="codex-proxy-settings"
+          class="link"
+          @click="navigate('proxy')"
+        >
+          {{ t("代理设置") }}
+        </button>
+        {{ t("中开启系统代理，然后重启 Codex。") }}
+      </li>
+    </ol>
+    <details id="codex-manual">
+      <summary>{{ t("手动接入") }}</summary>
+      <p>{{ t("在 ~/.codex/config.toml 添加以下配置，然后重启 Codex。") }}</p>
+      <div class="snippet">
+        <header>
+          <span>~/.codex/config.toml</span>
+          <button
+            id="codex-copy"
+            class="btn"
+            @click="copy('codex-snippet', baseURL, t('配置'))"
+          >
+            <Icon name="copy" />{{ t("复制配置") }}
+          </button>
+        </header>
+        <pre id="codex-snippet">{{ baseURL }}</pre>
+      </div>
+    </details>
+    <h2>{{ t("使用限制") }}</h2>
     <p>
       {{
         t(
-          "供应商模型的对话暂不支持压缩，接近上下文上限时请新开对话。启用期间 Codex 改用 HTTP 流式请求，不使用 WebSocket。",
+          "供应商需支持 Responses。供应商模型暂不支持对话压缩，接近上下文上限时请新开对话。",
         )
       }}
     </p>
     <h2>{{ t("停用之后") }}</h2>
     <p>
-      {{
-        t(
-          "不再解密 Codex 的连接，模型列表恢复为 ChatGPT 自带的模型。已在运行的 Codex 需要重新启动；如果加过上面那行 openai_base_url，也要从 ~/.codex/config.toml 里删掉。",
-        )
-      }}
+      {{ t("重启 Codex；如果手动配置过 openai_base_url，请先删除该行配置。") }}
     </p>
   </template>
   <table v-else class="feat">
@@ -77,31 +71,21 @@ const baseURL = computed(
       <tr>
         <th scope="row">{{ t("模型列表") }}</th>
         <td>
-          {{ t("供应商与模型列表在") }}
           <button class="link" @click="navigate('provider')">
-            {{ t("接入供应商") }}
+            {{ t("管理供应商模型") }}
           </button>
-          {{ t("里，保存后自动同步") }}
         </td>
       </tr>
       <tr>
         <th scope="row">{{ t("接入") }}</th>
-        <td>
-          {{
-            t(
-              "经系统代理解密 chatgpt.com，或在 Codex 中把 openai_base_url 指向 aicat",
-            )
-          }}
-        </td>
+        <td>{{ t("系统代理，或手动配置 openai_base_url") }}</td>
       </tr>
       <tr>
         <th scope="row">{{ t("设置") }}</th>
         <td>
-          {{ t("根证书与系统代理在") }}
           <button class="link" @click="navigate('proxy')">
             {{ t("代理设置") }}
           </button>
-          {{ t("里") }}
         </td>
       </tr>
     </tbody>

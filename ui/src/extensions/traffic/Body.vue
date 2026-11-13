@@ -36,7 +36,7 @@ defineProps<{ tab: "detail" | "features" }>();
       </tr>
       <tr>
         <th scope="row">{{ t("托盘菜单") }}</th>
-        <td>{{ t("暂停采集、继续采集") }}</td>
+        <td>{{ t("采集流量") }}</td>
       </tr>
       <tr>
         <th scope="row">{{ t("设置") }}</th>

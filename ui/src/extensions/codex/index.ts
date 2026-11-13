@@ -33,14 +33,13 @@ const ui: ExtensionUI = {
     enabled()
       ? {
           id: "codex-status",
-          text: t(
-            "向 Codex 提供 {n} 个供应商模型。已在运行的 Codex 需要重新启动。",
-            { n: models.value },
-          ),
+          text: t("提供 {n} 个供应商模型。更改后请重启 Codex。", {
+            n: models.value,
+          }),
         }
       : {
           text: t(
-            "这个扩展已停用，Codex 的请求原样发往 ChatGPT。已在运行的 Codex 需要重新启动。",
+            "已停用。重启 Codex；使用手动接入时，先删除 openai_base_url 配置。",
           ),
         },
   Body,

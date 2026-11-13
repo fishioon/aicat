@@ -70,12 +70,16 @@ export const filtered = computed(() => {
   return result;
 });
 const bodyCache = new Map<string, Promise<BodySnapshot>>();
-export function body(snapshot: {
-  id: string;
-  captured: number;
-  state: string;
-}): Promise<BodySnapshot> {
+export function body(
+  snapshot: {
+    id: string;
+    captured: number;
+    state: string;
+  },
+  reload = false,
+): Promise<BodySnapshot> {
   const key = `${snapshot.id}:${snapshot.captured}:${snapshot.state}`;
+  if (reload) bodyCache.delete(key);
   if (!bodyCache.has(key)) bodyCache.set(key, host.body(snapshot.id));
   return bodyCache.get(key)!;
 }

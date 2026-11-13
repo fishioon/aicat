@@ -56,6 +56,8 @@ npm --prefix e2e ci
 | 流量入口默认可用、采集默认暂停及手动采集 | `node e2e/traffic-default.cjs bin/aicat-e2e build/feature-map-traffic-default-<run>` |
 | 侧边栏顺序、中英文标签和 Domain 计数 | `node e2e/desktop.cjs bin/aicat-e2e build/feature-map-sidebar-<run> sidebar` |
 | 滚动后首次选中、右键、历史与筛选滚动重置 | `node e2e/desktop.cjs bin/aicat-e2e build/feature-map-list-selection-<run> list-selection` |
+| 请求详情复制、迟到正文与失败重试（无头） | `node e2e/inspector-copy.cjs bin/aicat-e2e build/feature-map-inspector-copy-<run>` |
+| 扩展详情、空状态与 Codex 接入指引（无头） | `node e2e/extension-details.cjs bin/aicat-e2e build/feature-map-extension-details-<run>` |
 | CONNECT 双栏及响应侧解密提示 | `node e2e/tunnel.cjs bin/aicat-e2e build/feature-map-tunnel-<run>` |
 | 图标布局 | `node e2e/desktop.cjs bin/aicat-e2e build/feature-map-icons-<run> icons` |
 | HTTP/TLS 接入 | `python3 e2e/prototype.py --only transport --output build/feature-map-transport-<run>` |

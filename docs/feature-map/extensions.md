@@ -4,7 +4,7 @@
 
 ## Sub-features
 
-- `extensions-browse`：搜索、展开或折叠已安装/推荐列表，查看详情；内置扩展在已安装里带“内置”标记。
+- `extensions-browse`：搜索、展开或折叠已安装/推荐列表，查看详情；只有独立功能说明才提供页签，企业微信客户端直接展示详情。内置扩展在已安装里带“内置”标记。
 - `extensions-traffic`：启用或停用流量并保存，停用后隐藏入口、停止新采集。
 - `extensions-codex`：启用或停用 Codex 扩展，见 [Codex 扩展](codex.md)。
 - `extensions-wecom-local`：配置与启停内置的只读企业微信客户端，增量消息保存到 Room，见[企业微信客户端](wecom-local.md)。
@@ -12,7 +12,7 @@
 - `extensions-settings`：详情点击“配置”进入设置中的扩展表单；“诊断”查看任务、消息及发送测试。详情不混放配置与运行流水。
 - `extensions-open`：从详情打开流量或代理设置。
 - `extensions-navigation`：从“更多”打开模块，固定/取消固定导航入口。
-- `extensions-placeholder`：社区扩展和已安装社区扩展显示真实占位状态。
+- `extensions-availability`：推荐列表只展示当前受支持的可安装扩展，未安装时不提供配置与诊断入口。
 - `extensions-icons`：Codex 与企业微信 BOT 使用随前端打包的官方应用图标，列表与详情一致；Codex 按应用主题切换浅深色资源，流量保留功能图标。
 
 ## How to get to it (user POV)
@@ -28,15 +28,17 @@
 
 Preconditions:
 
+- **详情与空状态。** `node e2e/extension-details.cjs bin/aicat-e2e build/extension-details-<run>` 后台逐项验证当前登记扩展的详情/功能页签、搜索无匹配状态、安装与配置入口边界、键盘页签、Codex 手动配置复制及设置跳转，保留全部面板文字与浅深色截图；不下载插件或连接真实平台。
+
 - **品牌图标。** 独立后台运行 `node e2e/extension-icons.cjs bin/aicat-e2e`，验证列表和详情的官方图标、本地加载、浅深色切换和 36/64px 容器，保存截图与报告；不启用渠道或访问真实凭据。资源来源见各扩展 assets/README.md。
 
 - 本次验收实例流量已启用、正在采集，已有一条记录，已记录当前域名与导航固定配置。
 
 - **默认不采集。** 可独立运行 `node e2e/traffic-default.cjs bin/aicat-e2e build/traffic-default-<run>`。从全新 Home 启动，流量扩展启用且导航入口可见，打开流量页显示尚未开始采集；代理请求成功但 `/api/traffic` 为空。点击“开始采集”后记录新请求；扩展启停保留本次会话的采集状态，重启后默认回到暂停。另核对缺失、空/null 配置、显式扩展开关与 `traffic.recording`，保留截图和报告。
-- **找到扩展。** 点击 `#nav-extensions`，在 `#extension-search` 输入 `traffic`，点击 `#extension-traffic`；详情显示内置流量和 `#feature-traffic[aria-checked="true"]`。输入不匹配的词后条目消失，清空恢复。
+- **找到扩展。** 点击 `#nav-extensions`，在 `#extension-search` 输入 `traffic`，点击 `#extension-traffic`；详情显示内置标记，`#feature-traffic` 的文字为“停用”。输入不匹配的词后条目消失，清空恢复。
 - **关闭。** 点击 `#feature-traffic`（文字由“停用”变为“启用”）；`#nav-traffic` 消失，详情出现停用说明，齿轮菜单 `#extension-menu` 里的“打开流量”禁用。调用 `send('/feature-disabled')`，上游仍返回正常结果，`api()` 中没有这条新记录，但原记录仍存在。
 - **恢复。** 再点 `#feature-traffic`，在齿轮菜单点击“打开流量”，发送 `/feature-resumed`，列表与 API 出现新记录。先在流量页点 `#recording` 暂停，再关闭和开启功能，回到流量页应仍暂停；手动继续后才采集新请求。
-- **固定。** 点击 `#nav-more`，点击 `#popup [data-action="pin-navigation"]` 取消固定；流量功能仍启用，导航按钮消失。再次打开“更多”，点击角色为 `menuitem`、名称精确为“流量”的行，仍能进入流量；再点图钉恢复。只读核对 `navigation.pinned`，重启后仍保持。
+- **固定。** 点击 `#nav-more`，点击 `#more-pop [data-action="pin-navigation"]` 取消固定；流量功能仍启用，导航按钮消失。再次打开“更多”，点击 `#more-traffic`，仍能进入流量；再点图钉恢复。只读核对 `navigation.pinned`，重启后仍保持。
 - **入口与占位。** 推荐列表的企业微信条目提供安装入口；点击安装后显示已安装状态。未安装条目没有配置入口，安装后可配置，验证通过才允许启用。
 - **重启。** 保存流量关闭状态后重启同一 Home，启动应进入主页且导航栏没有流量；再启用并恢复原固定配置。检查 `aicat.yaml` 中 `extensions.traffic.enabled` 与界面一致。
 

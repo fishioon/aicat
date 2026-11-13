@@ -21,6 +21,8 @@ const props = defineProps<{
 const chosen = remembered[props.side];
 const content = ref<string | null>(null);
 const bodyNote = ref("");
+const bodyError = ref(false);
+const bodyAttempt = ref(0);
 const message = computed(() =>
   props.side === "request"
     ? props.record?.requestReceived
@@ -89,25 +91,25 @@ function decode(snapshot: BodySnapshot): string {
     return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join(" ");
   }
 }
-let bodyTask: Promise<void> = Promise.resolve();
 watch(
-  [() => props.record, view],
-  ([record, mode], _, cleanup) => {
+  [() => props.record, view, bodyAttempt],
+  ([record, mode, attempt], previous, cleanup) => {
     let stale = false;
     cleanup(() => {
       stale = true;
     });
     content.value = null;
     bodyNote.value = "";
+    bodyError.value = false;
     const info = message.value?.body;
     if (!record || !info || mode === "headers" || mode === "query") return;
     if (!info.id || info.observed === 0) {
       content.value = "";
       return;
     }
-    bodyTask = (async () => {
+    void (async () => {
       try {
-        const snapshot = await body(info);
+        const snapshot = await body(info, attempt !== (previous?.[2] ?? 0));
         if (stale) return;
         content.value = decode(snapshot);
         const state = snapshot.info.state;
@@ -125,6 +127,7 @@ watch(
           bodyNote.value = t("正文读取出错，只保留了已收到的部分。");
       } catch (error) {
         if (!stale) {
+          bodyError.value = true;
           content.value = "";
           bodyNote.value =
             error instanceof Error ? error.message : String(error);
@@ -199,9 +202,20 @@ const lines = computed(() => {
     return { text: text || " ", index, colon };
   });
 });
+const canCopy = computed(
+  () =>
+    !!props.record &&
+    !!message.value &&
+    !failed.value &&
+    (view.value === "headers" ||
+      view.value === "query" ||
+      (content.value !== null && !bodyError.value)),
+);
+const copyKey = computed(
+  () => `${props.side}:${props.record?.id}:${view.value}`,
+);
 async function copySide() {
-  if (!props.record) return;
-  if (view.value !== "headers" && view.value !== "query") await bodyTask;
+  if (!canCopy.value) return;
   const text = {
     headers: headerText.value,
     query: query.value.map(([k, v]) => `${k}=${v}`).join("\n"),
@@ -211,7 +225,11 @@ async function copySide() {
       .join("\n"),
     raw: rawText.value,
   }[view.value];
-  await copy(props.side, text, t(props.side === "request" ? "请求" : "响应"));
+  await copy(
+    copyKey.value,
+    text,
+    t(props.side === "request" ? "请求" : "响应"),
+  );
 }
 function key(event: KeyboardEvent, index: number) {
   if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
@@ -249,13 +267,13 @@ const name = computed(() => t(props.side === "request" ? "请求" : "响应"));
         </button>
       </div>
       <span class="copy"
-        ><span v-if="copied.has(side)" class="copied">{{ t("已复制") }}</span
+        ><span v-if="copied.has(copyKey)" class="copied">{{ t("已复制") }}</span
         ><button
           class="icon-btn"
           :data-side-copy="side"
           :aria-label="t(side === 'request' ? '复制请求' : '复制响应')"
           :title="t(side === 'request' ? '复制请求' : '复制响应')"
-          :disabled="!record || failed"
+          :disabled="!canCopy"
           @click="copySide"
         >
           <Icon name="copy" /></button
@@ -278,6 +296,9 @@ const name = computed(() => t(props.side === "request" ? "请求" : "响应"));
           class="note body-notice"
         >
           {{ bodyNote }}
+          <button v-if="bodyError" class="btn" @click="bodyAttempt++">
+            {{ t("重试") }}
+          </button>
         </div>
         <table v-if="view === 'headers'" class="kv headers">
           <tbody>
