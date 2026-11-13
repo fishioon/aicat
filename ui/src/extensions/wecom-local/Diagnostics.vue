@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { host } from "../../host";
-import { run, state } from "../../state/desktop";
+import { busy, run, state } from "../../state/desktop";
 import { t } from "../../i18n";
 const channel = computed(() => state.value?.messageChannels["wecom-local"]);
 function status(value: string, outgoing = false) {
@@ -35,6 +35,7 @@ function preview(value: string) {
     <p>
       <button
         id="wecom-local-open-logs"
+        :disabled="busy"
         class="btn"
         @click="run(() => host.openMessageLogs('wecom-local'))"
       >

@@ -143,11 +143,6 @@ code,
 .grow {
   flex: 1;
 }
-.busy button:not(.icon-btn),
-.busy input,
-.busy select {
-  pointer-events: none;
-}
 
 /* Controls */
 .btn {

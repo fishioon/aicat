@@ -213,6 +213,7 @@ async function removeDomain(domain: string) {
               <Seg
                 :model-value="state.preferences.language"
                 :options="languages"
+                :disabled="busy"
                 label="界面语言"
                 id-prefix="preference-language-"
                 @update:model-value="setPreference('language', $event)"
@@ -227,6 +228,7 @@ async function removeDomain(domain: string) {
               <Seg
                 :model-value="state.preferences.theme"
                 :options="themes"
+                :disabled="busy"
                 label="主题"
                 id-prefix="preference-theme-"
                 @update:model-value="setPreference('theme', $event)"
@@ -320,6 +322,7 @@ async function removeDomain(domain: string) {
                 ><span class="state warn">{{ t("删除未完成") }}</span
                 ><button
                   id="certificate-delete"
+                  :disabled="busy"
                   class="btn"
                   @click="
                     ask(
@@ -344,7 +347,7 @@ async function removeDomain(domain: string) {
                   v-if="certState === 'expired'"
                   id="certificate-replace"
                   class="btn primary"
-                  :disabled="!cert.supported"
+                  :disabled="busy || !cert.supported"
                   @click="replaceCertificate"
                 >
                   {{ t("更换证书") }}</button
@@ -352,7 +355,7 @@ async function removeDomain(domain: string) {
                   v-else
                   id="certificate-install"
                   class="btn primary"
-                  :disabled="!cert.supported"
+                  :disabled="busy || !cert.supported"
                   @click="install()"
                 >
                   {{ t("安装证书") }}
@@ -390,6 +393,7 @@ async function removeDomain(domain: string) {
                 <div class="wide">
                   <button
                     id="certificate-export"
+                    :disabled="busy"
                     class="btn"
                     @click="run(() => host.exportCertificate())"
                   >
@@ -397,6 +401,7 @@ async function removeDomain(domain: string) {
                   </button>
                   <button
                     id="certificate-keychain"
+                    :disabled="busy"
                     class="btn"
                     @click="run(() => host.openKeychain())"
                   >
@@ -404,6 +409,7 @@ async function removeDomain(domain: string) {
                   </button>
                   <button
                     id="certificate-recheck"
+                    :disabled="busy"
                     class="btn"
                     @click="run(() => host.recheckCertificate())"
                   >
@@ -411,6 +417,7 @@ async function removeDomain(domain: string) {
                   </button>
                   <button
                     id="certificate-delete"
+                    :disabled="busy"
                     class="btn danger"
                     @click="
                       ask(
@@ -447,13 +454,16 @@ async function removeDomain(domain: string) {
                 role="switch"
                 :aria-checked="state.proxy.enabled"
                 aria-labelledby="system-proxy-title"
-                :disabled="!state.proxy.supported || state.proxy.ownedElsewhere"
+                :disabled="
+                  busy || !state.proxy.supported || state.proxy.ownedElsewhere
+                "
                 @click="toggleSystemProxy"
               ></button>
             </div>
             <div v-if="state.proxy.recovery" class="wide">
               <button
                 id="system-proxy-restore"
+                :disabled="busy"
                 class="btn"
                 @click="run(() => host.setSystemProxy(false))"
               >

@@ -99,7 +99,7 @@ const endpoints = computed(() => [
                 ><button
                   id="copy-snippet"
                   class="btn"
-                  @click="copy('snippet', current.code, t('配置'))"
+                  @click="copy('snippet', current.code)"
                 >
                   <Icon name="copy" />{{ t("复制配置") }}
                 </button>
@@ -118,7 +118,7 @@ const endpoints = computed(() => [
                 <button
                   id="copy-token-command"
                   class="btn"
-                  @click="copy('token-command', tokenCommand, t('命令'))"
+                  @click="copy('token-command', tokenCommand)"
                 >
                   <Icon name="copy" />{{ t("复制命令") }}
                 </button>
@@ -153,9 +153,9 @@ const endpoints = computed(() => [
               <code>{{ value }}</code
               ><button
                 class="icon-btn"
-                :aria-label="t('复制') + what"
-                :title="t('复制') + what"
-                @click="copy('endpoint:' + value, value, ' ' + what)"
+                :aria-label="t('复制{name}', { name: what })"
+                :title="t('复制{name}', { name: what })"
+                @click="copy('endpoint:' + value, value)"
               >
                 <Icon name="copy" />
               </button>

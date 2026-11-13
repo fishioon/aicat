@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import {
   state,
+  busy,
   shell,
   navigate,
   travel,
@@ -97,7 +98,7 @@ const addressLabel = computed(() =>
 );
 function copyProxy() {
   const proxy = "http://" + proxyAddress();
-  void copy("proxy", proxy, t("代理地址") + " " + proxy);
+  void copy("proxy", proxy);
 }
 
 // "更多" collects modules that are enabled but not necessarily pinned.
@@ -265,6 +266,7 @@ window.desktop = {
     </button>
     <button
       id="theme"
+      :disabled="busy"
       class="icon-btn"
       :aria-label="t(dark ? '切换到浅色' : '切换到深色')"
       :title="t(dark ? '切换到浅色' : '切换到深色')"
@@ -355,6 +357,7 @@ window.desktop = {
         <button
           class="icon-btn"
           data-action="pin-navigation"
+          :disabled="busy"
           :aria-pressed="trafficPinned"
           :aria-label="t(trafficPinned ? '取消固定' : '固定到导航栏')"
           :title="t(trafficPinned ? '取消固定' : '固定到导航栏')"

@@ -32,6 +32,7 @@ Preconditions:
 - **主题。** `await page.locator('#preference-theme-dark').click()`，等待 `html[data-theme="dark"]`；切换 light 和 system，检查按钮的 `aria-checked` 与实际系统外观。再点 `#theme` 验证快速切换，并检查配置与重启后的外观。
 - **布局。** 在流量页用鼠标拖动 `#list-split` 和 `#detail-split`，核对两侧尺寸变化及内容可用，保留前后截图。
 - **首页用量状态。** `node e2e/overview.cjs bin/aicat-e2e build/overview-<run>` 使用后台应用和 headless 浏览器，验证首次读取失败、重试加载、真实空数据、不同范围及迟到结果、刷新失败与恢复，以及通用设置的语言/主题持久化。成功结果来自真实服务；错误与延迟仅在浏览器预览的用量 RPC 传输层注入，报告明确记录此边界。保留源码快照、日志、隔离用量流水和浅深色截图。
+- **操作等待与跨页。** `node e2e/busy-state.cjs bin/aicat-e2e build/busy-state-<run>` 在后台应用中延迟通用设置 RPC，验证等待期间导航、搜索与草稿可用，冲突操作通过原生 disabled 同时拒绝鼠标和键盘；真实成功与传输失败后恢复操作，不把迟到结果当作导航指令。保存等待/完成截图和报告，不覆盖原生窗口。
 - **托盘菜单状态。** `node e2e/tray.cjs bin/aicat-e2e build/tray-headless-<run>` 在 headless 浏览器与隐藏应用下，读取真实原生菜单模型，调用采集回调与菜单栏点击共用的处理入口，核对固定名称/对号、代理独立状态、两态图标、往返帧、重复点击、中途状态变化、退出取消、显式刷新、代理直接切换和恢复、中英文；保存菜单 JSON、图标帧轨迹及浏览器截图。实际调用原生 SetIcon，但不弹出或点击原生菜单，不计为 macOS 菜单栏像素或指针验收。
 - **托盘图形。** `node e2e/tray-assets.cjs build/tray-assets-<run>` 在无头浏览器中比较图标生成器与手动 SVG 调节页：25 帧均保持猫身、尾根、画布和尾巴长度/粗细，末帧对应用户选定的 30%。保存生成的 SVG 帧、PNG、报告及浅深色栏的资源对照图。
 - **原生生命周期。** 通过真实窗口关闭按钮或 native harness 关闭窗口，向本地上游发送请求；API 仍有新记录。通过托盘和 Dock 分别恢复，再查看新记录。现有 harness 的 `auto.call('menu', {path: ['E2E', '关闭窗口']})` / `打开窗口` 只证明原生隐藏/恢复行为，不是托盘点击覆盖。

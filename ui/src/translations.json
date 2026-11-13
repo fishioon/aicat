@@ -80,6 +80,7 @@
   "仅支持正文采集完整的 HTTP 请求": "Only HTTP requests with a fully captured body",
   "请求正文不可用，无法复制 cURL": "Request body unavailable. Cannot copy cURL.",
   "已复制": "Copied",
+  "复制{name}": "Copy {name}",
   "复制失败，请重试": "Copy failed. Try again.",
   "详情": " details",
   "响应尚未到达": "Response pending",

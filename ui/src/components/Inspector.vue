@@ -241,11 +241,7 @@ async function copySide() {
       .join(""),
     raw: rawText.value,
   }[view.value];
-  await copy(
-    copyKey.value,
-    text,
-    t(props.side === "request" ? "请求" : "响应"),
-  );
+  await copy(copyKey.value, text);
 }
 function key(event: KeyboardEvent, index: number) {
   if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;

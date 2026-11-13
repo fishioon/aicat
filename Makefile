@@ -79,6 +79,7 @@ frontend-check: ui/node_modules/.aicat-install bindings channel-check
 	node --check e2e/connect.cjs
 	node --check e2e/agent-traffic.cjs
 	node --check e2e/control-traffic.cjs
+	node --check e2e/busy-state.cjs
 	node --check e2e/provider-lifecycle.cjs
 	node --check e2e/provider-model-state.cjs
 	node --check e2e/overview.cjs

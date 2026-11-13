@@ -144,6 +144,7 @@ async function send() {
     <p>
       <button
         id="wecom-open-logs"
+        :disabled="busy"
         class="btn"
         @click="run(() => host.openMessageLogs(id))"
       >

@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type { TrafficRecord } from "../generated/mygo";
 import {
   state,
+  busy,
   modal,
   closeDialog,
   run,
@@ -84,7 +85,12 @@ function decrypt() {
         <p>{{ t("此连接未解密，无法查看响应内容。") }}</p>
         <div v-if="rule && unavailable" class="note plain">
           {{ t("已配置 {rule}，根证书不可用，HTTPS 暂不解密。", { rule }) }}
-          <button id="repair-certificate" class="btn" @click="decrypt">
+          <button
+            id="repair-certificate"
+            class="btn"
+            :disabled="busy"
+            @click="decrypt"
+          >
             {{ t("处理证书") }}
           </button>
         </div>
@@ -98,6 +104,7 @@ function decrypt() {
         <button
           v-else
           id="enable-decryption"
+          :disabled="busy"
           class="btn primary"
           @click="decrypt"
         >

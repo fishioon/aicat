@@ -158,11 +158,14 @@ export async function clearTraffic() {
   }
 }
 export const copied = reactive(new Set<string>());
-export async function copy(key: string, text: string, what = "") {
-  if (await run(() => host.copyText(text))) {
-    say(t("已复制") + what);
+export async function copy(key: string, text: string) {
+  try {
+    await host.copyText(text);
+    say(t("已复制"));
     copied.add(key);
     setTimeout(() => copied.delete(key), 2200);
+  } catch (error) {
+    problem(error);
   }
 }
 export function pinDomain(domain: string) {
@@ -188,14 +191,14 @@ export async function rowMenu(event: MouseEvent, row: Summary) {
   if (shell.selected !== row.id || shell.route !== "traffic") return;
   const domain = new URL(row.url).host;
   popup({ x: event.clientX, y: event.clientY }, [
-    { label: "复制 URL", run: () => copy("row:" + row.id, row.url, " URL") },
+    { label: "复制 URL", run: () => copy("row:" + row.id, row.url) },
     {
       label: "复制 cURL",
       disabled:
         record.tunnel || record.requestReceived.body.state !== "complete",
       run: async () => {
         try {
-          await copy("row:" + row.id, await host.requestCURL(row.id), " cURL");
+          await copy("row:" + row.id, await host.requestCURL(row.id));
         } catch (error) {
           problem(error);
         }
@@ -205,6 +208,7 @@ export async function rowMenu(event: MouseEvent, row: Summary) {
       label: state.value?.pinnedDomains.includes(domain)
         ? "取消固定域名"
         : "固定域名",
+      requiresIdle: true,
       run: () => pinDomain(domain),
     },
   ]);

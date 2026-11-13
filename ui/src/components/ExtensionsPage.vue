@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from "vue";
 import {
   state,
+  busy,
   shell,
   navigate,
   popup,
@@ -115,7 +116,7 @@ function gear(event: MouseEvent) {
     ...(ui.value.menu?.() ?? []),
     {
       label: "复制扩展标识符",
-      run: () => copy("extension-id", id, t("扩展标识符")),
+      run: () => copy("extension-id", id),
     },
   ]);
 }
@@ -244,6 +245,7 @@ function tabKey(event: KeyboardEvent) {
             <button
               v-if="!current.installed"
               id="extension-install"
+              :disabled="busy"
               class="xbtn primary"
               @click="install"
             >
@@ -254,7 +256,7 @@ function tabKey(event: KeyboardEvent) {
               :id="'feature-' + current.id"
               class="xbtn"
               :class="{ primary: !enabled }"
-              :disabled="!enabled && !current.ready"
+              :disabled="busy || (!enabled && !current.ready)"
               @click="toggle"
             >
               {{ t(enabled ? "停用" : "启用") }}

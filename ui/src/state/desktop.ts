@@ -169,6 +169,7 @@ export interface MenuEntry {
   label: string;
   id?: string;
   disabled?: boolean;
+  requiresIdle?: boolean;
   run?: () => unknown;
 }
 export const menu = shallowRef<{
