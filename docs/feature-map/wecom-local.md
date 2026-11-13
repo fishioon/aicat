@@ -93,6 +93,8 @@ node e2e/wecom-local-ui.cjs bin/aicat-e2e build/wecom-local-e2e-<run>
 
 `wecom-local-send.py` 通过真实 HTTP MCP、Bun、加密 DB/WAL 与 Room 服务验证鉴权、目标校验、脚本提交、正文回读确认、请求幂等、失败与崩溃恢复、上下文无重复。仅在脚本执行边界替换 native UI，不弹出窗口，不以此代替真实客户端发送验收。
 
+运行错误保留在服务状态中，界面将数据库读取、完整性、进度与组件等错误转换成简短的本地化提示；文件恢复后读取器自动重试，原进度与消息去重保持不变。
+
 配置草稿仅在已保存的本地配置发生变化时同步；主题、语言或运行状态刷新不会覆盖未保存的账号、目录和密钥。
 
 独立界面验收使用固定夹具，包含普通收发、媒体元数据和多行长文本，不依赖读取恢复场景结束时的数据库状态：
@@ -101,6 +103,8 @@ node e2e/wecom-local-ui.cjs bin/aicat-e2e build/wecom-local-e2e-<run>
 python3 e2e/wecom-local-fixture.py --output build/wecom-local-ui-fixture-<run>
 node e2e/wecom-local-ui.cjs bin/aicat-e2e build/wecom-local-ui-fixture-<run> build/wecom-local-ui-<run> review
 ```
+
+`error-review` 场景使用私有夹具副本暂时移走数据库，核对中英文错误说明、文件恢复后的自动续读和无重复消息。
 
 `review` 场景核对无关刷新保留草稿、收发方向、媒体说明、预览展开后的完整原文和英文深色界面。将最后一个参数改为 `send-review`，额外通过真实 MCP 与 Bun 验证发送中到结果不明的原行更新、展开状态及幂等重查，并用私有夹具副本的加密本地回流验证已发送状态；仅替换原生脚本边界，不操作真实客户端。
 

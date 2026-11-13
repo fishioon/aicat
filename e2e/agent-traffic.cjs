@@ -486,8 +486,8 @@ async function verify({
     });
     const aborted = await firstChunk;
     aborted.destroy();
-    releases.get("/stream-abort")();
     const canceled = await recordFor("/stream-abort");
+    releases.get("/stream-abort")();
     assert.equal(canceled.state, "canceled");
     const canceledRecord = await tool("traffic_get", { id: canceled.id });
     const canceledBody = await tool("traffic_body", {

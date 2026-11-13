@@ -65,6 +65,7 @@ async function verifyTunnel({
   await page.locator("#nav-settings").click();
   await page.locator("#settings-general").click();
   await page.locator("#preference-language-en").click();
+  await page.waitForFunction(() => document.documentElement.lang === "en");
   await page.locator("#nav-traffic").click();
   await page.locator("#enable-decryption").waitFor();
   assert.match(

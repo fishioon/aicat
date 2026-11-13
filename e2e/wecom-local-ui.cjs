@@ -14,7 +14,7 @@ const root = path.resolve(
 fs.mkdirSync(root, { recursive: true, mode: 0o700 });
 const home = path.join(root, "home");
 fs.mkdirSync(home, { mode: 0o700 });
-if (process.argv[5] === "send-review") {
+if (["send-review", "error-review"].includes(process.argv[5])) {
   const copy = path.join(root, "fixture");
   fs.cpSync(fixture, copy, { recursive: true });
   fixture = copy;
@@ -35,7 +35,8 @@ const report = {
     "Headless Chromium with hidden e2e native app; real TS reader and Room service; no WKWebView pointer or native-window acceptance.",
 };
 const sendReview = process.argv[5] === "send-review";
-const review = process.argv[5] === "review" || sendReview;
+const review =
+  ["review", "error-review"].includes(process.argv[5]) || sendReview;
 let proc, browser, preview, token;
 const errors = [];
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -435,6 +436,69 @@ sys.exit(23)
       await page.screenshot({ path: path.join(root, "send-confirmed.png") });
       report.checks.push(
         "real MCP submission appears pending, updates the same row to unknown without collapsing text; idempotent retry does not execute again; encrypted local echo confirms sent and appears separately as an outgoing observation",
+      );
+    }
+    if (process.argv[5] === "error-review") {
+      const file = path.join(fixture, "database/message.db");
+      const proofs = [];
+      for (const [language, expected] of [
+        ["zh-Hans", "无法读取本地数据库，请检查目录和密钥。"],
+        ["en", "Cannot read the local database. Check the directory and key."],
+      ]) {
+        await rpc("SetPreferences", [{ language, theme: "light" }]);
+        await page.waitForFunction(
+          (value) => document.documentElement.lang === value,
+          language,
+        );
+        fs.renameSync(file, file + ".unavailable");
+        try {
+          await wait(
+            async () =>
+              (await rpc("State")).messageChannels["wecom-local"].phase ===
+              "error",
+          );
+          const code = (await rpc("State")).messageChannels["wecom-local"]
+            .error;
+          assert.equal(code, "LOCAL_DATABASE_READ_FAILED");
+          await wait(async () => {
+            const visible = await page
+              .locator("#extension-panel-status")
+              .innerText();
+            return visible === code || visible === expected;
+          });
+          const visible = await page
+            .locator("#extension-panel-status")
+            .innerText();
+          proofs.push({ language, code, visible });
+          assert.equal(visible, expected);
+          await page.screenshot({
+            path: path.join(root, "runtime-error-" + language + ".png"),
+          });
+        } finally {
+          fs.renameSync(file + ".unavailable", file);
+        }
+        await wait(
+          async () =>
+            (await rpc("State")).messageChannels["wecom-local"].phase ===
+            "connected",
+        );
+        await wait(
+          async () =>
+            !(
+              await page.locator("#extension-panel-status").innerText()
+            ).includes(expected),
+        );
+      }
+      assert.equal(
+        (await rpc("State")).messageChannels["wecom-local"].records.length,
+        expectedMessages,
+      );
+      fs.writeFileSync(
+        path.join(root, "runtime-error-proof.json"),
+        JSON.stringify(proofs, null, 2),
+      );
+      report.checks.push(
+        "real database unavailability has concise localized status; restoring the private fixture automatically resumes reading without duplicate messages",
       );
     }
     await page.locator("#wecom-local-open-logs").click();

@@ -27,6 +27,7 @@ def scenarios(binary, cli, root):
     result['wecom-local-send'] = ['python3', 'e2e/wecom-local-send.py', '--binary', cli, '--output', str(root / 'wecom-local-send')]
     result['wecom-local-fixture'] = ['python3', 'e2e/wecom-local-fixture.py', '--output', str(root / 'wecom-local-fixture')]
     result['wecom-local-ui'] = ['node', 'e2e/wecom-local-ui.cjs', binary, str(root / 'wecom-local-fixture'), str(root / 'wecom-local-ui'), 'send-review']
+    result['wecom-local-errors'] = ['node', 'e2e/wecom-local-ui.cjs', binary, str(root / 'wecom-local-fixture'), str(root / 'wecom-local-errors'), 'error-review']
     return result
 
 
@@ -47,7 +48,7 @@ def main():
     selected = set(args.only or commands)
     if selected - commands.keys():
         parser.error('Unknown scenarios: ' + ', '.join(sorted(selected - commands.keys())))
-    if 'wecom-local-ui' in selected:
+    if {'wecom-local-ui', 'wecom-local-errors'} & selected:
         selected.add('wecom-local-fixture')
     os.umask(0o077)
     root.mkdir(parents=True, exist_ok=False)
@@ -64,7 +65,7 @@ def main():
         'providers': ['provider', 'provider-appearance', 'provider-model-path', 'overview-provider', 'provider-lifecycle', 'provider-model-state'],
         'codex': ['codex', 'extension-details'],
         'wecom': ['wecom', 'wecom-agent', 'wecom-ui', 'channel-install-failure'],
-        'wecom-local': ['wecom-local', 'wecom-local-send', 'wecom-local-ui'],
+        'wecom-local': ['wecom-local', 'wecom-local-send', 'wecom-local-ui', 'wecom-local-errors'],
         'agent-access': ['agent-traffic', 'control-traffic', 'connect', 'mcp'],
     }
     matrix = {}
