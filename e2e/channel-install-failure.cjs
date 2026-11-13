@@ -1,98 +1,112 @@
-const fs = require("node:fs"),
-  path = require("node:path"),
-  http = require("node:http"),
-  assert = require("node:assert/strict"),
-  { spawn } = require("node:child_process");
-const root = path.resolve(process.argv[2] || "build/channel-install-failure");
-fs.mkdirSync(root, { recursive: true });
-const home = path.join(root, "home"),
-  binary = path.resolve("bin/install-plugin-e2e");
-const report = { passed: false, checks: [] };
-const server = http.createServer((req, res) => {
-  res.writeHead(404, { "Content-Type": "application/json" });
-  res.end('{"error":"not found"}');
-});
-async function run(registry) {
-  return new Promise((resolve) => {
-    const child = spawn(binary, [home], {
-      env: {
-        ...process.env,
-        ...(registry ? { AICAT_E2E_PLUGIN_REGISTRY: registry } : {}),
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let output = "";
-    child.stdout.on("data", (x) => (output += x));
-    child.stderr.on("data", (x) => (output += x));
-    child.on("exit", (code) => resolve({ code, output }));
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const http = require("node:http");
+
+async function verify({ page, root, home, current, stop, launch, preview }) {
+  const server = http.createServer((request, response) => {
+    response.writeHead(404, { "Content-Type": "application/json" });
+    response.end('{"error":"not found"}');
   });
-}
-(async () => {
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const original = process.env.AICAT_E2E_PLUGIN_REGISTRY;
+  const registry = "http://127.0.0.1:" + server.address().port;
+  const parent = path.join(home, "extensions/wecom");
+  const installed = path.join(parent, "2026.10.30");
+  const choose = async () => {
+    await page.locator("#nav-extensions").click();
+    await page.locator("#extension-wecom").click();
+  };
+  const settle = () =>
+    page.waitForFunction(() => !document.body.classList.contains("busy"));
+  const installRPC = async () => {
+    const response = await preview("/rpc", {
+      method: "Desktop.InstallExtension",
+      args: ["wecom"],
+    });
+    assert.equal(response.status, 200);
+  };
   try {
-    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const failed = await run("http://127.0.0.1:" + server.address().port);
-    fs.writeFileSync(path.join(root, "failed.log"), failed.output);
-    assert.notEqual(failed.code, 0);
-    const parent = path.join(home, "extensions/wecom"),
-      dir = path.join(parent, "2026.10.30");
-    assert(!fs.existsSync(dir));
-    assert(!fs.readdirSync(parent).some((x) => x.startsWith(".install-")));
-    report.checks.push(
-      "registry failure leaves no installed package or staging directory",
-    );
-    const success = await run();
-    fs.writeFileSync(path.join(root, "installed.log"), success.output);
-    assert.equal(success.code, 0, success.output);
-    assert(!fs.existsSync(path.join(home, "state/channel-host")));
-    report.checks.push(
-      "retry installs original official package without starting host",
-    );
-    const stamp = path.join(dir, "installation.json"),
-      before = fs.readFileSync(stamp, "utf8");
-    assert.equal((await run()).code, 0);
-    assert.equal(fs.readFileSync(stamp, "utf8"), before);
-    report.checks.push("repeated installation is idempotent");
-    const compatibility = path.join(dir, "node_modules/openclaw");
+    process.env.AICAT_E2E_PLUGIN_REGISTRY = registry;
+    await stop();
+    await launch();
+    await choose();
+    await page.locator("#extension-install").click();
+    await settle();
     assert.equal(
-      fs.realpathSync(compatibility),
-      fs.realpathSync("bin/channel-host/shim"),
+      (await current()).extensions.find((x) => x.id === "wecom").installed,
+      false,
     );
+    assert(!fs.existsSync(installed));
+    assert(!fs.readdirSync(parent).some((x) => x.startsWith(".install-")));
+    assert.equal(await page.locator("#extension-install").isEnabled(), true);
+    await page.screenshot({ path: path.join(root, "installation-failed.png") });
+    delete process.env.AICAT_E2E_PLUGIN_REGISTRY;
+    await stop();
+    await launch();
+    await choose();
+    await page.locator("#extension-install").click();
+    await page.locator("#extension-configure").waitFor({ timeout: 120000 });
+    await settle();
+    assert.equal(
+      (await current()).extensions.find((x) => x.id === "wecom").installed,
+      true,
+    );
+    assert.equal(await page.locator("#feature-wecom").isDisabled(), true);
+    assert(!fs.existsSync(path.join(home, "state/channel-host")));
+    await page.screenshot({
+      path: path.join(root, "installation-recovered.png"),
+    });
+    const stamp = path.join(installed, "installation.json");
+    const before = fs.readFileSync(stamp, "utf8");
+    process.env.AICAT_E2E_PLUGIN_REGISTRY = registry;
+    await stop();
+    await launch();
+    await installRPC();
+    assert.equal(fs.readFileSync(stamp, "utf8"), before);
+    const compatibility = path.join(installed, "node_modules/openclaw");
+    const shared = path.resolve("bin/channel-host/shim");
+    assert.equal(fs.realpathSync(compatibility), fs.realpathSync(shared));
     fs.rmSync(compatibility, { recursive: true, force: true });
-    fs.cpSync("bin/channel-host/shim", compatibility, { recursive: true });
+    fs.cpSync(shared, compatibility, { recursive: true });
     fs.appendFileSync(
       path.join(compatibility, "sdk.mjs"),
       "\nthrow Error('STALE_COPY');\n",
     );
-    assert.equal(
-      (await run("http://127.0.0.1:" + server.address().port)).code,
-      0,
-    );
-    assert.equal(
-      fs.realpathSync(compatibility),
-      fs.realpathSync("bin/channel-host/shim"),
-    );
+    await installRPC();
+    assert.equal(fs.realpathSync(compatibility), fs.realpathSync(shared));
     assert.equal(fs.readFileSync(stamp, "utf8"), before);
-    report.checks.push(
-      "legacy copied shim is rebound to the app's shared SDK without registry access or package reinstallation",
-    );
     fs.writeFileSync(stamp, "{}");
-    const repaired = await run();
-    assert.equal(repaired.code, 0, repaired.output);
-    assert.equal(JSON.parse(fs.readFileSync(stamp)).version, "2026.10.30");
+    delete process.env.AICAT_E2E_PLUGIN_REGISTRY;
+    await stop();
+    await launch();
+    await choose();
+    await page.locator("#extension-install").click();
+    await page.locator("#extension-configure").waitFor({ timeout: 120000 });
+    await settle();
+    assert.equal(
+      JSON.parse(fs.readFileSync(stamp, "utf8")).version,
+      "2026.10.30",
+    );
     assert(!fs.readdirSync(parent).some((x) => x.startsWith(".replaced-")));
-    report.checks.push(
-      "invalid installation metadata can be repaired with a fresh atomic installation",
-    );
-    report.passed = true;
-  } catch (error) {
-    report.error = error.stack;
+    return {
+      passed: true,
+      checks: [
+        "实际安装按钮遇 registry 错误可恢复，无半安装或暂存残留",
+        "重试安装官方包但不连接渠道，未验证账号不能启用",
+        "重复安装与旧 shim 迁移无需访问 registry，损坏安装信息可经界面重新安装修复",
+      ],
+      nativeCoverage: "not run",
+    };
   } finally {
+    if (original === undefined) delete process.env.AICAT_E2E_PLUGIN_REGISTRY;
+    else process.env.AICAT_E2E_PLUGIN_REGISTRY = original;
     await new Promise((resolve) => server.close(resolve));
-    fs.writeFileSync(
-      path.join(root, "report.json"),
-      JSON.stringify(report, null, 2),
-    );
-    console.log(JSON.stringify(report, null, 2));
-    process.exitCode = report.passed ? 0 : 1;
   }
-})();
+}
+require("./traffic-default.cjs")
+  .run({ verify, scenario: "channel-install-failure" })
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

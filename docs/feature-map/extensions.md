@@ -31,6 +31,7 @@ Preconditions:
 
 - **详情与空状态。** `node e2e/extension-details.cjs bin/aicat-e2e build/extension-details-<run>` 后台逐项验证当前登记扩展的详情/功能页签、搜索无匹配状态、安装与配置入口边界、键盘页签、Codex 手动配置复制及设置跳转，保留全部面板文字与浅深色截图；不下载插件或连接真实平台。
 
+- **安装失败与修复。** `node e2e/channel-install-failure.cjs bin/aicat-e2e build/install-failure-<run>` 后台驱动真实安装按钮，先使用本地失败 registry 再恢复官方来源；核对重试、暂存清理、未验证账号不可启用、重复安装、旧 SDK 链接迁移与损坏安装信息修复。迁移与幂等通过同一个 Desktop 服务验证，不连接真实渠道。
 - **品牌图标。** 独立后台运行 `node e2e/extension-icons.cjs bin/aicat-e2e`，验证列表和详情的官方图标、本地加载、浅深色切换和 36/64px 容器，保存截图与报告；不启用渠道或访问真实凭据。资源来源见各扩展 assets/README.md。
 
 - 本次验收实例流量已启用、正在采集，已有一条记录，已记录当前域名与导航固定配置。

@@ -3,7 +3,7 @@ VERSION ?= dev
 LDFLAGS := -s -w -X main.version=$(VERSION)
 DESKTOP_LDFLAGS := $(LDFLAGS) -X github.com/egoist/mygo.production=1
 .DEFAULT_GOAL := build
-.PHONY: build cli app run bindings frontend frontend-check frontend-e2e e2e-build vet fmt-check verify e2e design-shots clean tray-icons channel-check
+.PHONY: build cli app run bindings frontend frontend-check frontend-e2e e2e-build vet fmt-check verify e2e e2e-headless design-shots clean tray-icons channel-check
 
 assets/tray-motion.json: assets/logo.svg build/icon/gen.go build/icon/tail.go
 	$(GO) run ./build/icon/*.go tray-motion assets/logo.svg assets
@@ -99,7 +99,7 @@ frontend-check: ui/node_modules/.aicat-install bindings channel-check
 	node --check e2e/wecom.cjs
 	node --check e2e/wecom-live.cjs
 	node --check e2e/wecom-local-ui.cjs
-	python3 -m py_compile e2e/mcp.py e2e/os-fixture.py e2e/wecom-local.py e2e/wecom-local-fixture.py e2e/wecom-local-live.py e2e/wecom-local-send.py e2e/wecom-local-send-live.py
+	python3 -m py_compile e2e/acceptance.py e2e/mcp.py e2e/os-fixture.py e2e/wecom-local.py e2e/wecom-local-fixture.py e2e/wecom-local-live.py e2e/wecom-local-send.py e2e/wecom-local-send-live.py
 	node --check e2e/channel-install-failure.cjs
 
 verify: frontend-check fmt-check vet build cli app
@@ -115,6 +115,9 @@ e2e-build: frontend-e2e bin/channel-host/.ready
 
 e2e: e2e-build
 	python3 e2e/prototype.py --binary bin/aicat-e2e
+
+e2e-headless: e2e-build
+	python3 e2e/acceptance.py
 
 design-shots:
 	node e2e/design-shots.cjs build/design-shots $(SCENES)

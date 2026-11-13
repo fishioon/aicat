@@ -36,6 +36,7 @@
 | `make tray-icons` | 从 `assets/logo.svg` 生成原始卷尾、30% 卷曲端点及统一画布的 25 帧 PNG 图集；原生托盘以模板图着色 |
 | `make verify` | 格式、类型检查、vet、已有 Go 检查、release 构建、app 打包、CLI smoke 及构建验收 |
 | `make e2e-build` | 生成独立验收前端，构建带 race 的桌面与 CLI 验收入口 |
+| `make e2e-headless` | 整轮开发收尾的全部后台功能场景、独立 Home 和逐场景报告；不含原生窗口、授权或真实平台消息 |
 | `make e2e` | 构建后运行 WebView/浏览器、HTTP/TLS、规则/插件/MCP 完整验收 |
 | `make design-shots` | 渲染 `aicat-redesign.html` 各场景的浅深色截图到 `build/design-shots/`，`SCENES="overview traffic"` 只渲染指定场景；用于标注评审 |
 
@@ -64,6 +65,8 @@ make e2e
 ```
 
 不在实现后补写单元测试；确需隔离测试先列出失败方式。构建验收 `e2e/build.py` 使用生产二进制在占用端口下生成类型，确认没有创建数据 Home，核对 DTO、参数约束、生产资源和包体积，工件输出到 `build/build-e2e-*/`。桌面验收还实际断言 production 模式及忽略开发 URL。
+
+后台收尾入口为 `python3 e2e/acceptance.py --output build/headless-acceptance-<run>`，默认串行运行所有后台场景，以免剪贴板验证互相干扰；逐场景保存命令、PID、退出状态、日志及报告 hash，并生成 Feature map 对照清单。`--list` 列出场景，`--only <名称...>` 用于失败后的定向复验；客户端界面场景会自动准备独立夹具。输出目录必须全新。总报告通过仅证明所选后台范围，不代表原生窗口、授权或真实平台消息已通过。
 
 Playwright 使用锁定版本和已安装的 Chrome，不下载浏览器。macOS 默认浏览器路径为 `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`；可用 `AICAT_CHROMIUM` 改写，`AICAT_PLAYWRIGHT` 可指定已有 playwright 包路径。
 

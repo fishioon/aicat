@@ -51,6 +51,8 @@ npm --prefix e2e ci
 
 | 范围 | 命令 |
 | --- | --- |
+| 整轮后台功能验收（收尾时运行） | `python3 e2e/acceptance.py --output build/feature-map-headless-<run>` |
+| 插件安装失败、重试与损坏修复（无头） | `node e2e/channel-install-failure.cjs bin/aicat-e2e build/feature-map-install-failure-<run>` |
 | 托盘菜单模型、采集对号与代理两态（无头） | `node e2e/tray.cjs bin/aicat-e2e build/feature-map-tray-<run>` |
 | 首页用量加载、失败、重试、范围切换及通用设置（无头） | `node e2e/overview.cjs bin/aicat-e2e build/feature-map-overview-<run>` |
 | 流量入口默认可用、采集默认暂停及手动采集 | `node e2e/traffic-default.cjs bin/aicat-e2e build/feature-map-traffic-default-<run>` |
