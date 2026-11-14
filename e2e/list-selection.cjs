@@ -129,8 +129,6 @@ module.exports = async function verifyListSelection({
 
   let native = null;
   if (evaluate && auto) {
-    // Native coverage uses real WebView DOM events, not native pointer input.
-    // The WebView keeps its own filters from earlier scenarios; start unfiltered.
     await evaluate("(window.desktop.navigate('traffic', { query: '' }),true)");
     await wait(
       async () => await evaluate("window.trafficView.state().total === 100"),

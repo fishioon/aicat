@@ -268,7 +268,6 @@ c.close()
 
     let nativeErrors = null;
     if (evaluate && auto) {
-      // The native WebView uses the same live data, with its own local tree state.
       const nativeClick = async (selector, toggle = false) => {
         await evaluate(
           `(() => { const node = document.querySelector(${JSON.stringify(selector)}); ${toggle ? '["click", "click", "dblclick"].forEach((type, i) => node.dispatchEvent(new MouseEvent(type, { bubbles: true, detail: i === 0 ? 1 : 2 })))' : "node.click()"}; return true; })()`,
