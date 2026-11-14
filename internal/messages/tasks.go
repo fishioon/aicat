@@ -2,6 +2,7 @@ package messages
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
@@ -91,4 +92,26 @@ func (s *taskStore) selectTasks(source, dir, status string) []queuedTask {
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].file < result[j].file })
 	return result
+}
+
+func (s *taskStore) create(item queuedTask) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	raw, err := os.ReadFile(item.file)
+	if err == nil {
+		var saved Task
+		if json.Unmarshal(raw, &saved) != nil || saved.ID != item.task.ID || saved.Source != item.task.Source || saved.Account != item.task.Account || saved.Room != item.task.Room || saved.Log != item.task.Log || jsonDigest(saved.Trigger) != jsonDigest(item.task.Trigger) {
+			return errors.New("Agent 任务标识或触发内容冲突")
+		}
+		s.remember(queuedTask{task: saved, file: item.file})
+		return nil
+	}
+	if !os.IsNotExist(err) {
+		return err
+	}
+	if err = writeJSON(item.file, item.task); err != nil {
+		return err
+	}
+	s.remember(item)
+	return nil
 }

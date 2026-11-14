@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/fishioon/aicat/internal/config"
 	"github.com/fishioon/aicat/internal/messages"
 )
 
@@ -33,8 +32,18 @@ func (d *Desktop) SendMessage(ctx context.Context, channel string, event message
 	return a.r.extensions.SendMessage(ctx, channel, event)
 }
 
-func (d *Desktop) ConfigureMessageAgent(ctx context.Context, id string, settings config.MessageAgent) error {
-	return d.mutate(ctx, func() error { return d.app.r.extensions.ConfigureMessageAgent(id, settings) })
+func (d *Desktop) ReadExtensionConfig(ctx context.Context, id string) (map[string]any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if !d.app.ready.Load() || d.app.quitting.Load() {
+		return nil, errors.New("应用尚未就绪或正在退出")
+	}
+	return d.app.r.extensions.ReadConfig(id)
+}
+
+func (d *Desktop) UpdateExtensionConfig(ctx context.Context, id string, patch map[string]any) error {
+	return d.mutate(ctx, func() error { return d.app.r.extensions.UpdateConfig(id, patch) })
 }
 
 func (d *Desktop) OpenMessageLogs(ctx context.Context, id string) error {
@@ -63,4 +72,20 @@ func (d *Desktop) InstallExtension(ctx context.Context, id string) error {
 	}
 	defer d.app.notifyState()
 	return d.app.r.extensions.Install(ctx, id)
+}
+
+func (d *Desktop) UpdateExtension(ctx context.Context, id string) error {
+	if !d.app.ready.Load() || d.app.quitting.Load() {
+		return errors.New("应用尚未就绪或正在退出")
+	}
+	defer d.app.notifyState()
+	return d.app.r.extensions.Update(ctx, id)
+}
+
+func (d *Desktop) UninstallExtension(ctx context.Context, id string) error {
+	if !d.app.ready.Load() || d.app.quitting.Load() {
+		return errors.New("应用尚未就绪或正在退出")
+	}
+	defer d.app.notifyState()
+	return d.app.r.extensions.Uninstall(ctx, id)
 }

@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fishioon/aicat/internal/channelconfig"
 	"github.com/fishioon/aicat/internal/channelhost"
 	"github.com/fishioon/aicat/internal/channelplugin"
-	"github.com/fishioon/aicat/internal/config"
 )
 
 type Channel struct {
@@ -23,7 +23,7 @@ type Channel struct {
 	state              State
 	account            *channelhost.Account
 	onChange           func()
-	dispatcher         *dispatcher
+	dispatcher         *Dispatcher
 	rooms              *roomStore
 	failures           chan channelFailure
 }
@@ -61,9 +61,9 @@ func (c *Channel) Snapshot() State {
 		s.AccountID = account.AccountID
 		s.Configured = account.AccountID != "" && account.Secret != ""
 	}
-	cfg, configErr := config.Load(c.home)
+	cfg, configErr := channelconfig.Load(c.home, c.id)
 	if configErr == nil {
-		s.Agent = cfg.Extensions[c.id].Agent
+		s.Agent = cfg.Agent
 	}
 	s.Validated = c.Validated()
 	s.Tasks = c.rooms.tasks.list(c.source(s.AccountID))
@@ -119,13 +119,9 @@ func (c *Channel) status(phase, err string) {
 	dispatcher := c.dispatcher
 	c.mu.Unlock()
 	if phase == "connected" && dispatcher != nil {
-		dispatcher.signal()
+		dispatcher.Signal()
 	}
 	c.changed()
-}
-
-func (c *Channel) ConfigureAgent(settings config.MessageAgent) error {
-	return config.SetMessageAgent(c.home, c.id, settings)
 }
 
 func (c *Channel) Run(ctx context.Context) {
@@ -134,8 +130,8 @@ func (c *Channel) Run(ctx context.Context) {
 	c.dispatcher = dispatcher
 	c.failures = make(chan channelFailure, 1)
 	c.mu.Unlock()
-	defer func() { dispatcher.close(); c.mu.Lock(); c.dispatcher = nil; c.failures = nil; c.mu.Unlock() }()
-	go dispatcher.run()
+	defer func() { dispatcher.Close(); c.mu.Lock(); c.dispatcher = nil; c.failures = nil; c.mu.Unlock() }()
+	go dispatcher.Run()
 
 	defer func() {
 		c.mu.Lock()
@@ -167,7 +163,7 @@ func (c *Channel) Run(ctx context.Context) {
 			c.account = a
 			c.state.PID = a.PID()
 			c.mu.Unlock()
-			dispatcher.signal()
+			dispatcher.Signal()
 			c.changed()
 			failure := channelFailure{retry: true, message: "渠道宿主异常退出"}
 			select {
@@ -221,7 +217,7 @@ func (c *Channel) receive(source string, raw json.RawMessage) (any, error) {
 	dispatcher := c.dispatcher
 	c.mu.Unlock()
 	if dispatcher != nil {
-		if err := dispatcher.enqueue(source, record); err != nil {
+		if err := dispatcher.Enqueue(source, record); err != nil {
 			c.mu.Lock()
 			c.state.Error = "Agent 任务保存失败，等待重试"
 			c.mu.Unlock()
@@ -261,11 +257,11 @@ func (c *Channel) validationKey() string {
 	if err != nil {
 		return ""
 	}
-	descriptor, ok := channelplugin.Find(c.id)
-	if !ok {
+	installed, err := channelplugin.New(c.home).Current(c.id)
+	if err != nil {
 		return ""
 	}
-	return digest(append(raw, []byte("\x00"+descriptor.Version+"\x00"+c.endpoint)...))
+	return digest(append(raw, []byte("\x00"+installed.Version+"\x00"+c.endpoint)...))
 }
 func (c *Channel) Validated() bool {
 	if !c.Installed() {

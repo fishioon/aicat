@@ -12,44 +12,50 @@ import (
 	"time"
 
 	"github.com/fishioon/aicat/internal/agent"
-	"github.com/fishioon/aicat/internal/config"
+	"github.com/fishioon/aicat/internal/channelconfig"
 )
 
 type Task struct {
-	ID        string  `json:"id"`
-	Account   string  `json:"account"`
-	Source    string  `json:"source"`
-	Room      string  `json:"room"`
-	Log       string  `json:"log"`
-	Status    string  `json:"status"`
-	Error     string  `json:"error,omitempty"`
-	CreatedAt string  `json:"createdAt"`
-	Trigger   Message `json:"trigger"`
+	ID            string  `json:"id"`
+	Account       string  `json:"account"`
+	Source        string  `json:"source"`
+	Room          string  `json:"room"`
+	Log           string  `json:"log"`
+	Status        string  `json:"status"`
+	Error         string  `json:"error,omitempty"`
+	CreatedAt     string  `json:"createdAt"`
+	Trigger       Message `json:"trigger"`
+	TriggerReason string  `json:"triggerReason,omitempty"`
 }
 
-type dispatcher struct {
-	ctx      context.Context
-	channel  *Channel
-	runner   *agent.Runner
-	settings config.MessageAgent
-	mu       sync.Mutex
-	active   map[string]chan struct{}
-	blocked  map[string]bool
-	wg       sync.WaitGroup
-	done     chan struct{}
-	wake     chan struct{}
-	source   string
+type Dispatcher struct {
+	ctx         context.Context
+	rooms       *roomStore
+	id          string
+	notify      func()
+	isConnected func() bool
+	setError    func(string)
+	options     DispatcherOptions
+	runner      *agent.Runner
+	settings    channelconfig.MessageAgent
+	mu          sync.Mutex
+	active      map[string]chan struct{}
+	blocked     map[string]bool
+	wg          sync.WaitGroup
+	done        chan struct{}
+	wake        chan struct{}
+	source      string
 }
 
-func newDispatcher(ctx context.Context, c *Channel) *dispatcher {
-	cfg, _ := config.Load(c.home)
+func newDispatcher(ctx context.Context, c *Channel) *Dispatcher {
+	cfg, _ := channelconfig.Load(c.home, c.id)
 	credentials, _ := c.credentials()
-	return &dispatcher{ctx: ctx, channel: c, runner: agent.New(), settings: cfg.Extensions[c.id].Agent, active: map[string]chan struct{}{}, blocked: map[string]bool{}, done: make(chan struct{}), wake: make(chan struct{}, 1), source: c.source(credentials.AccountID)}
+	return dispatcherForRooms(ctx, c.rooms, DispatcherOptions{Source: c.source(credentials.AccountID), Settings: cfg.Agent, Connected: func() bool { c.mu.Lock(); defer c.mu.Unlock(); return c.account != nil && c.state.Phase == "connected" }, Changed: c.changed, Error: func(e string) { c.mu.Lock(); c.state.Error = e; c.mu.Unlock(); c.changed() }, Execute: c.runAgentTurn})
 }
 
-func (d *dispatcher) enqueue(source string, record Record) error {
+func (d *Dispatcher) Enqueue(source string, record Record) error {
 	message := record.Event.Data
-	if !d.settings.Enabled || message.Type != "text" || strings.TrimSpace(message.Text.Content) == "" {
+	if !d.settings.Enabled || message.Outgoing || (d.options.Accept != nil && !d.options.Accept(message)) || message.Type != "text" || strings.TrimSpace(message.Text.Content) == "" {
 		return nil
 	}
 	var timestamp time.Time
@@ -66,24 +72,27 @@ func (d *dispatcher) enqueue(source string, record Record) error {
 	if age > 10*time.Minute || age < -time.Minute {
 		return nil
 	}
-	dir := d.channel.rooms.directory(source, message.RoomID)
+	dir := d.rooms.directory(source, message.RoomID)
 	log := filepath.Join(dir, "context", "messages.log")
-	task := Task{ID: record.ID, Account: d.channel.id, Source: source, Room: record.Event.Data.RoomID, Log: log, Status: "pending", CreatedAt: record.RecordedAt, Trigger: record.Event.Data}
-	if err := d.channel.rooms.tasks.save(queuedTask{task: task, file: filepath.Join(dir, "tasks", task.CreatedAt+"-"+task.ID+".json")}); err != nil {
+	task := Task{ID: record.ID, Account: d.id, Source: source, Room: record.Event.Data.RoomID, Log: log, Status: "pending", CreatedAt: record.RecordedAt, Trigger: record.Event.Data}
+	if d.options.TriggerReason != nil {
+		task.TriggerReason = d.options.TriggerReason(message)
+	}
+	if err := d.rooms.tasks.create(queuedTask{task: task, file: filepath.Join(dir, "tasks", task.CreatedAt+"-"+task.ID+".json")}); err != nil {
 		return err
 	}
-	d.signal()
+	d.Signal()
 	return nil
 }
 
-func (d *dispatcher) signal() {
+func (d *Dispatcher) Signal() {
 	select {
 	case d.wake <- struct{}{}:
 	default:
 	}
 }
 
-func (d *dispatcher) run() {
+func (d *Dispatcher) Run() {
 	defer close(d.done)
 	if !d.settings.Enabled {
 		<-d.ctx.Done()
@@ -101,14 +110,10 @@ func (d *dispatcher) run() {
 	}
 }
 
-func (d *dispatcher) connected() bool {
-	d.channel.mu.Lock()
-	defer d.channel.mu.Unlock()
-	return d.channel.account != nil && d.channel.state.Phase == "connected"
-}
+func (d *Dispatcher) connected() bool { return d.isConnected() }
 
-func (d *dispatcher) scan(recover bool) {
-	store := d.channel.rooms.tasks
+func (d *Dispatcher) scan(recover bool) {
+	store := d.rooms.tasks
 	if recover {
 		for _, item := range store.selectTasks(d.source, "", "running") {
 			item.task.Status = "unknown"
@@ -135,7 +140,7 @@ func (d *dispatcher) scan(recover bool) {
 			d.wg.Add(1)
 			go func() {
 				defer d.wg.Done()
-				defer func() { d.mu.Lock(); delete(d.active, dir); d.mu.Unlock(); d.signal() }()
+				defer func() { d.mu.Lock(); delete(d.active, dir); d.mu.Unlock(); d.Signal() }()
 				d.process(dir)
 			}()
 		}
@@ -143,8 +148,8 @@ func (d *dispatcher) scan(recover bool) {
 	}
 }
 
-func (d *dispatcher) pending(dir string) []queuedTask {
-	return d.channel.rooms.tasks.selectTasks(d.source, dir, "pending")
+func (d *Dispatcher) pending(dir string) []queuedTask {
+	return d.rooms.tasks.selectTasks(d.source, dir, "pending")
 }
 
 func triggerPrompt(tasks []queuedTask) string {
@@ -167,23 +172,23 @@ func triggerPrompt(tasks []queuedTask) string {
 	return "trigger_messages:\n" + string(raw) + "\nrequesters:\n" + string(people)
 }
 
-func (d *dispatcher) saveTasks(tasks []queuedTask, status string, cause error) bool {
+func (d *Dispatcher) saveTasks(tasks []queuedTask, status string, cause error) bool {
 	for _, item := range tasks {
 		item.task.Status = status
 		item.task.Error = ""
 		if cause != nil {
 			item.task.Error = cause.Error()
 		}
-		if err := d.channel.rooms.tasks.save(item); err != nil {
+		if err := d.rooms.tasks.save(item); err != nil {
 			d.block(filepath.Dir(filepath.Dir(item.file)))
 			return false
 		}
 	}
-	d.channel.changed()
+	d.notify()
 	return true
 }
 
-func (d *dispatcher) process(dir string) {
+func (d *Dispatcher) process(dir string) {
 	d.mu.Lock()
 	wake := d.active[dir]
 	d.mu.Unlock()
@@ -191,7 +196,9 @@ func (d *dispatcher) process(dir string) {
 		tasks := d.pending(dir)
 		valid := []queuedTask{}
 		for _, item := range tasks {
-			if item.task.Trigger.ID == "" || item.task.Trigger.RoomID != item.task.Room {
+			if d.options.Accept != nil && !d.options.Accept(item.task.Trigger) {
+				d.saveTasks([]queuedTask{item}, "skipped", nil)
+			} else if item.task.Trigger.ID == "" || item.task.Trigger.RoomID != item.task.Room {
 				d.saveTasks([]queuedTask{item}, "failed", errors.New("旧格式任务缺少完整触发消息，请重新发送"))
 			} else {
 				valid = append(valid, item)
@@ -215,7 +222,7 @@ func (d *dispatcher) process(dir string) {
 		done := make(chan error, 1)
 		started := make(chan struct{})
 		first := tasks[0].task
-		go func() { done <- d.runTurn(ctx, thread, first, triggerPrompt(tasks), started) }()
+		go func() { done <- d.options.Execute(ctx, d.runner, thread, first, triggerPrompt(tasks), started) }()
 		ready := false
 		finished := false
 		for !finished {
@@ -271,19 +278,17 @@ func (d *dispatcher) process(dir string) {
 	}
 }
 
-func (d *dispatcher) block(dir string) {
+func (d *Dispatcher) block(dir string) {
 	d.mu.Lock()
 	d.blocked[dir] = true
 	d.mu.Unlock()
-	d.channel.mu.Lock()
-	d.channel.state.Error = "Agent 任务状态保存失败，请修复存储后重新启用"
-	d.channel.mu.Unlock()
-	d.channel.changed()
+	d.setError("Agent 任务状态保存失败，请修复存储后重新启用")
 }
 
-func (d *dispatcher) thread(dir string) (string, error) {
+func (d *Dispatcher) thread(dir string) (string, error) {
 	var state struct {
-		ThreadID string `json:"threadId"`
+		ThreadID         string `json:"threadId"`
+		InstructionsHash string `json:"instructionsHash,omitempty"`
 	}
 	file := filepath.Join(dir, "agent.json")
 	raw, err := os.ReadFile(file)
@@ -294,12 +299,24 @@ func (d *dispatcher) thread(dir string) (string, error) {
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}
-	id, err := d.runner.Thread(d.ctx, d.settings.Binary, dir, state.ThreadID, agent.ThreadOptions{Instructions: agentInstructions, Tools: []any{agentSendTool()}})
+	instructions := d.options.Instructions
+	if instructions == "" {
+		instructions = agentInstructions
+	}
+	id, err := d.runner.Thread(d.ctx, d.settings.Binary, dir, state.ThreadID, agent.ThreadOptions{Instructions: instructions, Tools: []any{agentSendTool()}})
 	if err != nil {
 		return "", err
 	}
-	if state.ThreadID == "" {
+	instructionsHash := digest([]byte(instructions))
+	update := d.options.UpdateInstructions && state.ThreadID != "" && state.InstructionsHash != instructionsHash
+	if update {
+		if err = d.runner.UpdateInstructions(d.ctx, id, instructions); err != nil {
+			return "", err
+		}
+	}
+	if state.ThreadID == "" || update {
 		state.ThreadID = id
+		state.InstructionsHash = instructionsHash
 		if err = writeJSON(file, state); err != nil {
 			return "", err
 		}
@@ -307,16 +324,16 @@ func (d *dispatcher) thread(dir string) (string, error) {
 	return id, nil
 }
 
-func (d *dispatcher) runTurn(ctx context.Context, thread string, task Task, prompt string, started chan<- struct{}) error {
+func (c *Channel) runAgentTurn(ctx context.Context, runner *agent.Runner, thread string, task Task, prompt string, started chan<- struct{}) error {
 	sent := map[string]bool{}
-	return d.runner.Turn(ctx, thread, task.Trigger.ID, prompt, func(ctx context.Context, args json.RawMessage) (any, error) {
+	return runner.Turn(ctx, thread, task.Trigger.ID, prompt, func(ctx context.Context, call agent.ToolCall) (any, error) {
 		var input struct {
 			Event Event `json:"event"`
 		}
-		if json.Unmarshal(args, &input) != nil || input.Event.Source != "aicat-agent://codex" || input.Event.Data.RoomID != task.Room {
+		if json.Unmarshal(call.Arguments, &input) != nil || input.Event.Source != "aicat-agent://codex" || input.Event.Data.RoomID != task.Room {
 			return nil, errors.New("发送必须使用当前 Room 和允许的来源")
 		}
-		receipt, err := d.channel.Send(ctx, input.Event)
+		receipt, err := c.Send(ctx, input.Event)
 		if err == nil && receipt.Status == "sent" {
 			sent[input.Event.Data.Text.Content] = true
 		}
@@ -325,7 +342,7 @@ func (d *dispatcher) runTurn(ctx context.Context, thread string, task Task, prom
 		if sent[text] {
 			return nil
 		}
-		receipt, err := d.channel.Send(ctx, Event{SpecVersion: "1.0", ID: "codex-" + digest([]byte(itemID+"\x00"+text)), Source: "aicat-agent://codex", Type: SendRequested, ContentType: "application/json", Data: Message{Action: "send", RoomID: task.Room, Type: "text", Text: Text{Content: text}}})
+		receipt, err := c.Send(ctx, Event{SpecVersion: "1.0", ID: "codex-" + digest([]byte(itemID+"\x00"+text)), Source: "aicat-agent://codex", Type: SendRequested, ContentType: "application/json", Data: Message{Action: "send", RoomID: task.Room, Type: "text", Text: Text{Content: text}}})
 		if err != nil {
 			return err
 		}
@@ -336,8 +353,29 @@ func (d *dispatcher) runTurn(ctx context.Context, thread string, task Task, prom
 	}, started, "messages_send")
 }
 
-func (d *dispatcher) close() {
+func (d *Dispatcher) Close() {
 	<-d.done
 	d.runner.Close()
 	d.wg.Wait()
 }
+
+type DispatcherOptions struct {
+	Source             string
+	Settings           channelconfig.MessageAgent
+	Connected          func() bool
+	Changed            func()
+	Error              func(string)
+	Accept             func(Message) bool
+	TriggerReason      func(Message) string
+	Instructions       string
+	UpdateInstructions bool
+	Execute            func(context.Context, *agent.Runner, string, Task, string, chan<- struct{}) error
+}
+
+func (s *Inbox) Dispatcher(ctx context.Context, options DispatcherOptions) *Dispatcher {
+	return dispatcherForRooms(ctx, s.rooms, options)
+}
+func dispatcherForRooms(ctx context.Context, rooms *roomStore, options DispatcherOptions) *Dispatcher {
+	return &Dispatcher{ctx: ctx, rooms: rooms, id: rooms.channel, runner: agent.New(), settings: options.Settings, source: options.Source, notify: options.Changed, isConnected: options.Connected, setError: options.Error, options: options, active: map[string]chan struct{}{}, blocked: map[string]bool{}, done: make(chan struct{}), wake: make(chan struct{}, 1)}
+}
+func (s *Inbox) Tasks(source string) []Task { return s.rooms.tasks.list(source) }

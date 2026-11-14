@@ -10,3 +10,10 @@ func registry() string {
 	}
 	return "https://registry.npmjs.org"
 }
+
+func catalogVersion(version string) string {
+	if value := os.Getenv("AICAT_E2E_PLUGIN_VERSION"); value != "" {
+		return value
+	}
+	return version
+}

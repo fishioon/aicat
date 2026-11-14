@@ -10,7 +10,9 @@ import (
 	"github.com/fishioon/aicat/internal/gateway"
 	"github.com/fishioon/aicat/internal/gateway/addons/api"
 	capture "github.com/fishioon/aicat/internal/gateway/addons/traffic"
+	"github.com/fishioon/aicat/internal/listenaddr"
 	"github.com/fishioon/aicat/internal/mcpserver"
+	"github.com/fishioon/aicat/internal/messages"
 	"github.com/fishioon/aicat/internal/provider"
 	"github.com/fishioon/aicat/internal/systemproxy"
 	"github.com/fishioon/aicat/internal/traffic"
@@ -89,7 +91,24 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 	endpoints.Handle(provider.Path, models)
 	endpoints.Handle(usage.Path, usage.Handler(calls, providers.Name))
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	extensions, err := extension.New(runCtx, extension.Env{Home: o.Home, ChannelHost: channelhost.New(o.Home), Providers: providers, Forward: models, Recorder: service.Recorder(), Recording: addon.Recording}, builtins)
+	var gw *gateway.Gateway
+	sendMCP := func(ctx context.Context, channel string, event messages.Event) (messages.Receipt, error) {
+		if gw == nil {
+			return messages.Receipt{}, errors.New("MCP 网关尚未就绪")
+		}
+		return mcpserver.Send(ctx, o.Home, listenaddr.ClientAddress(gw.Status().Addr), channel, event)
+	}
+	extensions, err := extension.New(runCtx, extension.Env{Home: o.Home, MCPSend: sendMCP, MCPReady: func() bool {
+		if gw == nil {
+			return false
+		}
+		select {
+		case <-gw.Ready():
+			return true
+		default:
+			return false
+		}
+	}, ChannelHost: channelhost.New(o.Home), Providers: providers, Forward: models, Recorder: service.Recorder(), Recording: addon.Recording}, builtins)
 	if err != nil {
 		cancel()
 		service.Close()
@@ -111,7 +130,7 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 	intercept := func(req *http.Request) bool {
 		return ca.Available() && (policy.shouldIntercept(req) || extensions.Intercepts(req))
 	}
-	gw, err := gateway.New(gateway.Options{Addr: cfg.Gateway.Addr, CA: ca, ShouldIntercept: intercept, BufferedBodyLimit: cfg.Gateway.BufferedBodyLimit, AddressAddons: func(address string) []proxy.Addon {
+	gw, err = gateway.New(gateway.Options{Addr: cfg.Gateway.Addr, CA: ca, ShouldIntercept: intercept, BufferedBodyLimit: cfg.Gateway.BufferedBodyLimit, AddressAddons: func(address string) []proxy.Addon {
 		// extensions answer the requests they serve before capture sees them
 		return append(append([]proxy.Addon{api.New(address, endpoints)}, extensions.Addons()...), addon)
 	}})

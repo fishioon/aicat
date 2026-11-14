@@ -14,9 +14,14 @@ for (const name of ['host.mjs', 'validate.mjs', 'shim', 'wecom-local']) {
   fs.rmSync(path.join(output, name), {recursive: true, force: true});
   fs.cpSync(path.join(source, name), path.join(output, name), {recursive: true, dereference: true});
 }
+const sqliteBuild = path.join(root, 'build/sqlite3mc-stock', process.platform + '-' + process.arch);
+execFileSync('python3', [path.join(source, 'sqlite3mc/build.py'), '--output', sqliteBuild], {stdio: 'inherit'});
+const sqliteOutput = path.join(output, 'sqlite3mc');
+fs.mkdirSync(sqliteOutput, {recursive: true});
+for (const name of ['libsqlite3mc.dylib', 'LICENSE', 'manifest.json']) fs.copyFileSync(path.join(sqliteBuild, name), path.join(sqliteOutput, name));
 fs.copyFileSync(bun, path.join(output, 'bun.next'));
 fs.renameSync(path.join(output, 'bun.next'), path.join(output, 'bun'));
 fs.chmodSync(path.join(output, 'bun'), 0o755);
 fs.writeFileSync(path.join(output, 'manifest.json'), JSON.stringify({bun: '1.4.4', platform: process.platform, arch: process.arch,
-  hostApi: '2026.5.12-aicat-prototype'}) + '\n');
+  hostApi: '2026.5.12-aicat-prototype', sqlite3mc: '2.7.0'}) + '\n');
 fs.writeFileSync(path.join(output, '.ready'), '');

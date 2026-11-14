@@ -29,7 +29,7 @@ frontend-e2e: ui/node_modules/.aicat-install bindings
 	npm --prefix ui run check
 	npm --prefix ui run build:e2e
 
-bin/channel-host/.ready: $(wildcard runtime/channel-host/wecom-local/*.ts) runtime/channel-host/host.mjs runtime/channel-host/validate.mjs runtime/channel-host/prepare.mjs runtime/channel-host/shim/sdk.mjs runtime/channel-host/shim/text.mjs runtime/channel-host/shim/package.json
+bin/channel-host/.ready: $(wildcard runtime/channel-host/wecom-local/*.ts) $(wildcard runtime/channel-host/wecom-local/*.applescript) $(wildcard runtime/channel-host/sqlite3mc/*) runtime/channel-host/host.mjs runtime/channel-host/validate.mjs runtime/channel-host/prepare.mjs runtime/channel-host/shim/sdk.mjs runtime/channel-host/shim/text.mjs runtime/channel-host/shim/package.json
 	node runtime/channel-host/prepare.mjs
 
 build: tray-icons frontend bin/channel-host/.ready
@@ -79,8 +79,13 @@ frontend-check: ui/node_modules/.aicat-install bindings channel-check
 	node --check e2e/wecom.cjs
 	node --check e2e/wecom-live.cjs
 	node --check e2e/wecom-local-ui.cjs
-	python3 -m py_compile e2e/wecom-local.py e2e/wecom-local-live.py
+	python3 -m py_compile e2e/wecom-local.py e2e/wecom-local-live.py e2e/wecom-local-send.py e2e/wecom-local-send-live.py e2e/wecom-local-agent.py e2e/wecom-local-agent-live.py
 	node --check e2e/channel-install-failure.cjs
+	node --check e2e/extension-lifecycle.cjs
+	node --check e2e/settings-navigation.cjs
+	node --check e2e/extension-categories.cjs
+	node --check e2e/extension-icons.cjs
+	python3 -m py_compile e2e/prototype.py e2e/wecom-local-triggers.py runtime/channel-host/sqlite3mc/build.py
 
 verify: frontend-check fmt-check vet build cli app
 	$(GO) test ./...
@@ -92,9 +97,10 @@ e2e-build: frontend-e2e bin/channel-host/.ready
 	@mkdir -p bin
 	$(GO) build -race -tags e2e -trimpath -ldflags "$(DESKTOP_LDFLAGS)" -o bin/aicat-e2e ./cmd/aicat
 	$(GO) build -race -tags nogui,e2e -trimpath -ldflags "$(LDFLAGS)" -o bin/aicat-cli-e2e ./cmd/aicat
+	$(GO) build -race -tags e2e -trimpath -ldflags "$(LDFLAGS)" -o bin/install-plugin-e2e ./e2e/install-plugin.go
 
 e2e: e2e-build
-	python3 e2e/prototype.py --binary bin/aicat-e2e
+	python3 e2e/prototype.py --background --binary bin/aicat-e2e
 
 design-shots:
 	node e2e/design-shots.cjs build/design-shots $(SCENES)

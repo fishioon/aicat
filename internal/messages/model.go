@@ -2,7 +2,7 @@ package messages
 
 import (
 	"encoding/json"
-	"github.com/fishioon/aicat/internal/config"
+	"github.com/fishioon/aicat/internal/channelconfig"
 )
 
 const Received = "org.aicat.message.received.v1"
@@ -23,34 +23,38 @@ type Text struct {
 }
 
 type Message struct {
-	LocalID     string          `json:"local_id,omitempty"`
-	ServerID    string          `json:"server_id,omitempty"`
-	Sequence    string          `json:"sequence,omitempty"`
-	ContentType int64           `json:"content_type,omitempty"`
-	Flag        int64           `json:"flag,omitempty"`
-	Outgoing    bool            `json:"outgoing,omitempty"`
-	RoomType    string          `json:"room_type,omitempty"`
-	SenderKind  string          `json:"sender_kind,omitempty"`
-	MediaStatus string          `json:"media_status,omitempty"`
-	RawContent  string          `json:"raw_content,omitempty"`
-	Image       json.RawMessage `json:"image,omitempty"`
-	Voice       json.RawMessage `json:"voice,omitempty"`
-	File        json.RawMessage `json:"file,omitempty"`
-	Link        json.RawMessage `json:"link,omitempty"`
-	ID          string          `json:"msgid,omitempty"`
-	Action      string          `json:"action"`
-	From        string          `json:"from,omitempty"`
-	ToList      []string        `json:"tolist,omitempty"`
-	RoomID      string          `json:"roomid"`
-	Time        *int64          `json:"msgtime,omitempty"`
-	Type        string          `json:"msgtype"`
-	Text        Text            `json:"text"`
+	SearchName    string          `json:"search_name,omitempty"`
+	LocalID       string          `json:"local_id,omitempty"`
+	ServerID      string          `json:"server_id,omitempty"`
+	Sequence      string          `json:"sequence,omitempty"`
+	ContentType   int64           `json:"content_type,omitempty"`
+	Flag          int64           `json:"flag,omitempty"`
+	Outgoing      bool            `json:"outgoing,omitempty"`
+	RoomType      string          `json:"room_type,omitempty"`
+	MentionIDs    []string        `json:"mention_ids,omitempty"`
+	MentionAll    bool            `json:"mention_all,omitempty"`
+	MentionStatus string          `json:"mention_status,omitempty"`
+	SenderKind    string          `json:"sender_kind,omitempty"`
+	MediaStatus   string          `json:"media_status,omitempty"`
+	RawContent    string          `json:"raw_content,omitempty"`
+	Image         json.RawMessage `json:"image,omitempty"`
+	Voice         json.RawMessage `json:"voice,omitempty"`
+	File          json.RawMessage `json:"file,omitempty"`
+	Link          json.RawMessage `json:"link,omitempty"`
+	ID            string          `json:"msgid,omitempty"`
+	Action        string          `json:"action"`
+	From          string          `json:"from,omitempty"`
+	ToList        []string        `json:"tolist,omitempty"`
+	RoomID        string          `json:"roomid"`
+	Time          *int64          `json:"msgtime,omitempty"`
+	Type          string          `json:"msgtype"`
+	Text          Text            `json:"text"`
 }
 
 type AccountConfig struct {
-	Local     *config.LocalMessages `json:"local,omitempty"`
-	AccountID string                `json:"accountId"`
-	Secret    string                `json:"secret"`
+	Local     *channelconfig.LocalMessages `json:"local,omitempty"`
+	AccountID string                       `json:"accountId"`
+	Secret    string                       `json:"secret"`
 }
 
 type Receipt struct {
@@ -67,9 +71,10 @@ type Delivery struct {
 }
 
 type PlatformResult struct {
-	MessageID string `json:"messageId"`
-	ChatID    string `json:"chatId"`
-	Channel   string `json:"channel"`
+	MessageID    string `json:"messageId,omitempty"`
+	ChatID       string `json:"chatId"`
+	Channel      string `json:"channel"`
+	Confirmation string `json:"confirmation,omitempty"`
 }
 
 type Record struct {
@@ -81,15 +86,15 @@ type Record struct {
 }
 
 type State struct {
-	Local      *config.LocalMessages `json:"local,omitempty"`
-	AccountID  string                `json:"accountId"`
-	Configured bool                  `json:"configured"`
-	Validated  bool                  `json:"validated"`
-	Phase      string                `json:"phase"`
-	Error      string                `json:"error"`
-	PID        int                   `json:"pid"`
-	Records    []Record              `json:"records"`
-	RoomDir    string                `json:"roomDir"`
-	Agent      config.MessageAgent   `json:"agent"`
-	Tasks      []Task                `json:"tasks"`
+	Local      *channelconfig.LocalMessages `json:"local,omitempty"`
+	AccountID  string                       `json:"accountId"`
+	Configured bool                         `json:"configured"`
+	Validated  bool                         `json:"validated"`
+	Phase      string                       `json:"phase"`
+	Error      string                       `json:"error"`
+	PID        int                          `json:"pid"`
+	Records    []Record                     `json:"records"`
+	RoomDir    string                       `json:"roomDir"`
+	Agent      channelconfig.MessageAgent   `json:"agent"`
+	Tasks      []Task                       `json:"tasks"`
 }

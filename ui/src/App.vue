@@ -28,11 +28,7 @@ import ConnectPage from "./components/ConnectPage.vue";
 import ProviderPage from "./components/ProviderPage.vue";
 
 const settings = computed(
-  () =>
-    shell.route === "proxy" ||
-    shell.route === "general" ||
-    shell.route === "extension-settings" ||
-    shell.route === "extension-diagnostics",
+  () => shell.route === "proxy" || shell.route === "general",
 );
 const overview = computed(
   () =>
@@ -65,17 +61,12 @@ const crumbs = computed(() => {
     ].filter(Boolean);
     return [t("流量"), parts.length ? parts.join(" / ") : t("全部请求")];
   }
-  if (
-    shell.route === "extension-settings" ||
-    shell.route === "extension-diagnostics"
-  ) {
-    const parts = [
-      t("设置"),
+  if (shell.route === "extension-diagnostics") {
+    return [
       t("扩展"),
       t(extensionOf(shell.extension)?.name ?? "扩展"),
+      t("诊断"),
     ];
-    if (shell.route === "extension-diagnostics") parts.push(t("诊断"));
-    return parts;
   }
   if (settings.value)
     return [t("设置"), t(shell.route === "proxy" ? "代理" : "通用")];
@@ -298,7 +289,12 @@ window.desktop = {
         id="nav-extensions"
         :title="t('扩展')"
         :aria-label="t('扩展')"
-        :aria-current="shell.route === 'extensions' ? 'page' : undefined"
+        :aria-current="
+          shell.route === 'extensions' ||
+          shell.route === 'extension-diagnostics'
+            ? 'page'
+            : undefined
+        "
         @click="navigate('extensions')"
       >
         <Icon name="extensions" />
@@ -334,7 +330,12 @@ window.desktop = {
       <ProviderPage v-else-if="shell.route === 'provider'" />
       <TrafficPage v-show="shell.route === 'traffic'" />
       <SettingsPage v-if="settings" />
-      <ExtensionsPage v-if="shell.route === 'extensions'" />
+      <ExtensionsPage
+        v-if="
+          shell.route === 'extensions' ||
+          shell.route === 'extension-diagnostics'
+        "
+      />
     </main>
   </div>
   <div

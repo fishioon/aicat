@@ -138,13 +138,13 @@ func (d *Desktop) SetExtensionEnabled(ctx context.Context, id string, enabled bo
 				return errors.New("请先安装并信任本机证书")
 			}
 		}
-		if err := config.SetExtensionEnabled(a.r.home, id, enabled); err != nil {
+		if err := a.r.extensions.SetEnabled(id, enabled); err != nil {
 			return err
 		}
 		if id == trafficExtension.ID {
 			a.setTraffic(enabled)
 		}
-		return a.r.extensions.Set(id, enabled)
+		return nil
 	})
 }
 

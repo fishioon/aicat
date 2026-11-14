@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/fishioon/aicat/internal/channelhost"
-	"github.com/fishioon/aicat/internal/config"
 	"github.com/fishioon/aicat/internal/messages"
 	"github.com/fishioon/aicat/internal/provider"
 	"github.com/fishioon/aicat/internal/traffic"
@@ -44,6 +43,8 @@ type Extension struct {
 
 // Env is the core services an extension may use.
 type Env struct {
+	MCPReady    func() bool
+	MCPSend     func(context.Context, string, messages.Event) (messages.Receipt, error)
 	Home        string
 	ChannelHost *channelhost.Manager
 	Providers   *provider.Store
@@ -56,7 +57,8 @@ type Env struct {
 
 // Parts is what an extension adds to aicat. Every part is optional.
 type Parts struct {
-	Messages MessageChannel
+	Configuration Configuration
+	Messages      MessageChannel
 	// Addon runs in the gateway, before traffic capture.
 	Addon proxy.Addon
 	// Intercepts names CONNECT targets to decrypt beyond the user's list.
@@ -69,6 +71,11 @@ type Parts struct {
 	Run func(ctx context.Context)
 }
 
+type Configuration interface {
+	ReadConfig() (map[string]any, error)
+	UpdateConfig(map[string]any) error
+}
+
 type MessageChannel interface {
 	Snapshot() messages.State
 	OnChange(func())
@@ -76,6 +83,5 @@ type MessageChannel interface {
 	Validate(context.Context) error
 	Installed() bool
 	Validated() bool
-	ConfigureAgent(config.MessageAgent) error
 	Send(context.Context, messages.Event) (messages.Receipt, error)
 }

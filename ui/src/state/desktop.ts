@@ -10,7 +10,6 @@ export type Route =
   | "traffic"
   | "proxy"
   | "general"
-  | "extension-settings"
   | "extension-diagnostics"
   | "extensions";
 export interface Location {

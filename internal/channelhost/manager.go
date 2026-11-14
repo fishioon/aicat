@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/fishioon/aicat/internal/channelconfig"
 	"github.com/fishioon/aicat/internal/channelplugin"
-	"github.com/fishioon/aicat/internal/config"
 	"io"
 	"os"
 	"os/exec"
@@ -25,14 +25,15 @@ type EventHandler func(json.RawMessage) (any, error)
 type StatusHandler func(string, string)
 
 type Binding struct {
-	Driver    string                `json:"driver,omitempty"`
-	Local     *config.LocalMessages `json:"local,omitempty"`
-	AccountID string                `json:"accountId"`
-	Session   string                `json:"session"`
-	BotID     string                `json:"botId"`
-	Secret    string                `json:"secret"`
-	Source    string                `json:"source"`
-	Endpoint  string                `json:"endpoint,omitempty"`
+	Driver     string                       `json:"driver,omitempty"`
+	Local      *channelconfig.LocalMessages `json:"local,omitempty"`
+	AccountID  string                       `json:"accountId"`
+	Session    string                       `json:"session"`
+	BotID      string                       `json:"botId"`
+	Secret     string                       `json:"secret"`
+	Source     string                       `json:"source"`
+	Endpoint   string                       `json:"endpoint,omitempty"`
+	SendScript string                       `json:"sendScript,omitempty"`
 }
 
 type Manager struct {
@@ -61,6 +62,7 @@ type response struct {
 
 type Account struct {
 	Binding
+	Position string
 	p        *process
 	onEvent  EventHandler
 	onStatus StatusHandler
@@ -140,7 +142,8 @@ func (m *Manager) Open(ctx context.Context, binding Binding, onEvent EventHandle
 	}
 	p.accounts[binding.AccountID] = a
 	p.mu.Unlock()
-	if _, err := p.call(ctx, "channel_open", binding); err != nil {
+	opened, openErr := p.call(ctx, "channel_open", binding)
+	if err := openErr; err != nil {
 		p.mu.Lock()
 		delete(p.accounts, binding.AccountID)
 		empty := len(p.accounts) == 0
@@ -150,6 +153,13 @@ func (m *Manager) Open(ctx context.Context, binding Binding, onEvent EventHandle
 			m.process = nil
 		}
 		return nil, err
+	}
+	if binding.Driver == "wecom-local" {
+		var value struct {
+			Position string `json:"position"`
+		}
+		_ = json.Unmarshal(opened, &value)
+		a.Position = value.Position
 	}
 	return a, nil
 }

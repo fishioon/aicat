@@ -9,6 +9,8 @@ import {
   say,
   modal,
   closeDialog,
+  busy,
+  ask,
 } from "../state/desktop";
 import { copy } from "../state/traffic";
 import { host } from "../host";
@@ -34,6 +36,22 @@ async function install() {
   if (x && (await run(() => host.installExtension(x.id))))
     say(t("插件已安装，请配置并验证账号"));
 }
+async function update() {
+  const x = current.value;
+  if (x && (await run(() => host.updateExtension(x.id))))
+    say(t("插件已更新，请重新验证账号后启用"));
+}
+function uninstall() {
+  const x = current.value;
+  if (!x) return;
+  ask("卸载扩展", "删除扩展安装包，保留配置、凭据和消息数据。", async () => {
+    if (await run(() => host.uninstallExtension(x.id))) {
+      navigate("extensions", { extension: x.id });
+      say(t("扩展已卸载，配置和数据已保留"));
+    }
+  });
+}
+const diagnostics = computed(() => shell.route === "extension-diagnostics");
 const enabled = computed(() => !!current.value?.enabled);
 const status = computed(() => {
   const own = ui.value.status?.();
@@ -45,7 +63,7 @@ const matches = computed(() => {
   return extensionList().filter(
     (x) =>
       !query ||
-      [t(x.name), x.id, "aicat", t(x.summary)]
+      [t(x.name), x.id, "aicat", t(x.summary), ...x.categories.map((c) => t(c))]
         .join(" ")
         .toLowerCase()
         .includes(query),
@@ -91,21 +109,22 @@ function toggle() {
 function gear(event: MouseEvent) {
   const id = current.value?.id ?? "";
   popup(event.currentTarget as Element, [
-    ...(current.value?.installed && ui.value.Settings
-      ? [
-          {
-            label: "配置",
-            id: "extension-menu-configure",
-            run: () => navigate("extension-settings", { extension: id }),
-          },
-        ]
-      : []),
-    ...(current.value?.installed && ui.value.Diagnostics
+    ...(!diagnostics.value && current.value?.installed && ui.value.Diagnostics
       ? [
           {
             label: "诊断",
             id: "extension-menu-diagnostics",
             run: () => navigate("extension-diagnostics", { extension: id }),
+          },
+        ]
+      : []),
+    ...(current.value?.packagePresent
+      ? [
+          {
+            label: "卸载扩展",
+            id: "extension-menu-uninstall",
+            disabled: enabled.value || busy.value,
+            run: uninstall,
           },
         ]
       : []),
@@ -150,7 +169,7 @@ function tabKey(event: KeyboardEvent) {
           @click="sections.installed = !sections.installed"
         >
           <Icon name="chev" /><span class="label">{{ t("已安装") }}</span
-          ><span class="badge num">{{ installed.length }}</span>
+          ><span class="num">{{ installed.length }}</span>
         </button>
         <template v-if="sections.installed">
           <ul v-if="installed.length">
@@ -163,11 +182,7 @@ function tabKey(event: KeyboardEvent) {
                 @click="choose(x.id)"
               >
                 <ExtensionIcon :name="x.id" /><span class="top"
-                  ><strong
-                    >{{ t(x.name) }}
-                    <span v-if="x.builtin" class="tag">{{
-                      t("内置")
-                    }}</span></strong
+                  ><strong>{{ t(x.name) }}</strong
                   ><span class="st">{{
                     t(x.enabled ? "已启用" : "已停用")
                   }}</span></span
@@ -186,7 +201,7 @@ function tabKey(event: KeyboardEvent) {
           @click="sections.recommended = !sections.recommended"
         >
           <Icon name="chev" /><span class="label">{{ t("推荐") }}</span
-          ><span class="badge num">{{ recommended.length }}</span>
+          ><span class="num">{{ recommended.length }}</span>
         </button>
         <ul v-if="sections.recommended && recommended.length">
           <li v-for="x in recommended" :key="x.id">
@@ -213,13 +228,12 @@ function tabKey(event: KeyboardEvent) {
       >
         <header class="xd-head">
           <ExtensionIcon class="extension-emblem" :name="current.id" />
-          <h1>
-            {{ t(current.name)
-            }}<span v-if="current.builtin" class="tag">{{ t("内置") }}</span>
-          </h1>
+          <h1>{{ t(current.name) }}</h1>
           <p class="xd-meta">
             <span>{{ current.publisher || "aicat" }}</span
-            ><span>{{ current.version || t("随 aicat 发布") }}</span>
+            ><span>{{
+              current.installedVersion || current.version || t("随 aicat 发布")
+            }}</span>
           </p>
           <p class="lede">{{ t(current.lede) }}</p>
           <div class="xd-acts">
@@ -227,6 +241,7 @@ function tabKey(event: KeyboardEvent) {
               v-if="!current.installed"
               id="extension-install"
               class="xbtn primary"
+              :disabled="busy"
               @click="install"
             >
               {{ t("安装") }}
@@ -236,21 +251,30 @@ function tabKey(event: KeyboardEvent) {
               :id="'feature-' + current.id"
               class="xbtn"
               :class="{ primary: !enabled }"
-              :disabled="!enabled && !current.ready"
+              :disabled="busy || (!enabled && !current.ready)"
               @click="toggle"
             >
               {{ t(enabled ? "停用" : "启用") }}
             </button>
             <button
-              v-if="ui.Settings && current.installed"
-              id="extension-configure"
+              v-if="current.updateAvailable"
+              id="extension-update"
               class="xbtn"
-              @click="navigate('extension-settings', { extension: current.id })"
+              :disabled="enabled || busy"
+              @click="update"
+            >
+              {{ t("更新至 {version}", { version: current.version }) }}
+            </button>
+            <button
+              v-if="diagnostics"
+              id="extension-diagnostics-configure"
+              class="xbtn"
+              @click="navigate('extensions', { extension: current.id })"
             >
               {{ t("配置") }}
             </button>
             <button
-              v-if="ui.Diagnostics && current.installed"
+              v-if="!diagnostics && ui.Diagnostics && current.installed"
               id="extension-diagnostics"
               class="xbtn"
               @click="
@@ -274,47 +298,66 @@ function tabKey(event: KeyboardEvent) {
             <Icon name="info" />{{ status.text }}
           </p>
         </header>
-        <div class="ptabs xtabs" role="tablist" :aria-label="t('扩展信息')">
-          <button
-            v-for="[id, label] in tabs"
-            :key="id"
-            role="tab"
-            :data-tab="id"
-            :aria-selected="tab === id"
-            :tabindex="tab === id ? 0 : -1"
-            @click="tab = id"
-            @keydown="tabKey"
-          >
-            {{ t(label, {}, "extension") }}
-          </button>
-        </div>
-        <div class="xd-body">
-          <div role="tabpanel">
-            <component v-if="ui.Body" :is="ui.Body" :tab="tab" />
-            <p v-else-if="tab === 'detail'">{{ t(current.lede) }}</p>
+        <section
+          v-if="
+            current.installed && (diagnostics ? ui.Diagnostics : ui.Settings)
+          "
+          class="extension-panel"
+          :id="
+            diagnostics
+              ? 'extension-diagnostics-page'
+              : 'extension-settings-page'
+          "
+          :data-extension="current.id"
+        >
+          <component
+            :is="diagnostics ? ui.Diagnostics : ui.Settings"
+            :key="current.id + shell.route"
+          />
+        </section>
+        <template v-if="!diagnostics">
+          <div class="ptabs xtabs" role="tablist" :aria-label="t('扩展信息')">
+            <button
+              v-for="[id, label] in tabs"
+              :key="id"
+              role="tab"
+              :data-tab="id"
+              :aria-selected="tab === id"
+              :tabindex="tab === id ? 0 : -1"
+              @click="tab = id"
+              @keydown="tabKey"
+            >
+              {{ t(label, {}, "extension") }}
+            </button>
           </div>
-          <aside class="xd-side" :aria-label="t('扩展信息')">
-            <h2>{{ t("信息") }}</h2>
-            <dl>
-              <dt>{{ t("标识符") }}</dt>
-              <dd>
-                <code>{{ current.id }}</code>
-              </dd>
-              <dt>{{ t("发布者") }}</dt>
-              <dd>{{ current.publisher || "aicat" }}</dd>
-              <dt>{{ t("来源") }}</dt>
-              <dd>{{ current.builtin ? t("内置") : "OpenClaw" }}</dd>
-              <dt>{{ t("版本") }}</dt>
-              <dd>{{ current.version || t("随 aicat 发布") }}</dd>
-            </dl>
-            <h2>{{ t("分类") }}</h2>
-            <div class="tags">
-              <span v-for="c in current.categories" :key="c" class="tag">{{
-                t(c)
-              }}</span>
+          <div class="xd-body">
+            <div role="tabpanel">
+              <component v-if="ui.Body" :is="ui.Body" :tab="tab" />
+              <p v-else-if="tab === 'detail'">{{ t(current.lede) }}</p>
             </div>
-          </aside>
-        </div>
+            <aside class="xd-side" :aria-label="t('扩展信息')">
+              <h2>{{ t("信息") }}</h2>
+              <dl>
+                <dt>{{ t("标识符") }}</dt>
+                <dd>
+                  <code>{{ current.id }}</code>
+                </dd>
+                <dt>{{ t("发布者") }}</dt>
+                <dd>{{ current.publisher || "aicat" }}</dd>
+                <dt>{{ t("来源") }}</dt>
+                <dd>{{ current.builtin ? t("内置") : "OpenClaw" }}</dd>
+                <dt>{{ t("版本") }}</dt>
+                <dd>
+                  {{
+                    current.installedVersion ||
+                    current.version ||
+                    t("随 aicat 发布")
+                  }}
+                </dd>
+              </dl>
+            </aside>
+          </div>
+        </template>
       </div>
     </section>
   </div>

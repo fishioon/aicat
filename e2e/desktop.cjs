@@ -6,10 +6,12 @@
  */
 // Keep the former focused command safe: this scenario now uses only preview.
 if (process.argv[4] === "traffic-default") {
-  require("./traffic-default.cjs").run().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  });
+  require("./traffic-default.cjs")
+    .run()
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    });
   return;
 }
 const fs = require("node:fs"),
@@ -183,24 +185,17 @@ async function stop() {
 async function launch() {
   fs.rmSync(previewFile, { force: true });
   fs.rmSync(sockFile, { force: true });
-  proc = spawn(
-    binary,
-    [
-      "--home",
-      home,
-    ],
-    {
-      env: {
-        ...process.env,
-        MYGO_AUTOMATION: sockFile,
-        AICAT_E2E_OS_STATE: stateFile,
-        AICAT_E2E_PREVIEW: previewFile,
-        MYGO_ENV: "development",
-        MYGO_DEV_URL: "http://127.0.0.1:1/must-not-load",
-      },
-      stdio: ["ignore", log, log],
+  proc = spawn(binary, ["--home", home], {
+    env: {
+      ...process.env,
+      MYGO_AUTOMATION: sockFile,
+      AICAT_E2E_OS_STATE: stateFile,
+      AICAT_E2E_PREVIEW: previewFile,
+      MYGO_ENV: "development",
+      MYGO_DEV_URL: "http://127.0.0.1:1/must-not-load",
     },
-  );
+    stdio: ["ignore", log, log],
+  });
   await wait(() => fs.existsSync(previewFile) && fs.existsSync(sockFile));
   auto = await connectAuto();
   await wait(async () => await evaluate("!!window.desktop?.state()"));
@@ -769,15 +764,17 @@ async function verifyListSelection() {
     await page.keyboard.press("Escape");
     await page.locator("#nav-traffic").waitFor();
     await navigate("extensions");
-    assert(
-      (await page.locator("#module-page").textContent()).includes(
-        "社区扩展的发现和安装尚未提供",
-      ),
+    await page.locator("#extensions-recommended").waitFor();
+    assert.equal(await page.locator("#extension-wecom").count(), 1);
+    assert.equal(
+      await page.locator("#extension-wecom .st").innerText(),
+      "未安装",
     );
+    assert.equal(await page.locator("#module-sidebar .tag").count(), 0);
     await page.locator("#extension-search").fill("no-match");
     assert.equal(await page.locator("#extension-traffic").count(), 0);
     check(
-      "extensions, recommended placeholder, search, traffic feature toggle, More and navigation pin",
+      "extensions, installable recommendation, uncluttered list, search, traffic feature toggle, More and navigation pin",
     );
     const cfgPath = path.join(home, "aicat.yaml");
     fs.renameSync(cfgPath, cfgPath + ".saved");

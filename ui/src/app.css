@@ -1977,10 +1977,6 @@ pre.body {
 .xitem strong {
   font-weight: 600;
 }
-.xitem .tag {
-  margin-left: 4px;
-  vertical-align: 1px;
-}
 .xitem .desc {
   font-size: var(--t12);
   color: var(--ink-2);
@@ -2126,8 +2122,18 @@ pre.body {
 .xd-body p + p {
   margin-top: 8px;
 }
-.extension-panel > .acts {
-  margin-top: 12px;
+.extension-panel {
+  margin-top: 24px;
+}
+.extension-panel .form {
+  grid-template-columns: minmax(100px, 140px) minmax(0, 1fr);
+  max-width: 600px;
+}
+.extension-panel .form > .wide {
+  grid-column: 1 / -1;
+}
+.extension-panel .form .form {
+  margin: 0;
 }
 .feat {
   width: 100%;
@@ -2173,12 +2179,6 @@ pre.body {
 .xd-side dd {
   margin: 0;
   text-align: right;
-}
-.xd-side .tags {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  margin-top: 4px;
 }
 
 /* Settings */

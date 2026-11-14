@@ -18,6 +18,7 @@ import (
 // Host holds the registered extensions and turns them on and off.
 type Host struct {
 	ctx     context.Context
+	home    string
 	plugins *channelplugin.Store
 	items   []*item
 }
@@ -34,15 +35,15 @@ type item struct {
 // New builds every extension; none is on yet. ctx bounds every extension's
 // background work.
 func New(ctx context.Context, env Env, extensions []Extension) (*Host, error) {
-	h := &Host{ctx: ctx, plugins: channelplugin.New(env.Home)}
+	h := &Host{ctx: ctx, home: env.Home, plugins: channelplugin.New(env.Home)}
 	for _, descriptor := range channelplugin.Catalog {
 		if err := h.plugins.RefreshRuntime(descriptor.ID); err != nil {
 			return nil, fmt.Errorf("渠道兼容层更新失败：%w", err)
 		}
-		extensions = append(extensions, Extension{ID: descriptor.ID, Name: descriptor.Name, Summary: descriptor.Summary, Lede: descriptor.Summary, Categories: []string{"消息"}, Package: descriptor.Package, Version: descriptor.Version, Publisher: descriptor.Publisher,
+		extensions = append(extensions, Extension{ID: descriptor.ID, Name: descriptor.Name, Summary: descriptor.Summary, Lede: descriptor.Summary, Categories: []string{"消息渠道"}, Package: descriptor.Package, Version: descriptor.Version, Publisher: descriptor.Publisher,
 			Build: func(env Env) (Parts, error) {
 				channel := messages.New(env.Home, descriptor.ID, platformEndpoint(), env.ChannelHost)
-				return Parts{Messages: channel, Run: channel.Run}, nil
+				return Parts{Messages: channel, Configuration: channel, Run: channel.Run}, nil
 			}})
 	}
 	for _, e := range extensions {
@@ -74,10 +75,13 @@ func (h *Host) Known(id string) (known, needsTrust bool) {
 // State is a registered extension and whether it is on.
 type State struct {
 	Extension
-	Enabled   bool `json:"enabled"`
-	Installed bool `json:"installed"`
-	Builtin   bool `json:"builtin"`
-	Ready     bool `json:"ready"`
+	Enabled          bool   `json:"enabled"`
+	Installed        bool   `json:"installed"`
+	Builtin          bool   `json:"builtin"`
+	Ready            bool   `json:"ready"`
+	InstalledVersion string `json:"installedVersion"`
+	UpdateAvailable  bool   `json:"updateAvailable"`
+	PackagePresent   bool   `json:"packagePresent"`
 }
 
 // List is every registered extension, in the order they were registered.
@@ -87,7 +91,11 @@ func (h *Host) List() []State {
 		builtin := it.Package == ""
 		installed := builtin || it.parts.Messages != nil && it.parts.Messages.Installed()
 		ready := it.parts.Messages == nil || it.parts.Messages.Validated()
-		out = append(out, State{Extension: it.Extension, Enabled: it.on.Load(), Builtin: builtin, Installed: installed, Ready: ready})
+		installedVersion := ""
+		if current, err := h.plugins.Current(it.ID); err == nil {
+			installedVersion = current.Version
+		}
+		out = append(out, State{Extension: it.Extension, Enabled: it.on.Load(), Installed: installed, Builtin: builtin, Ready: ready, InstalledVersion: installedVersion, UpdateAvailable: installed && !builtin && installedVersion != it.Version, PackagePresent: !builtin && h.plugins.Present(it.ID)})
 	}
 	return out
 }
@@ -101,11 +109,33 @@ func (h *Host) Set(id string, on bool) error {
 	}
 	it.mu.Lock()
 	defer it.mu.Unlock()
+	return h.set(it, on)
+}
+
+func (h *Host) SetEnabled(id string, on bool) error {
+	it := h.find(id)
+	if it == nil {
+		return fmt.Errorf("没有这个扩展：%s", id)
+	}
+	it.mu.Lock()
+	defer it.mu.Unlock()
+	if on {
+		if err := h.CanEnable(id); err != nil {
+			return err
+		}
+	}
+	if err := config.SetExtensionEnabled(h.home, id, on); err != nil {
+		return err
+	}
+	return h.set(it, on)
+}
+
+func (h *Host) set(it *item, on bool) error {
 	if it.on.Load() == on {
 		return nil
 	}
 	if on {
-		if err := h.CanEnable(id); err != nil {
+		if err := h.CanEnable(it.ID); err != nil {
 			return err
 		}
 	}
@@ -169,19 +199,6 @@ func (h *Host) ConfigureMessageChannel(ctx context.Context, id string, account m
 		return err
 	}
 	return it.parts.Messages.Validate(ctx)
-}
-
-func (h *Host) ConfigureMessageAgent(id string, settings config.MessageAgent) error {
-	it := h.find(id)
-	if it == nil || it.parts.Messages == nil {
-		return fmt.Errorf("没有这个消息渠道：%s", id)
-	}
-	it.mu.Lock()
-	defer it.mu.Unlock()
-	if it.on.Load() {
-		return fmt.Errorf("请先停用扩展再修改 Codex 配置")
-	}
-	return it.parts.Messages.ConfigureAgent(settings)
 }
 
 func (h *Host) SendMessage(ctx context.Context, channel string, event messages.Event) (messages.Receipt, error) {
@@ -352,6 +369,18 @@ func (g gatedAddon) HTTPConnectError(f *proxy.Flow, err error) {
 }
 
 func (h *Host) Install(ctx context.Context, id string) error {
+	return h.changePackage(ctx, id, "install")
+}
+
+func (h *Host) Update(ctx context.Context, id string) error {
+	return h.changePackage(ctx, id, "update")
+}
+
+func (h *Host) Uninstall(ctx context.Context, id string) error {
+	return h.changePackage(ctx, id, "uninstall")
+}
+
+func (h *Host) changePackage(ctx context.Context, id, operation string) error {
 	it := h.find(id)
 	if it == nil || it.Package == "" {
 		return fmt.Errorf("没有可安装的渠道插件：%s", id)
@@ -361,11 +390,26 @@ func (h *Host) Install(ctx context.Context, id string) error {
 	if it.on.Load() {
 		return fmt.Errorf("请先停用渠道插件")
 	}
-	installCtx, cancel := context.WithCancel(ctx)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := config.SetExtensionEnabled(h.home, id, false); err != nil {
+		return err
+	}
+	operationCtx, cancel := context.WithCancel(ctx)
 	stop := context.AfterFunc(h.ctx, cancel)
 	defer func() { stop(); cancel() }()
-	return h.plugins.Install(installCtx, id)
+	switch operation {
+	case "install":
+		return h.plugins.Install(operationCtx, id)
+	case "update":
+		return h.plugins.Update(operationCtx, id)
+	case "uninstall":
+		return h.plugins.Uninstall(id)
+	}
+	return fmt.Errorf("未知包操作")
 }
+
 func (h *Host) CanEnable(id string) error {
 	it := h.find(id)
 	if it == nil {

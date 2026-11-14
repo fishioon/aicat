@@ -206,8 +206,8 @@ async function start() {
   await page.locator("#extension-wecom").click();
 }
 async function manage() {
-  if (await page.locator("#extension-manage").count())
-    await page.locator("#extension-manage").click();
+  if (await page.locator("#extension-diagnostics-configure").count())
+    await page.locator("#extension-diagnostics-configure").click();
   else if (!(await page.locator("#feature-wecom").count())) {
     await page.locator("#nav-extensions").click();
     await page.locator("#extension-wecom").click();
@@ -215,7 +215,6 @@ async function manage() {
 }
 async function configure() {
   await manage();
-  await page.locator("#extension-configure").click();
   await page.locator("#wecom-settings").waitFor();
 }
 async function diagnostics() {
@@ -784,33 +783,35 @@ async function runRecovery() {
     check(
       "runtime contains no vendor plugin; UI installs original package and dependencies without connecting, enable requires validated account",
     );
-    assert.equal(await page.locator("#wecom-config").count(), 0);
+    await page.locator("#wecom-config").waitFor();
     assert.equal(await page.locator("#wecom-send-form").count(), 0);
     await page.locator("#extension-codex").click();
     await page.locator("#history-back").click();
     await page.locator('.extension-detail[data-extension="wecom"]').waitFor();
     await configure();
     assert.equal(
-      await page.locator("#nav-settings").getAttribute("aria-current"),
+      await page.locator("#nav-extensions").getAttribute("aria-current"),
       "page",
     );
     assert.equal(
-      await page
-        .locator("#settings-extension-wecom")
-        .getAttribute("aria-current"),
+      await page.locator("#extension-wecom").getAttribute("aria-current"),
       "true",
     );
-    assert.equal(await page.locator("#wecom-send-form").count(), 0);
+    await diagnostics();
+    assert.equal(await page.locator("#wecom-config").count(), 0);
     await page.locator("#history-back").click();
-    await page.locator('.extension-detail[data-extension="wecom"]').waitFor();
-    await page.locator("#history-forward").click();
     await page.locator("#wecom-settings").waitFor();
-    await page.locator("#settings-general").click();
-    await page.locator("#settings-extension-wecom").click();
+    await page.locator("#history-forward").click();
+    await page.locator("#wecom-diagnostics").waitFor();
+    await configure();
+    await page.locator("#nav-settings").click();
+    await page.locator("#settings-general").waitFor();
+    assert.equal(await page.locator("#settings-extensions").count(), 0);
+    await page.locator("#history-back").click();
     await page.locator("#wecom-settings").waitFor();
     await page.screenshot({ path: path.join(root, "wecom-settings.png") });
     check(
-      "extension details contain no forms; Configure and Settings share the same form, history restores the selected extension",
+      "installed extension details contain configuration; diagnostics is separate; history restores extension and module",
     );
     rejectAuthentication = true;
     await assert.rejects(() =>
@@ -878,6 +879,39 @@ async function runRecovery() {
       assert(command.includes(path.join(bundle, "Resources/channel-host/bun")));
       assert(!command.includes(secret));
       check("bundled Bun starts and authenticates without system Bun in PATH");
+      const savedConfig = fs.readFileSync(
+        path.join(home, "aicat.yaml"),
+        "utf8",
+      );
+      const installedRecord = fs.readFileSync(
+        path.join(home, "extensions/wecom/current.json"),
+        "utf8",
+      );
+      await assert.rejects(
+        rpc("UpdateExtensionConfig", ["wecom", { agent: { enabled: true } }]),
+      );
+      await assert.rejects(rpc("UpdateExtension", ["wecom"]));
+      await assert.rejects(rpc("UninstallExtension", ["wecom"]));
+      assert.equal(
+        fs.readFileSync(path.join(home, "aicat.yaml"), "utf8"),
+        savedConfig,
+      );
+      assert.equal(
+        fs.readFileSync(
+          path.join(home, "extensions/wecom/current.json"),
+          "utf8",
+        ),
+        installedRecord,
+      );
+      assert.equal((await state()).pid, pid);
+      assert(
+        !JSON.stringify(await rpc("ReadExtensionConfig", ["wecom"])).includes(
+          secret,
+        ),
+      );
+      check(
+        "enabled extension rejects config writes, update and uninstall without changing config, package record or running host; config reads omit credentials",
+      );
       publish("incoming-a1");
       publish("incoming-a2");
       publish("incoming-b", "bob");

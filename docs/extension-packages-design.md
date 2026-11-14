@@ -8,7 +8,8 @@ AICat 内置 Bun 与渠道宿主，扩展列表展示受支持的官方 OpenClaw
 
 | 模块 | 职责 |
 | --- | --- |
-| channelplugin | 维护已验证的官方包目录，下载依赖、校验包与入口、原子登记安装记录 |
+| channelplugin | 维护已验证的官方包目录，准备包与依赖，管理当前安装版本、手动更新和卸载 |
+| channelconfig | 定义渠道配置类型、字段约束和校验；调用通用配置存储 |
 | extension | 统一展示内置扩展与可安装渠道，安装、配置验证及启用状态门控 |
 | channelhost | 启停应用内 Bun、stdio 会话、账号会话绑定及调用 |
 | Bun 宿主 | 加载原版插件，提供 OpenClaw SDK 兼容接口，桥接收消息和主动发送 |
@@ -21,9 +22,23 @@ AICat 内置 Bun 与渠道宿主，扩展列表展示受支持的官方 OpenClaw
 
 应用资源包含固定 Bun、宿主、验证入口、兼容层与内置客户端读取器。原版渠道包不随应用分发，也不在应用启动或账号启用时自动安装。
 
-用户点击安装后，使用应用内 Bun 在 Home 的私有暂存目录执行依赖安装，禁用包安装脚本，registry 使用 HTTPS 官方 npm 服务。目录锁定渠道包名与版本；安装产生依赖锁并记录摘要。包名、版本、OpenClaw 渠道声明、入口普通文件与路径边界校验成功后，原子移动到 extensions/<ID>/<版本>/。安装失败清理暂存，不显示为已安装。重复安装有效包不重新下载；损坏的安装可通过安装操作重新准备并原子替换。
+用户点击安装后，使用应用内 Bun 在 Home 的私有暂存目录执行依赖安装，禁用包安装脚本，registry 使用 HTTPS 官方 npm 服务。目录锁定渠道包名与版本；安装产生依赖锁并记录摘要。包名、版本、OpenClaw 渠道声明、入口普通文件与路径边界校验成功后，移动到 extensions/<ID>/<版本>/，最后原子写入 extensions/<ID>/current.json。安装失败清理暂存，不显示为已安装。重复安装有效包不重新下载；损坏的安装可通过安装操作重新准备并原子替换。
 
-安装记录、bun.lock 与原包 package.json 共同判断本地安装是否可用。正式启用只加载该目录的原版入口，不改官方插件文件。插件依赖通过已安装包解析，SDK shim 由应用提供。
+current.json 记录当前安装包、实际版本、安装时间与依赖锁摘要；版本目录内 installation.json 必须与它一致。推荐目录的版本是安装和更新目标，运行时只按 current.json 选择实际版本，不按推荐版本推算目录。current.json、安装记录、bun.lock 与原包 package.json 共同判断本地安装是否可用。正式启用只加载该目录的原版入口，不改官方插件文件。插件依赖通过已安装包解析，SDK shim 由应用提供。
+
+## 配置读写
+
+行为配置仍只保存到 aicat.yaml 的 extensions.<ID>。通用 config 只认识 enabled 与扩展自有字段映射，ReadExtension 与 UpdateExtension 提供读取和串行合并保存；字段类型与业务校验由 channelconfig、messages 或具体扩展提供。表单调用 ReadExtensionConfig / UpdateExtensionConfig，启用状态通过专用开关管理，凭据通过 ConfigureMessageChannel 保存和验证。更新只合并提交字段，校验失败不写文件；不允许通过配置接口写 enabled、Secret 或未知业务字段。
+
+修改需要先停用扩展；下次启用由 Go 读取配置与凭据，通过 stdio 注入 Bun 宿主，并转换为原版 OpenClaw 配置视图。不开放运行中插件修改用户配置的接口；游标和任务继续写各自的状态或业务存储。
+
+## 更新与卸载
+
+安装、更新、卸载、配置写入和启停由 extension 按扩展串行协调。内置扩展随应用发布，只能启停，不提供独立更新或卸载。
+
+用户先停用再手动更新。UpdateExtension 只准备推荐目录指定的目标版本，沿用暂存安装与校验，全部成功后切换 current.json；准备失败或进程在准备期间退出，旧记录与旧版本仍可用。更新保留配置、凭据、状态和 Room 数据，并保持停用；鉴权指纹绑定实际安装版本，因此更新后需要重新验证。旧版本目录保留，但没有自动更新、运行中替换或手动版本选择界面。
+
+用户在更多菜单确认卸载后，UninstallExtension 先持久保存停用状态，撤销 current.json，再删除该扩展全部包目录。配置、凭据、状态和 Room 数据保留；重复卸载可清理残留目录，重新安装后仍保持停用。没有 current.json 的旧安装目录不会被自动识别或迁移。
 
 ## 账号与生命周期
 
@@ -52,3 +67,7 @@ AICat 的公共发送语义是主动 sendText。第一期企业微信使用插�
 - 真正的企业微信与 Codex 联调使用隔离 Home，并另行核对收件端。纯 headless 结果不代替真实平台送达或原生桌面覆盖。
 
 具体入口与工件见[企业微信 BOT](feature-map/wecom.md)。
+
+## 生命周期定向验收
+
+`node e2e/extension-lifecycle.cjs bin/aicat-e2e build/extension-lifecycle-<run>` 使用隔离 Home、本地 NPM 包源、真实 Bun 安装器与 Desktop 服务，通过 headless Chromium 验证配置合并与拒绝非法写入、安装失败清理、禁止安装脚本、推荐版本与实际安装版本分离、更新失败与中断恢复、卸载保留数据及重新安装。报告保留命令、二进制摘要、日志和截图。`wecom.cjs` 使用原版插件验证运行中拒绝配置修改、更新及卸载，配置只读结果不包含凭据。

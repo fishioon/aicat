@@ -36,10 +36,10 @@
 | `make tray-icons` | 从 `assets/logo.svg` 生成原始卷尾、30% 卷曲端点及统一画布的 25 帧 PNG 图集；原生托盘以模板图着色 |
 | `make verify` | 格式、类型检查、vet、已有 Go 检查、release 构建、app 打包、CLI smoke 及构建验收 |
 | `make e2e-build` | 生成独立验收前端，构建带 race 的桌面与 CLI 验收入口 |
-| `make e2e` | 构建后运行 WebView/浏览器、HTTP/TLS、规则/插件/MCP 完整验收 |
+| `make e2e` | 构建后运行完整后台验收：无头浏览器、HTTP/TLS、MCP、扩展生命周期与消息 fixture，不操作真实桌面或账号 |
 | `make design-shots` | 渲染 `aicat-redesign.html` 各场景的浅深色截图到 `build/design-shots/`，`SCENES="overview traffic"` 只渲染指定场景；用于标注评审 |
 
-`runtime/channel-host/` 保存宿主及共享 SDK shim 源文件，prepare.mjs 在构建阶段直接复制源码和 Bun 1.4.4，无需安装宿主依赖。客户端读取器位于 wecom-local/，TS 开发检查使用 runtime/channel-host/package-lock.json 锁定的类型依赖，`make channel-check` 执行严格类型检查；成品不包含这些开发依赖。产物在 bin/channel-host/；make app 将其放入 Contents/Resources/channel-host/。宿主修改后重新构建。官方渠道插件由用户点击安装时用应用内 Bun 下载，禁用安装脚本；用户启动或启用时不安装依赖。
+`runtime/channel-host/` 保存宿主及共享 SDK shim 源文件，prepare.mjs 在构建阶段复制源码和 Bun 1.4.4，无需安装宿主运行依赖；同时用 Python 3.9+ 和 clang 从锁定源码构建原版 SQLite3 Multiple Ciphers 2.7.0，构建缓存位于 build/sqlite3mc-stock/。首次构建需下载归档，可用 AICAT_SQLITE3MC_SOURCE 指定同 SHA-256 的本地归档；成品无需 Python、编译器或网络下载。客户端读取器位于 wecom-local/，TS 开发检查使用 runtime/channel-host/package-lock.json 锁定的类型依赖，`make channel-check` 执行严格类型检查；成品不包含这些开发依赖。产物在 bin/channel-host/；make app 将其放入 Contents/Resources/channel-host/。宿主修改后重新构建。官方渠道插件由用户点击安装时用应用内 Bun 下载，禁用安装脚本；用户启动或启用时不安装依赖。
 
 开发时可在一个终端运行 `npm --prefix ui run dev`，另一个终端运行 `MYGO_DEV_URL=http://127.0.0.1:5173 make run`，或使用构建后的 `MYGO_DEV_URL=http://127.0.0.1:5173 bin/aicat-dev --home <隔离目录>`，在 WebView 中使用 Vite 热更新。首次先执行 `make bindings`。开发 URL 仅对开发二进制生效；生产链接标记优先于 `MYGO_ENV` 和 `MYGO_DEV_URL`。MyGo 配置也保留官方 CLI 的 dev/build 字段，CLI 打包会进行签名，应在明确准备分发时使用。
 
@@ -71,6 +71,8 @@ Playwright 使用锁定版本和已安装的 Chrome，不下载浏览器。macOS
 
 ```sh
 make e2e-build
+# 扩展包安装、配置合并、手动更新、卸载与中断恢复（后台）
+node e2e/extension-lifecycle.cjs bin/aicat-e2e build/extension-lifecycle-e2e
 python3 e2e/prototype.py --only desktop
 python3 e2e/prototype.py --only transport
 python3 e2e/prototype.py --only mcp
@@ -97,9 +99,15 @@ node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
 # 仅验证 Codex 扩展：证书提示与启停、模型列表同步、models.dev 补全、直连与解密两个入口的分流、426、流量记录不含密钥
 node e2e/codex.cjs bin/aicat-e2e build/codex-e2e
 
+# 仅验证客户端 Room 新消息自动触发、start/steer、MCP 回复与任务恢复
+python3 e2e/wecom-local-agent.py
+# 仅验证按会话的私聊、群提及和关键词触发、元数据及格式升级重放
+python3 e2e/wecom-local-triggers.py
 # 仅验证客户端本地 DB → Room、WAL 增量与崩溃恢复
 make cli channel-check
 python3 e2e/wecom-local.py
+# 仅验证 MCP → 客户端脚本完成即成功、独立 DB/WAL 回流、幂等与崩溃恢复
+python3 e2e/wecom-local-send.py
 # 使用前一步合成工件，后台验证客户端扩展入口、配置、启停与诊断
 node e2e/wecom-local-ui.cjs bin/aicat-e2e build/wecom-local-e2e-<run>
 # 仅验证企业微信 BOT 的配置、私聊收发、Room 确认和重启恢复
@@ -112,7 +120,9 @@ node e2e/desktop.cjs bin/aicat-e2e build/icons-e2e icons
 
 只经浏览器预览驱动的场景（`tray.cjs`、`traffic-default.cjs`、`tunnel.cjs`、`redesign.cjs`、`provider.cjs`、`codex.cjs`）以 `AICAT_E2E_BACKGROUND=1` 启动验收二进制：原生窗口保持隐藏、不抢焦点、不出现 Dock 图标，可在后台反复运行。该开关只存在于 `e2e` tag 构建。采集按钮的 `traffic-default.cjs` 不连接原生自动化，保留浏览器截图、日志与报告；原 `desktop.cjs ... traffic-default` 命令也转交此后台入口。`desktop.cjs` 的其他场景及 `prototype.py --only desktop` 要驱动并断言真实 WKWebView 窗口的显示/隐藏，仍会弹出窗口。
 
-`e2e/prototype.py` 不带 `--only` 时三组必须全部通过；`--output` 指定工件根目录，默认 `build/full-e2e-*/`。
+`make e2e` 使用 `e2e/prototype.py --background` 汇总后台场景，保留每组报告、日志、截图、运行命令和源码 hash，失败仍执行其余组并以非零状态退出。原生窗口、WKWebView 交互、真实授权和真实消息送达不在后台覆盖内。
+
+`e2e/prototype.py` 不带 `--background` 或 `--only` 时会操作真实桌面，须事先取得明确同意；三组必须全部通过。`--output` 指定工件根目录，默认 `build/full-e2e-*/`。
 
 | 组 | 实际验证 |
 | --- | --- |

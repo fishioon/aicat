@@ -131,33 +131,34 @@ async function rpc(method, args = []) {
             !(await rpc("State")).extensions.find((x) => x.id === id).installed
           )
             await rpc("InstallExtension", [id]);
-          await page.locator("#extension-configure").click();
+
           await page.locator("#wecom-settings").waitFor();
           assert.equal(await page.locator("#wecom-send-form").count(), 0);
-          await page.locator("#settings-general").click();
+          await page.locator("#nav-settings").click();
           await page.locator("#preference-theme-" + theme).waitFor();
           await page.locator("#settings-proxy").click();
           await page.locator("#listener-address").waitFor();
-          await page.locator("#settings-extension-wecom").click();
+          await page.locator("#nav-extensions").click();
+          await page.locator("#extension-wecom").click();
           await page.locator("#wecom-settings").waitFor();
           assert.equal(await page.locator("#listener-address").count(), 0);
           await page.screenshot({
             path: path.join(root, `wecom-settings-${theme}.png`),
           });
-          await page.locator("#extension-settings-diagnostics").click();
+          await page.locator("#extension-diagnostics").click();
           await page.locator("#wecom-diagnostics").waitFor();
           assert.equal(await page.locator("#wecom-bot-id").count(), 0);
           assert.equal(await page.locator("#wecom-send").isDisabled(), true);
           await page.screenshot({
             path: path.join(root, `wecom-diagnostics-${theme}.png`),
           });
-          await page.locator("#extension-manage").click();
+          await page.locator("#extension-diagnostics-configure").click();
           await page
             .locator('.extension-detail[data-extension="wecom"]')
             .waitFor();
-          assert.equal(await page.locator("#wecom-config").count(), 0);
+          assert.equal(await page.locator("#wecom-config").count(), 1);
           report.checks.push(
-            `settings ${theme}: general/proxy preserved; extension settings and diagnostics use distinct forms and return to details`,
+            `settings ${theme}: general/proxy preserved; extension config stays in details and diagnostics returns to config`,
           );
         }
       }

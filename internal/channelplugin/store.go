@@ -24,7 +24,7 @@ type Descriptor struct {
 	Publisher string `json:"publisher"`
 }
 
-var Catalog = []Descriptor{{ID: "wecom", Name: "企业微信 BOT", Summary: "官方 OpenClaw 企业微信长连接机器人插件", Package: "@wecom/wecom-openclaw-plugin", Version: "2026.10.30", Publisher: "WecomTeam"}}
+var Catalog = []Descriptor{{ID: "wecom", Name: "企业微信 BOT", Summary: "官方 OpenClaw 企业微信长连接机器人插件", Package: "@wecom/wecom-openclaw-plugin", Version: catalogVersion("2026.10.30"), Publisher: "WecomTeam"}}
 
 type Installation struct {
 	Package     string `json:"package"`
@@ -65,12 +65,52 @@ func Find(id string) (Descriptor, bool) {
 	return Descriptor{}, false
 }
 
-func (s *Store) Directory(id string) string {
+func (s *Store) root(id string) string {
+	return filepath.Join(s.home, "extensions", id)
+}
+
+func (s *Store) Current(id string) (Installation, error) {
 	d, ok := Find(id)
 	if !ok {
+		return Installation{}, errors.New("未知渠道插件")
+	}
+	var installed Installation
+	raw, err := os.ReadFile(filepath.Join(s.root(id), "current.json"))
+	if err != nil {
+		return installed, errors.New("请先安装渠道插件")
+	}
+	if err = json.Unmarshal(raw, &installed); err != nil || installed.Package != d.Package || !validVersion(installed.Version) {
+		return Installation{}, errors.New("渠道安装记录无效，请重新安装")
+	}
+	return installed, nil
+}
+
+func validVersion(version string) bool {
+	if version == "" || version == "." || version == ".." {
+		return false
+	}
+	for _, ch := range version {
+		if !(ch >= '0' && ch <= '9' || ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || strings.ContainsRune(".-+_", ch)) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Store) Directory(id string) string {
+	installed, err := s.Current(id)
+	if err != nil {
 		return ""
 	}
-	return filepath.Join(s.home, "extensions", d.ID, d.Version)
+	return filepath.Join(s.root(id), installed.Version)
+}
+
+func (s *Store) Present(id string) bool {
+	if _, ok := Find(id); !ok {
+		return false
+	}
+	_, err := os.Stat(s.root(id))
+	return err == nil
 }
 
 func (s *Store) installationEntry(id string) (string, error) {
@@ -78,11 +118,15 @@ func (s *Store) installationEntry(id string) (string, error) {
 	if !ok {
 		return "", errors.New("未知渠道插件")
 	}
-	dir := s.Directory(id)
-	var installed Installation
+	installed, err := s.Current(id)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(s.root(id), installed.Version)
+	var stamp Installation
 	raw, err := os.ReadFile(filepath.Join(dir, "installation.json"))
-	if err != nil || json.Unmarshal(raw, &installed) != nil || installed.Package != d.Package || installed.Version != d.Version {
-		return "", errors.New("请先安装渠道插件")
+	if err != nil || json.Unmarshal(raw, &stamp) != nil || stamp != installed {
+		return "", errors.New("渠道插件安装记录不一致，请重新安装")
 	}
 	lock, err := os.ReadFile(filepath.Join(dir, "bun.lock"))
 	if err != nil {
@@ -92,6 +136,7 @@ func (s *Store) installationEntry(id string) (string, error) {
 	if installed.LockSHA256 != hex.EncodeToString(sum[:]) {
 		return "", errors.New("渠道插件依赖锁已变更，请重新安装")
 	}
+	d.Version = installed.Version
 	return inspect(dir, d)
 }
 
@@ -244,14 +289,57 @@ func (s *Store) Install(ctx context.Context, id string) error {
 	if !ok {
 		return errors.New("未知渠道插件")
 	}
+	if _, err := s.installationEntry(id); err == nil {
+		runtime, err := RuntimeDir()
+		if err != nil {
+			return err
+		}
+		return bindRuntime(s.Directory(id), runtime)
+	}
+	return s.prepare(ctx, d)
+}
+
+func (s *Store) Update(ctx context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := Find(id)
+	if !ok {
+		return errors.New("未知渠道插件")
+	}
+	if _, err := s.installationEntry(id); err != nil {
+		return err
+	}
+	installed, err := s.Current(id)
+	if err != nil {
+		return err
+	}
+	if installed.Version == d.Version {
+		return nil
+	}
+	return s.prepare(ctx, d)
+}
+
+func (s *Store) Uninstall(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := Find(id); !ok {
+		return errors.New("未知渠道插件")
+	}
+	if err := os.Remove(filepath.Join(s.root(id), "current.json")); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return os.RemoveAll(s.root(id))
+}
+
+func (s *Store) prepare(ctx context.Context, d Descriptor) error {
+	if !validVersion(d.Version) {
+		return errors.New("渠道版本无效")
+	}
 	runtime, err := RuntimeDir()
 	if err != nil {
 		return err
 	}
-	if _, err = s.installationEntry(id); err == nil {
-		return bindRuntime(s.Directory(id), runtime)
-	}
-	parent := filepath.Dir(s.Directory(id))
+	parent := s.root(d.ID)
 	if err = os.MkdirAll(parent, 0700); err != nil {
 		return err
 	}
@@ -297,5 +385,28 @@ func (s *Store) Install(ctx context.Context, id string) error {
 	if err = os.WriteFile(filepath.Join(stage, "installation.json"), raw, 0600); err != nil {
 		return err
 	}
-	return replacePath(s.Directory(id), stage)
+	if err = replacePath(filepath.Join(parent, d.Version), stage); err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(parent, ".current-")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	_, err = f.Write(raw)
+	if err == nil {
+		err = f.Sync()
+	}
+	if err = errors.Join(err, f.Close()); err != nil {
+		return err
+	}
+	if err = os.Rename(f.Name(), filepath.Join(parent, "current.json")); err != nil {
+		return err
+	}
+	dir, err := os.Open(parent)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
 }

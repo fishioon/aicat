@@ -50,6 +50,105 @@ function varint(data: Buffer, offset: number): [bigint, number] {
   }
   throw Error("INVALID_VARINT");
 }
+
+type ProtoField = { number: number; value?: bigint; data?: Buffer };
+function protobuf(data: Buffer): ProtoField[] | undefined {
+  const result: ProtoField[] = [];
+  let offset = 0;
+  try {
+    while (offset < data.length) {
+      if (result.length >= 4096) return;
+      let tag: bigint;
+      [tag, offset] = varint(data, offset);
+      const number = Number(tag >> 3n);
+      if (number < 1 || number > 1024) return;
+      switch (Number(tag & 7n)) {
+        case 0: {
+          let value: bigint;
+          [value, offset] = varint(data, offset);
+          result.push({ number, value });
+          break;
+        }
+        case 2: {
+          let length: bigint;
+          [length, offset] = varint(data, offset);
+          if (length > BigInt(data.length - offset)) return;
+          const end = offset + Number(length);
+          result.push({ number, data: data.subarray(offset, end) });
+          offset = end;
+          break;
+        }
+        case 1:
+        case 5:
+          offset += Number(tag & 7n) === 1 ? 8 : 4;
+          result.push({ number });
+          break;
+        default:
+          return;
+      }
+      if (offset > data.length) return;
+    }
+    return result;
+  } catch {
+    return;
+  }
+}
+
+export function textSegments(data: Buffer):
+  | {
+      text: string;
+      mentionIds: string[];
+      mentionAll: boolean;
+    }
+  | undefined {
+  const root = protobuf(data);
+  if (!root?.length || root.some((field) => field.number !== 1 || !field.data))
+    return;
+  const text: string[] = [];
+  const ids = new Set<string>();
+  let mentionAll = false;
+  for (const field of root) {
+    const segment = protobuf(field.data!);
+    if (!segment || segment.length !== 2) return;
+    const kind = segment.find((entry) => entry.number === 1)?.value;
+    const payload = segment.find((entry) => entry.number === 2)?.data;
+    if (!payload) return;
+    const values = protobuf(payload);
+    if (!values) return;
+    if (kind === 0n) {
+      if (
+        values.length !== 1 ||
+        values[0].number !== 1 ||
+        !values[0].data ||
+        !isUtf8(values[0].data)
+      )
+        return;
+      text.push(values[0].data.toString());
+    } else if (kind === 5n) {
+      const id = values.find((entry) => entry.number === 1)?.value;
+      const label = values.find((entry) => entry.number === 2)?.data;
+      if (
+        id === undefined ||
+        id > 9223372036854775807n ||
+        (label && !isUtf8(label))
+      )
+        return;
+      if (id === 0n) mentionAll = true;
+      else ids.add(String(id));
+      text.push(
+        "@" + (label?.toString() || (id === 0n ? "所有人" : String(id))),
+      );
+    } else return;
+  }
+  return { text: sanitize(text.join("")), mentionIds: [...ids], mentionAll };
+}
+
+export function conversationType(room: string, account: string): string {
+  if (/^R:\d+$/.test(room)) return "group";
+  const direct = /^S:(\d+)_(\d+)$/.exec(room);
+  if (direct && direct.slice(1).includes(account)) return "direct";
+  return "unknown";
+}
 export function extractText(data: Buffer): string {
   if (data[0] === 60) {
     const xml = data.toString();
@@ -77,8 +176,8 @@ export function extractText(data: Buffer): string {
       score = value;
     }
   };
-  const walk = (body: Buffer, depth: number) => {
-    if (depth > 3 || body.length < 2) return;
+  const fields = (body: Buffer): Buffer[] | undefined => {
+    const result: Buffer[] = [];
     let offset = 0;
     try {
       while (offset < body.length) {
@@ -99,18 +198,33 @@ export function extractText(data: Buffer): string {
             let length: bigint;
             [length, offset] = varint(body, offset);
             if (length > BigInt(body.length - offset)) return;
-            const payload = body.subarray(offset, offset + Number(length));
+            result.push(body.subarray(offset, offset + Number(length)));
             offset += Number(length);
-            if (isUtf8(payload) && printable(payload.toString()))
-              consider(payload.toString());
-            else walk(payload, depth + 1);
             break;
           }
           default:
             return;
         }
+        if (offset > body.length) return;
       }
-    } catch {}
+      return result;
+    } catch {
+      return;
+    }
+  };
+  const walk = (body: Buffer, depth: number): boolean => {
+    if (depth > 3 || body.length < 2) return false;
+    const children = fields(body);
+    if (!children?.length) return false;
+    for (const payload of children) {
+      if (
+        !walk(payload, depth + 1) &&
+        isUtf8(payload) &&
+        printable(payload.toString())
+      )
+        consider(payload.toString());
+    }
+    return true;
   };
   walk(data, 0);
   if (best) return best;

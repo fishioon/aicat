@@ -40,8 +40,7 @@ type Config struct {
 type Extension struct {
 	// Enabled is off by default except for the traffic extension.
 	Enabled bool           `yaml:"enabled"`
-	Agent   MessageAgent   `yaml:"agent,omitempty"`
-	Local   *LocalMessages `yaml:"local,omitempty"`
+	Values  map[string]any `yaml:",inline"`
 }
 
 // ExtensionEnabled reports whether the extension of this ID is turned on.

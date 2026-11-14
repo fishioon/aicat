@@ -28,9 +28,8 @@ watch(
 async function saveAgent() {
   if (
     await run(() =>
-      host.configureMessageAgent(id.value, {
-        enabled: agentEnabled.value,
-        binary: agentBinary.value,
+      host.updateExtensionConfig(id.value, {
+        agent: { enabled: agentEnabled.value, binary: agentBinary.value },
       }),
     )
   )
@@ -63,7 +62,7 @@ async function save() {
     <p>
       {{
         t(
-          "在企业微信创建使用长连接的智能机器人，将 Bot ID 和 Secret 填入下方。保存并通过鉴权验证后，回到扩展详情启用。",
+          "在企业微信创建使用长连接的智能机器人，将 Bot ID 和 Secret 填入下方。保存并通过鉴权验证后，在本页启用扩展。",
         )
       }}
     </p>
@@ -87,7 +86,7 @@ async function save() {
         autocomplete="new-password"
         :placeholder="channel?.configured ? t('留空保留已保存的 Secret') : ''"
       />
-      <div class="acts">
+      <div class="acts wide">
         <button
           id="wecom-save"
           class="btn"
@@ -102,7 +101,7 @@ async function save() {
     </p>
     <h2>Codex</h2>
     <form class="form" id="wecom-agent-form" @submit.prevent="saveAgent">
-      <label
+      <label class="wide"
         ><input
           id="wecom-agent-enabled"
           type="checkbox"
@@ -111,7 +110,7 @@ async function save() {
         />
         {{ t("自动处理私聊消息") }}</label
       >
-      <p>
+      <p class="wide">
         {{
           t(
             "开启后，新收到的私聊文本交给 Codex。执行中的新消息会补充当前任务，回复自动发送到此会话。修改前请先停用扩展。",
@@ -126,7 +125,7 @@ async function save() {
         :disabled="enabled || busy"
         :placeholder="t('留空自动查找已安装的 Codex')"
       />
-      <div class="acts">
+      <div class="acts wide">
         <button id="wecom-agent-save" class="btn" :disabled="enabled || busy">
           {{ t("保存 Codex 配置") }}
         </button>

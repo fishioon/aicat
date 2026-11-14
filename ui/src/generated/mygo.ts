@@ -121,6 +121,9 @@ export interface ExtensionState {
   installed: boolean;
   builtin: boolean;
   ready: boolean;
+  installedVersion: string;
+  updateAvailable: boolean;
+  packagePresent: boolean;
 }
 
 /** Group sums the calls sharing a key: a model, a provider ID or an agent. */
@@ -161,10 +164,20 @@ export interface Input {
 export interface LocalMessages {
   accountId: string;
   dataDir: string;
-  keyFile: string;
+  replyRooms?: Record<string, string>;
+  triggers?: Record<string, LocalTrigger>;
+}
+
+export interface LocalTrigger {
+  direct: boolean;
+  mention: boolean;
+  mentionAll: boolean;
+  keywords?: string[];
+  all: boolean;
 }
 
 export interface Message {
+  search_name?: string;
   local_id?: string;
   server_id?: string;
   sequence?: string;
@@ -172,6 +185,9 @@ export interface Message {
   flag?: number;
   outgoing?: boolean;
   room_type?: string;
+  mention_ids?: string[];
+  mention_all?: boolean;
+  mention_status?: string;
   sender_kind?: string;
   media_status?: string;
   raw_content?: string;
@@ -252,9 +268,10 @@ export interface ModelList {
 }
 
 export interface PlatformResult {
-  messageId: string;
+  messageId?: string;
   chatId: string;
   channel: string;
+  confirmation?: string;
 }
 
 /** Preferences is the app-wide presentation state in the sole aicat.yaml config. */
@@ -366,6 +383,7 @@ export interface Task {
   error?: string;
   createdAt: string;
   trigger: Message;
+  triggerReason?: string;
 }
 
 export interface Text {
@@ -414,9 +432,6 @@ export const Desktop = {
   clearTraffic(): Promise<void> {
     return call("Desktop.ClearTraffic");
   },
-  configureMessageAgent(id: string, settings: MessageAgent): Promise<void> {
-    return call("Desktop.ConfigureMessageAgent", id, settings);
-  },
   configureMessageChannel(id: string, account: AccountConfig): Promise<void> {
     return call("Desktop.ConfigureMessageChannel", id, account);
   },
@@ -453,6 +468,9 @@ export const Desktop = {
   },
   openMessageLogs(id: string): Promise<void> {
     return call("Desktop.OpenMessageLogs", id);
+  },
+  readExtensionConfig(id: string): Promise<Record<string, unknown>> {
+    return call("Desktop.ReadExtensionConfig", id);
   },
   recheckCertificate(): Promise<void> {
     return call("Desktop.RecheckCertificate");
@@ -523,6 +541,15 @@ export const Desktop = {
    */
   syncProviderModels(id: string): Promise<void> {
     return call("Desktop.SyncProviderModels", id);
+  },
+  uninstallExtension(id: string): Promise<void> {
+    return call("Desktop.UninstallExtension", id);
+  },
+  updateExtension(id: string): Promise<void> {
+    return call("Desktop.UpdateExtension", id);
+  },
+  updateExtensionConfig(id: string, patch: Record<string, unknown>): Promise<void> {
+    return call("Desktop.UpdateExtensionConfig", id, patch);
   },
   /** Usage sums the model calls of a period: "today", "7d" or "30d". */
   usage(period: string): Promise<Report> {

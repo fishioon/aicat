@@ -17,7 +17,12 @@ var ErrTurnEnded = errors.New("Codex turn 已结束")
 
 var ErrUnknown = errors.New("Codex 任务结果不明")
 
-type Send func(context.Context, json.RawMessage) (any, error)
+type ToolCall struct {
+	ID        string
+	Arguments json.RawMessage
+}
+
+type Send func(context.Context, ToolCall) (any, error)
 
 type Runner struct {
 	mu       sync.Mutex
@@ -150,6 +155,19 @@ func (r *Runner) Thread(ctx context.Context, binary, workspace, threadID string,
 	return response.Thread.ID, nil
 }
 
+func (r *Runner) UpdateInstructions(ctx context.Context, threadID, instructions string) error {
+	r.mu.Lock()
+	client := r.client
+	r.mu.Unlock()
+	if client == nil || client.isDone() {
+		return errors.New("Codex 连接已关闭")
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	_, err := client.request(callCtx, "thread/inject_items", map[string]any{"threadId": threadID, "items": []any{map[string]any{"type": "message", "role": "developer", "content": []any{map[string]string{"type": "input_text", "text": instructions}}}}})
+	return err
+}
+
 func (r *Runner) Turn(ctx context.Context, threadID, taskID, prompt string, send Send, output func(context.Context, string, string) error, started chan<- struct{}, toolName string) error {
 	r.mu.Lock()
 	client := r.client
@@ -210,7 +228,7 @@ func (r *Runner) Turn(ctx context.Context, threadID, taskID, prompt string, send
 					_ = client.rejectServerRequest(event)
 					continue
 				}
-				value, toolErr := send(ctx, p.Arguments)
+				value, toolErr := send(ctx, ToolCall{ID: string(event.ID), Arguments: p.Arguments})
 				if toolErr != nil {
 					value = map[string]string{"error": toolErr.Error()}
 				}

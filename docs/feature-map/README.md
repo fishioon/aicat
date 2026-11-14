@@ -2,7 +2,7 @@
 
 这份地图说明当前 aicat 有哪些用户可用能力、从哪里进入、如何操作，以及什么可观察结果能证明功能正常。先读索引，再按对应功能文件验证。
 
-aicat 的产品方向是用户节点上的常驻 Agent Gateway：用户主要在自己的 Agent 中交互，桌面负责接入、配置、授权与诊断。当前已经交付的是 HTTP/HTTPS 代理、流量检查和供 Agent 使用的 API/MCP。地图以当前实现为准，产品目标见 [CONTEXT.md](../../CONTEXT.md)。
+aicat 的产品方向是用户节点上的常驻 Agent Gateway：用户主要在自己的 Agent 中交互，桌面负责接入、配置、授权与诊断。当前已交付 HTTP/HTTPS 代理、流量检查、供应商接入、Codex、企业微信客户端与 BOT 扩展，以及供 Agent 使用的 API/MCP。地图以当前实现为准，产品目标见 [CONTEXT.md](../../CONTEXT.md)。
 
 ## 功能索引
 
@@ -16,7 +16,7 @@ aicat 的产品方向是用户节点上的常驻 Agent Gateway：用户主要在
 | [检查与导出请求](traffic-inspect.md) | 阅读请求/响应，复制 URL、cURL 或正文，导出结果 | 请求行、右键菜单、详情、标题栏 |
 | [供应商接入](providers.md) | 让 aicat 保管供应商密钥并同步模型列表，Agent 经 aicat 调用模型 | 主页 → 接入供应商；同一监听地址的 `/v1/messages`、`/v1/chat/completions`、`/v1/responses`、`/v1/models` |
 | [Codex 扩展](codex.md) | 在 Codex 的模型列表中使用供应商的模型，保留 ChatGPT 登录 | 扩展 → 已安装 → Codex；解密 `chatgpt.com` 或 `openai_base_url` 指向 `/backend-api/codex` |
-| [企业微信客户端](wecom-local.md) | 从客户端本地数据库增量读取消息到 Room，只读原型 | 扩展 → 已安装 → 企业微信客户端 |
+| [企业微信客户端](wecom-local.md) | 本地消息增量进入 Room，Agent 通过 MCP 请求客户端脚本发送文本 | 扩展 → 已安装 → 企业微信客户端 |
 | [企业微信 BOT](wecom.md) | 配置机器人、接收私聊文本并通过界面或 MCP 显式发送 | 扩展 → 推荐 → 企业微信 BOT → 安装 → 配置验证 → 启用 |
 | [Agent 查询接口](agent-access.md) | 通过 HTTP 或 MCP 查询实际经过网关的请求 | 同一监听地址的 `/api/*` 与 `/mcp` |
 
@@ -62,10 +62,14 @@ npm --prefix e2e ci
 | Codex 扩展、模型同步与两个入口 | `node e2e/codex.cjs bin/aicat-e2e build/feature-map-codex-<run>` |
 | 供应商密钥与转发 | `node e2e/provider.cjs bin/aicat-e2e build/feature-map-provider-<run>` |
 | 企业微信客户端读取与恢复 | `python3 e2e/wecom-local.py` |
+| 企业微信客户端自动触发 | `python3 e2e/wecom-local-agent.py` |
+| 企业微信客户端 MCP 发送 | `python3 e2e/wecom-local-send.py` |
+| 扩展包安装、更新、卸载与配置读写 | `node e2e/extension-lifecycle.cjs bin/aicat-e2e build/extension-lifecycle-<run>` |
+| 扩展内配置、诊断与导航历史 | `node e2e/settings-navigation.cjs bin/aicat-e2e build/settings-navigation-<run>` |
 | 企业微信 BOT 配置、收发与恢复 | `node e2e/wecom.cjs bin/aicat-e2e` |
 | 整组桌面验收 | `python3 e2e/prototype.py --only desktop --output build/feature-map-desktop-<run>` |
 
-`<run>` 换成本次运行的唯一名称。日常只验证受影响的流程；整组桌面包含设计稿比较，不应用它代替每个小流程的定向验证。`traffic-default.cjs` 与 `tunnel.cjs` 是无头浏览器与后台应用的独立入口；桌面脚本对 `traffic-default` 保留兼容转发，对旧 `tunnel` 参数在启动应用前退出并提示新命令。`desktop.cjs` 的独立原生场景有 `sidebar`、`app-tree`、`list-selection` 与 `icons`，其余功能文件中的配方用于定向操作，不能给脚本传入不存在的场景名。需要新增自动场景时先提供独立入口。全套 `make e2e` 留到整轮开发结束统一验收。
+`<run>` 换成本次运行的唯一名称。日常只验证受影响的流程；整组桌面包含设计稿比较，不应用它代替每个小流程的定向验证。`traffic-default.cjs` 与 `tunnel.cjs` 是无头浏览器与后台应用的独立入口；桌面脚本对 `traffic-default` 保留兼容转发，对旧 `tunnel` 参数在启动应用前退出并提示新命令。`desktop.cjs` 的独立原生场景有 `sidebar`、`app-tree`、`list-selection` 与 `icons`，其余功能文件中的配方用于定向操作，不能给脚本传入不存在的场景名。需要新增自动场景时先提供独立入口。全套 `make e2e` 留到整轮开发结束统一验收，默认仅运行后台场景并汇总报告，不包含原生窗口、真实授权和真实消息送达。
 
 ## 驱动约定
 

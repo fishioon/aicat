@@ -16,7 +16,7 @@ defineProps<{ tab: "detail" | "features" }>();
     <p>
       {{
         t(
-          "先安装官方插件，再点击“配置”填写 Bot ID 和 Secret；鉴权验证通过后，启用扩展。可单独选择 Codex 自动处理。",
+          "安装官方插件后，在此页填写 Bot ID 和 Secret；鉴权验证通过后，启用扩展。可单独选择 Codex 自动处理。",
         )
       }}
     </p>

@@ -4,6 +4,13 @@ import { host } from "../../host";
 import { run, state } from "../../state/desktop";
 import { t } from "../../i18n";
 const channel = computed(() => state.value?.messageChannels["wecom-local"]);
+const reasons: Record<string, string> = {
+  direct: "私聊新文本",
+  mention: "群聊 @ 当前账号",
+  mention_all: "群聊 @所有人",
+  keyword: "命中关键词",
+  all: "所有新文本（测试）",
+};
 </script>
 <template>
   <div id="wecom-local-diagnostics">
@@ -34,5 +41,18 @@ const channel = computed(() => state.value?.messageChannels["wecom-local"]);
       </tbody>
     </table>
     <p v-else>{{ t("尚无消息。") }}</p>
+    <table class="feat" id="wecom-local-tasks" v-if="channel?.tasks.length">
+      <tbody>
+        <tr v-for="task in [...channel.tasks].reverse()" :key="task.id">
+          <th scope="row">{{ task.room }}</th>
+          <td>
+            {{ task.status }}<span v-if="task.error"> · {{ task.error }}</span>
+            <span v-if="task.triggerReason" class="tag">{{
+              t(reasons[task.triggerReason] ?? task.triggerReason)
+            }}</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </template>
