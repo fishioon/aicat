@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/fishioon/aicat/internal/channelhost"
+	"github.com/fishioon/aicat/internal/channelplugin"
 	"github.com/fishioon/aicat/internal/messages"
 	"github.com/fishioon/aicat/internal/provider"
 	"github.com/fishioon/aicat/internal/traffic"
@@ -18,10 +19,17 @@ import (
 // Extension is a built-in extension as it is registered: what the extensions
 // page shows of it, what it needs, and how it is built.
 type Extension struct {
+	AutomaticSetup  bool                  `json:"automaticSetup"`
+	SendTargetLabel string                `json:"sendTargetLabel,omitempty"`
+	CanSend         bool                  `json:"canSend"`
+	PackageSource   string                `json:"packageSource,omitempty"`
+	PackageFormat   string                `json:"packageFormat,omitempty"`
+	ConfigFields    []channelplugin.Field `json:"configFields"`
 	// ID names its section in aicat.yaml (extensions.<ID>). A built-in's ID
 	// has no dot; a community package's is publisher.name.
 	ID        string `json:"id"`
 	Package   string `json:"package"`
+	Registry  string `json:"registry"`
 	Version   string `json:"version"`
 	Publisher string `json:"publisher"`
 	// Name, Summary, Lede and Categories are shown on the extensions page,
@@ -57,6 +65,8 @@ type Env struct {
 
 // Parts is what an extension adds to aicat. Every part is optional.
 type Parts struct {
+	Prepare       func(context.Context) error
+	ReadData      func(context.Context, map[string]any) (map[string]any, error)
 	Configuration Configuration
 	Messages      MessageChannel
 	// Addon runs in the gateway, before traffic capture.

@@ -14,7 +14,7 @@ Agent 从同一代理监听地址读取真实流量记录，通过 HTTP 获取�
 - 从设置 → 代理读取监听地址；默认 HTTP 基地址为 `http://127.0.0.1:9981`。
 - HTTP：`GET /api/traffic`、`GET /api/traffic/{id}`、`GET /api/bodies/{id}`。
 - Agent 的 MCP 客户端配置 Streamable HTTP 地址 `<基地址>/mcp`，Authorization 为当前 Home 的 `mcp-token` 对应的 Bearer。
-- MCP 查询工具为 `traffic_list`、`traffic_get`、`traffic_body`；`messages_send` 经启用的[企业微信 BOT](wecom.md)发送私聊文本。
+- MCP 查询工具为 `traffic_list`、`traffic_get`、`traffic_body`；`rooms_reply` 保存正式Room回复，`messages_send` 经已启用且Room授权的渠道外发。
 
 ## Driving it with HTTP and MCP
 
@@ -24,7 +24,7 @@ Preconditions:
 
 - **HTTP 列表。** `GET /api/traffic?limit=2` 返回摘要列表；发出超过两条请求后，使用结果的 `nextPage` 作为下一次 `before`，核对无重复和遗漏。组合 `host`、`method`、`state`、`q` 检查本次 fixture，清楚区分零结果与访问失败。
 - **HTTP 详情/body。** 从返回记录取实际 ID 请求 `/api/traffic/{id}`，检查四个位置 `requestReceived`、`requestSent`、`responseReceived`、`responseSent`。从消息 body 引用取真实 body ID 请求 `/api/bodies/{id}`，核对原始字节及 `X-Aicat-Body-State`，同时保留请求和响应证明。
-- **MCP 连接。** 调用 `rpc('initialize', {'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'feature-map','version':'1'}})`，再调用 `rpc('tools/list')`；工具列表包含 traffic_list、traffic_get、traffic_body、messages_send；脚本工具和 SDK 资源不可用。
+- **MCP 连接。** 调用 `rpc('initialize', {'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'feature-map','version':'1'}})`，再调用 `rpc('tools/list')`；工具列表包含 traffic_list、traffic_get、traffic_body、rooms_reply、messages_send；脚本工具和 SDK 资源不可用。
 - **MCP 流量。** `tool('traffic_list', {'limit': 2})`，取实际 ID 再 `tool('traffic_get', {'id': id})`；以实际 body ID 调用 `tool('traffic_body', {'id': body_id})`，base64 解码后与 HTTP body 比较，并检查 `info.state` 和 `returnedTruncated`。
 - **入口限制。** 同一 MCP 请求不带 token 应为 401；正确 token 加浏览器 Origin 应为 403。用真实代理请求访问本地上游的同名 `/api/traffic` 或 `/mcp` 路径，应到达上游，不应被 aicat 控制服务截获。完整参数错误与访问边界可通过 `--only mcp` 重复验证。
 - **采集独立性。** 先采集记录，再从桌面关闭流量功能；HTTP/MCP 仍能读取保留记录，新代理请求继续转发但不产生新记录。

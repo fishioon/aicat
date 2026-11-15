@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +19,7 @@ var ErrTurnEnded = errors.New("Codex turn 已结束")
 var ErrUnknown = errors.New("Codex 任务结果不明")
 
 type ToolCall struct {
+	Name      string
 	ID        string
 	Arguments json.RawMessage
 }
@@ -108,6 +110,8 @@ func (r *Runner) route(client *codexClient) {
 type ThreadOptions struct {
 	Instructions string
 	Tools        []any
+	Ephemeral    bool
+	Model        string
 }
 
 func (r *Runner) Thread(ctx context.Context, binary, workspace, threadID string, options ThreadOptions) (string, error) {
@@ -122,10 +126,13 @@ func (r *Runner) Thread(ctx context.Context, binary, workspace, threadID string,
 		return threadID, nil
 	}
 	params := map[string]any{"cwd": workspace, "approvalPolicy": "never", "permissions": "aicat-room", "runtimeWorkspaceRoots": []string{workspace}, "developerInstructions": options.Instructions}
+	if options.Model != "" {
+		params["model"] = options.Model
+	}
 	method := "thread/start"
 	if threadID == "" {
 		params["dynamicTools"] = options.Tools
-		params["ephemeral"] = false
+		params["ephemeral"] = options.Ephemeral
 		params["serviceName"] = "aicat_messages"
 	} else {
 		method = "thread/resume"
@@ -139,12 +146,16 @@ func (r *Runner) Thread(ctx context.Context, binary, workspace, threadID string,
 		return "", err
 	}
 	var response struct {
+		Model  string `json:"model"`
 		Thread struct {
 			ID string `json:"id"`
 		} `json:"thread"`
 	}
 	if json.Unmarshal(result, &response) != nil || response.Thread.ID == "" {
 		return "", errors.New("Codex 未返回 thread.id")
+	}
+	if options.Model != "" && response.Model != "" && response.Model != options.Model {
+		return "", fmt.Errorf("Codex 返回的模型 %s 与 Room 选择的 %s 不一致", response.Model, options.Model)
 	}
 	if threadID != "" && threadID != response.Thread.ID {
 		return "", errors.New("Codex 恢复了不同的会话")
@@ -153,6 +164,20 @@ func (r *Runner) Thread(ctx context.Context, binary, workspace, threadID string,
 	r.loaded[response.Thread.ID] = true
 	r.mu.Unlock()
 	return response.Thread.ID, nil
+}
+
+func (r *Runner) Unsubscribe(ctx context.Context, threadID string) error {
+	r.mu.Lock()
+	client := r.client
+	delete(r.loaded, threadID)
+	r.mu.Unlock()
+	if client == nil || client.isDone() {
+		return nil
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	_, err := client.request(callCtx, "thread/unsubscribe", map[string]string{"threadId": threadID})
+	return err
 }
 
 func (r *Runner) UpdateInstructions(ctx context.Context, threadID, instructions string) error {
@@ -169,6 +194,10 @@ func (r *Runner) UpdateInstructions(ctx context.Context, threadID, instructions 
 }
 
 func (r *Runner) Turn(ctx context.Context, threadID, taskID, prompt string, send Send, output func(context.Context, string, string) error, started chan<- struct{}, toolName string) error {
+	return r.TurnWithModel(ctx, threadID, taskID, prompt, "", send, output, started, toolName)
+}
+
+func (r *Runner) TurnWithModel(ctx context.Context, threadID, taskID, prompt, model string, send Send, output func(context.Context, string, string) error, started chan<- struct{}, toolName string) error {
 	r.mu.Lock()
 	client := r.client
 	if client == nil || client.isDone() || r.closed {
@@ -185,7 +214,11 @@ func (r *Runner) Turn(ctx context.Context, threadID, taskID, prompt string, send
 	r.mu.Unlock()
 	defer func() { r.mu.Lock(); delete(r.sessions, threadID); r.mu.Unlock() }()
 	callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	result, err := client.request(callCtx, "turn/start", map[string]any{"threadId": threadID, "clientUserMessageId": taskID, "approvalPolicy": "never", "input": []any{map[string]any{"type": "text", "text": prompt}}})
+	params := map[string]any{"threadId": threadID, "clientUserMessageId": taskID, "approvalPolicy": "never", "input": []any{map[string]any{"type": "text", "text": prompt}}}
+	if model != "" {
+		params["model"] = model
+	}
+	result, err := client.request(callCtx, "turn/start", params)
 	cancel()
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrUnknown, err)
@@ -216,6 +249,18 @@ func (r *Runner) Turn(ctx context.Context, threadID, taskID, prompt string, send
 		case <-client.done:
 			return fmt.Errorf("%w: 进程退出", ErrUnknown)
 		case event := <-events:
+			if event.Method == "model/rerouted" && model != "" {
+				var changed struct {
+					TurnID  string `json:"turnId"`
+					ToModel string `json:"toModel"`
+				}
+				if json.Unmarshal(event.Params, &changed) == nil && changed.TurnID == turnID && changed.ToModel != model {
+					interruptCtx, stop := context.WithTimeout(context.Background(), 3*time.Second)
+					_, _ = client.request(interruptCtx, "turn/interrupt", map[string]string{"threadId": threadID, "turnId": turnID})
+					stop()
+					return fmt.Errorf("Codex 将 Room 模型更改为 %s，本次处理已停止", changed.ToModel)
+				}
+			}
 			if len(event.ID) > 0 {
 				var p struct {
 					ThreadID  string          `json:"threadId"`
@@ -224,11 +269,11 @@ func (r *Runner) Turn(ctx context.Context, threadID, taskID, prompt string, send
 					Arguments json.RawMessage `json:"arguments"`
 				}
 				_ = json.Unmarshal(event.Params, &p)
-				if event.Method != "item/tool/call" || p.Tool != toolName || p.ThreadID != threadID || p.TurnID != turnID {
+				if event.Method != "item/tool/call" || !slices.Contains(strings.Split(toolName, ","), p.Tool) || p.ThreadID != threadID || p.TurnID != turnID {
 					_ = client.rejectServerRequest(event)
 					continue
 				}
-				value, toolErr := send(ctx, ToolCall{ID: string(event.ID), Arguments: p.Arguments})
+				value, toolErr := send(ctx, ToolCall{Name: p.Tool, ID: string(event.ID), Arguments: p.Arguments})
 				if toolErr != nil {
 					value = map[string]string{"error": toolErr.Error()}
 				}

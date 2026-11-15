@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/fishioon/aicat/internal/channelconfig"
 	"github.com/fishioon/aicat/internal/channelhost"
 	"github.com/fishioon/aicat/internal/channelplugin"
 )
@@ -26,10 +26,15 @@ type Channel struct {
 	dispatcher         *Dispatcher
 	rooms              *roomStore
 	failures           chan channelFailure
+	inbox              *Inbox
+	mcp                MCPSender
+	manifest           *channelplugin.Manifest
+	observations       chan any
 }
 
 func New(home, id, endpoint string, host *channelhost.Manager) *Channel {
-	return &Channel{home: home, id: id, endpoint: endpoint, host: host, rooms: newRoomStore(home, id), state: State{Phase: "stopped", Records: []Record{}, RoomDir: filepath.Join(home, "rooms")}}
+	rooms := newRoomStore(home, id)
+	return &Channel{home: home, id: id, endpoint: endpoint, host: host, rooms: rooms, inbox: &Inbox{rooms: rooms}, observations: make(chan any, 128), state: State{Phase: "stopped", Records: []Record{}, RoomDir: filepath.Join(home, "rooms")}}
 }
 
 func (c *Channel) OnChange(fn func()) { c.mu.Lock(); c.onChange = fn; c.mu.Unlock() }
@@ -45,6 +50,9 @@ func (c *Channel) credentialPath() string { return filepath.Join(c.home, "creden
 func (c *Channel) credentials() (AccountConfig, error) {
 	var config AccountConfig
 	b, err := os.ReadFile(c.credentialPath())
+	if os.IsNotExist(err) && c.nativePackage() {
+		return AccountConfig{AccountID: "local"}, nil
+	}
 	if err == nil {
 		err = json.Unmarshal(b, &config)
 	}
@@ -61,9 +69,12 @@ func (c *Channel) Snapshot() State {
 		s.AccountID = account.AccountID
 		s.Configured = account.AccountID != "" && account.Secret != ""
 	}
-	cfg, configErr := channelconfig.Load(c.home, c.id)
-	if configErr == nil {
-		s.Agent = cfg.Agent
+	if c.nativePackage() {
+		_, e := c.nativeConfiguration()
+		s.Configured = e == nil
+		if account := c.selfID(); account != "" {
+			s.AccountID = account
+		}
 	}
 	s.Validated = c.Validated()
 	s.Tasks = c.rooms.tasks.list(c.source(s.AccountID))
@@ -71,6 +82,9 @@ func (c *Channel) Snapshot() State {
 }
 
 func (c *Channel) Configure(account AccountConfig) error {
+	if c.nativePackage() {
+		return c.configureNative(account.Values)
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.account != nil || c.state.Phase == "connecting" {
@@ -106,6 +120,12 @@ type channelFailure struct {
 }
 
 func (c *Channel) status(phase, err string) {
+	if err != "" {
+		slog.Error("message channel status", "channel", c.id, "phase", phase)
+	} else {
+		slog.Info("message channel status", "channel", c.id, "phase", phase)
+	}
+
 	c.mu.Lock()
 	if phase == "failed" || phase == "blocked" {
 		select {
@@ -125,12 +145,26 @@ func (c *Channel) status(phase, err string) {
 }
 
 func (c *Channel) Run(ctx context.Context) {
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
 	dispatcher := newDispatcher(ctx, c)
 	c.mu.Lock()
 	c.dispatcher = dispatcher
 	c.failures = make(chan channelFailure, 1)
 	c.mu.Unlock()
-	defer func() { dispatcher.Close(); c.mu.Lock(); c.dispatcher = nil; c.failures = nil; c.mu.Unlock() }()
+	defer func() {
+		stop()
+		dispatcher.Close()
+		c.mu.Lock()
+		c.dispatcher = nil
+		c.failures = nil
+		c.mu.Unlock()
+	}()
+	if c.nativePackage() {
+		done := make(chan struct{})
+		go func() { defer close(done); c.observeLoop(ctx) }()
+		defer func() { stop(); <-done }()
+	}
 	go dispatcher.Run()
 
 	defer func() {
@@ -143,7 +177,7 @@ func (c *Channel) Run(ctx context.Context) {
 	}()
 	for attempt := 0; ctx.Err() == nil; attempt++ {
 		credentials, err := c.credentials()
-		if err != nil || credentials.AccountID == "" || credentials.Secret == "" {
+		if err != nil || credentials.AccountID == "" || (credentials.Secret == "" && !c.nativePackage()) {
 			c.status("unconfigured", "请填写 Bot ID 和 Secret")
 			<-ctx.Done()
 			return
@@ -154,8 +188,21 @@ func (c *Channel) Run(ctx context.Context) {
 		default:
 		}
 		c.status("connecting", "")
+		configuration := map[string]any{}
+		if c.nativePackage() {
+			configuration, err = c.nativeConfiguration()
+			if err != nil {
+				c.status("unconfigured", err.Error())
+				return
+			}
+		}
+		nativeContext, err := c.nativeContext()
+		if err != nil {
+			c.status("error", err.Error())
+			return
+		}
 		openCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		a, err := c.host.Open(openCtx, channelhost.Binding{AccountID: c.id, Session: newID(), BotID: credentials.AccountID, Secret: credentials.Secret, Source: source, Endpoint: c.endpoint},
+		a, err := c.host.Open(openCtx, channelhost.Binding{NativeContext: nativeContext, Configuration: configuration, AccountID: c.id, Session: newID(), BotID: credentials.AccountID, Secret: credentials.Secret, Source: source, Endpoint: c.endpoint},
 			func(raw json.RawMessage) (any, error) { return c.receive(source, raw) }, c.status)
 		cancel()
 		if err == nil {
@@ -196,42 +243,75 @@ func (c *Channel) Run(ctx context.Context) {
 }
 
 func (c *Channel) source(identity string) string {
+	if c.nativePackage() {
+		return c.nativeSource()
+	}
 	return "aicat-channel://" + c.id + "/" + digest([]byte(identity))
 }
 
 func (c *Channel) receive(source string, raw json.RawMessage) (any, error) {
 	var event Event
-	if len(raw) > 256<<10 || json.Unmarshal(raw, &event) != nil || event.SpecVersion != "1.0" || event.ContentType != "application/json" || event.Type != Received ||
-		event.Source != source || event.ID == "" || event.Data.RoomID == "" || event.Data.ID == "" {
+	if len(raw) > 256<<10 || json.Unmarshal(raw, &event) != nil || event.Source != source {
 		return nil, errors.New("无效渠道消息")
 	}
-	record, err := c.appendRecord(source, "", event, "")
+	record, err := c.Receive(context.Background(), event)
 	if err != nil {
 		c.mu.Lock()
-		c.state.Error = "Room 日志保存失败，等待重试"
+		c.state.Error = "Room 消息保存失败，等待重试"
 		c.mu.Unlock()
 		c.changed()
 		return nil, err
 	}
 	c.mu.Lock()
-	dispatcher := c.dispatcher
-	c.mu.Unlock()
-	if dispatcher != nil {
-		if err := dispatcher.Enqueue(source, record); err != nil {
-			c.mu.Lock()
-			c.state.Error = "Agent 任务保存失败，等待重试"
-			c.mu.Unlock()
-			c.changed()
-			return nil, err
-		}
-	}
-	c.mu.Lock()
-	if c.state.Error == "Room 日志保存失败，等待重试" || c.state.Error == "Agent 任务保存失败，等待重试" {
+	recovered := c.state.Error == "Room 消息保存失败，等待重试"
+	if recovered {
 		c.state.Error = ""
 	}
 	c.mu.Unlock()
+	if recovered {
+		c.changed()
+	}
+	return map[string]string{"source": record.Event.Source, "id": record.Event.ID, "status": "accepted"}, nil
+}
+func (c *Channel) Receive(ctx context.Context, event Event) (Record, error) {
+	if err := ctx.Err(); err != nil {
+		return Record{}, err
+	}
+	credentials, err := c.credentials()
+	if err != nil {
+		return Record{}, err
+	}
+	source := c.source(credentials.AccountID)
+	raw, err := json.Marshal(event)
+	if err != nil {
+		return Record{}, err
+	}
+	c.mu.Lock()
+	d := c.dispatcher
+	c.mu.Unlock()
+	record, err := c.inbox.ReceiveAndDispatch(source, raw, d)
+	if err != nil {
+		return Record{}, err
+	}
+	c.mu.Lock()
+	c.state.Records = append(c.state.Records, record)
+	if len(c.state.Records) > 50 {
+		c.state.Records = c.state.Records[len(c.state.Records)-50:]
+	}
+	c.mu.Unlock()
 	c.changed()
-	return map[string]string{"source": event.Source, "id": event.ID, "status": "accepted"}, nil
+	return record, nil
+}
+func (c *Channel) ReadRoom(ctx context.Context, room string) (map[string]any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	credentials, err := c.credentials()
+	if err != nil {
+		return nil, err
+	}
+	source := c.source(credentials.AccountID)
+	return c.inbox.Room(source, room)
 }
 
 func (c *Channel) appendRecord(identity, botID string, event Event, status string) (Record, error) {
@@ -264,6 +344,10 @@ func (c *Channel) validationKey() string {
 	return digest(append(raw, []byte("\x00"+installed.Version+"\x00"+c.endpoint)...))
 }
 func (c *Channel) Validated() bool {
+	if c.nativePackage() {
+		_, err := c.nativeConfiguration()
+		return err == nil
+	}
 	if !c.Installed() {
 		return false
 	}
@@ -271,6 +355,10 @@ func (c *Channel) Validated() bool {
 	return err == nil && string(raw) == c.validationKey()
 }
 func (c *Channel) Validate(ctx context.Context) error {
+	if c.nativePackage() {
+		_, err := c.nativeConfiguration()
+		return err
+	}
 	account, err := c.credentials()
 	if err != nil {
 		return err
@@ -291,3 +379,5 @@ func (c *Channel) Validate(ctx context.Context) error {
 	c.mu.Unlock()
 	return nil
 }
+
+func (c *Channel) SetMCPSender(send MCPSender) { c.mcp = send }

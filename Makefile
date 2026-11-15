@@ -29,7 +29,7 @@ frontend-e2e: ui/node_modules/.aicat-install bindings
 	npm --prefix ui run check
 	npm --prefix ui run build:e2e
 
-bin/channel-host/.ready: $(wildcard runtime/channel-host/wecom-local/*.ts) $(wildcard runtime/channel-host/wecom-local/*.applescript) $(wildcard runtime/channel-host/sqlite3mc/*) runtime/channel-host/host.mjs runtime/channel-host/validate.mjs runtime/channel-host/prepare.mjs runtime/channel-host/shim/sdk.mjs runtime/channel-host/shim/text.mjs runtime/channel-host/shim/package.json
+bin/channel-host/.ready: $(wildcard runtime/channel-host/sqlite3mc/*) runtime/channel-host/host.mjs runtime/channel-host/native.mjs runtime/channel-host/validate.mjs runtime/channel-host/prepare.mjs runtime/channel-host/shim/sdk.mjs runtime/channel-host/shim/text.mjs runtime/channel-host/shim/package.json
 	node runtime/channel-host/prepare.mjs
 
 build: tray-icons frontend bin/channel-host/.ready
@@ -76,16 +76,17 @@ frontend-check: ui/node_modules/.aicat-install bindings channel-check
 	node --check e2e/tunnel.cjs
 	node --check e2e/codex.cjs
 	node --check e2e/design-shots.cjs
+	node --check e2e/titlebar-navigation.cjs
+	node --check e2e/rooms.cjs
+	node --check e2e/messages.cjs
 	node --check e2e/wecom.cjs
 	node --check e2e/wecom-live.cjs
-	node --check e2e/wecom-local-ui.cjs
-	python3 -m py_compile e2e/wecom-local.py e2e/wecom-local-live.py e2e/wecom-local-send.py e2e/wecom-local-send-live.py e2e/wecom-local-agent.py e2e/wecom-local-agent-live.py
 	node --check e2e/channel-install-failure.cjs
 	node --check e2e/extension-lifecycle.cjs
 	node --check e2e/settings-navigation.cjs
 	node --check e2e/extension-categories.cjs
 	node --check e2e/extension-icons.cjs
-	python3 -m py_compile e2e/prototype.py e2e/wecom-local-triggers.py runtime/channel-host/sqlite3mc/build.py
+	python3 -m py_compile e2e/prototype.py runtime/channel-host/sqlite3mc/build.py
 
 verify: frontend-check fmt-check vet build cli app
 	$(GO) test ./...
@@ -98,6 +99,7 @@ e2e-build: frontend-e2e bin/channel-host/.ready
 	$(GO) build -race -tags e2e -trimpath -ldflags "$(DESKTOP_LDFLAGS)" -o bin/aicat-e2e ./cmd/aicat
 	$(GO) build -race -tags nogui,e2e -trimpath -ldflags "$(LDFLAGS)" -o bin/aicat-cli-e2e ./cmd/aicat
 	$(GO) build -race -tags e2e -trimpath -ldflags "$(LDFLAGS)" -o bin/install-plugin-e2e ./e2e/install-plugin.go
+	$(GO) build -race -tags e2e -trimpath -o bin/websocket-e2e ./e2e/websocket.go
 
 e2e: e2e-build
 	python3 e2e/prototype.py --background --binary bin/aicat-e2e
@@ -108,9 +110,10 @@ design-shots:
 clean:
 	rm -rf bin .mygo ui/dist ui/dist-e2e
 
-runtime/channel-host/node_modules/.aicat-install: runtime/channel-host/package.json runtime/channel-host/package-lock.json
-	npm --prefix runtime/channel-host ci --ignore-scripts
-	@touch $@
-
-channel-check: runtime/channel-host/node_modules/.aicat-install
-	npm --prefix runtime/channel-host run check
+channel-check:
+	node --check runtime/channel-host/host.mjs
+	node --check runtime/channel-host/native.mjs
+	node --check runtime/channel-host/prepare.mjs
+	node --check runtime/channel-host/validate.mjs
+	node --check runtime/channel-host/shim/sdk.mjs
+	node --check runtime/channel-host/shim/text.mjs

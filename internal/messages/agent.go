@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,20 +12,22 @@ import (
 	"time"
 
 	"github.com/fishioon/aicat/internal/agent"
-	"github.com/fishioon/aicat/internal/channelconfig"
+	"github.com/fishioon/aicat/internal/config"
 )
 
 type Task struct {
-	ID            string  `json:"id"`
-	Account       string  `json:"account"`
-	Source        string  `json:"source"`
-	Room          string  `json:"room"`
-	Log           string  `json:"log"`
-	Status        string  `json:"status"`
-	Error         string  `json:"error,omitempty"`
-	CreatedAt     string  `json:"createdAt"`
-	Trigger       Message `json:"trigger"`
-	TriggerReason string  `json:"triggerReason,omitempty"`
+	Settings             config.RoomSettings `json:"settings"`
+	ConfigurationVersion string              `json:"configurationVersion"`
+	ID                   string              `json:"id"`
+	Account              string              `json:"account"`
+	Source               string              `json:"source"`
+	Room                 string              `json:"room"`
+	Log                  string              `json:"log"`
+	Status               string              `json:"status"`
+	Error                string              `json:"error,omitempty"`
+	CreatedAt            string              `json:"createdAt"`
+	Trigger              Message             `json:"trigger"`
+	TriggerReason        string              `json:"triggerReason,omitempty"`
 }
 
 type Dispatcher struct {
@@ -34,13 +36,10 @@ type Dispatcher struct {
 	id          string
 	notify      func()
 	isConnected func() bool
-	setError    func(string)
 	options     DispatcherOptions
 	runner      *agent.Runner
-	settings    channelconfig.MessageAgent
 	mu          sync.Mutex
 	active      map[string]chan struct{}
-	blocked     map[string]bool
 	wg          sync.WaitGroup
 	done        chan struct{}
 	wake        chan struct{}
@@ -48,15 +47,14 @@ type Dispatcher struct {
 }
 
 func newDispatcher(ctx context.Context, c *Channel) *Dispatcher {
-	cfg, _ := channelconfig.Load(c.home, c.id)
 	credentials, _ := c.credentials()
-	return dispatcherForRooms(ctx, c.rooms, DispatcherOptions{Source: c.source(credentials.AccountID), Settings: cfg.Agent, Connected: func() bool { c.mu.Lock(); defer c.mu.Unlock(); return c.account != nil && c.state.Phase == "connected" }, Changed: c.changed, Error: func(e string) { c.mu.Lock(); c.state.Error = e; c.mu.Unlock(); c.changed() }, Execute: c.runAgentTurn})
+	return dispatcherForRooms(ctx, c.rooms, DispatcherOptions{CanSend: c.CanSend, SelfID: c.selfID(), Source: c.source(credentials.AccountID), Connected: func() bool { c.mu.Lock(); defer c.mu.Unlock(); return c.account != nil && c.state.Phase == "connected" }, Changed: c.changed, Execute: MCPExecutor(MCPExecutorOptions{Channel: c.id, Send: c.mcp})})
 }
 
-func (d *Dispatcher) Enqueue(source string, record Record) error {
+func (d *Dispatcher) Enqueue(source string, record Record) {
 	message := record.Event.Data
-	if !d.settings.Enabled || message.Outgoing || (d.options.Accept != nil && !d.options.Accept(message)) || message.Type != "text" || strings.TrimSpace(message.Text.Content) == "" {
-		return nil
+	if message.Outgoing || message.Historical || (d.options.Accept != nil && !d.options.Accept(message)) || message.Type != "text" || strings.TrimSpace(message.Text.Content) == "" {
+		return
 	}
 	var timestamp time.Time
 	if message.Time != nil {
@@ -65,24 +63,31 @@ func (d *Dispatcher) Enqueue(source string, record Record) error {
 		var err error
 		timestamp, err = time.Parse(time.RFC3339Nano, record.Event.Time)
 		if err != nil {
-			return nil
+			return
 		}
 	}
 	age := time.Since(timestamp)
 	if age > 10*time.Minute || age < -time.Minute {
-		return nil
+		return
+	}
+	settings, settingsErr := config.ReadRoomSettings(d.rooms.home, roomID(d.id, source, message.RoomID))
+	if settingsErr == nil && (!settings.Automatic || roomTriggerReason(settings.Trigger, message, d.options.SelfID) == "") {
+		return
 	}
 	dir := d.rooms.directory(source, message.RoomID)
 	log := filepath.Join(dir, "context", "messages.log")
 	task := Task{ID: record.ID, Account: d.id, Source: source, Room: record.Event.Data.RoomID, Log: log, Status: "pending", CreatedAt: record.RecordedAt, Trigger: record.Event.Data}
-	if d.options.TriggerReason != nil {
-		task.TriggerReason = d.options.TriggerReason(message)
+	task.Settings = settings
+	raw, _ := json.Marshal(settings)
+	task.ConfigurationVersion = digest(raw)
+	task.TriggerReason = roomTriggerReason(settings.Trigger, message, d.options.SelfID)
+	if settingsErr != nil {
+		task.Status, task.Error = "failed", settingsErr.Error()
 	}
-	if err := d.rooms.tasks.create(queuedTask{task: task, file: filepath.Join(dir, "tasks", task.CreatedAt+"-"+task.ID+".json")}); err != nil {
-		return err
-	}
+	d.rooms.tasks.save(queuedTask{task: task, dir: dir})
+
 	d.Signal()
-	return nil
+	return
 }
 
 func (d *Dispatcher) Signal() {
@@ -94,48 +99,33 @@ func (d *Dispatcher) Signal() {
 
 func (d *Dispatcher) Run() {
 	defer close(d.done)
-	if !d.settings.Enabled {
-		<-d.ctx.Done()
-		return
-	}
-	d.scan(true)
-	d.scan(false)
+	d.scan()
 	for {
 		select {
 		case <-d.ctx.Done():
 			return
 		case <-d.wake:
-			d.scan(false)
+			d.scan()
 		}
 	}
 }
 
 func (d *Dispatcher) connected() bool { return d.isConnected() }
 
-func (d *Dispatcher) scan(recover bool) {
+func (d *Dispatcher) scan() {
 	store := d.rooms.tasks
-	if recover {
-		for _, item := range store.selectTasks(d.source, "", "running") {
-			item.task.Status = "unknown"
-			item.task.Error = "应用退出前任务未完成，未自动重跑"
-			if err := store.save(item); err != nil {
-				d.block(filepath.Dir(filepath.Dir(item.file)))
-			}
-		}
-		return
-	}
 	if !d.connected() {
 		return
 	}
 	for _, item := range store.selectTasks(d.source, "", "pending") {
-		dir := filepath.Dir(filepath.Dir(item.file))
+		dir := item.dir
 		d.mu.Lock()
 		if d.active[dir] != nil {
 			select {
 			case d.active[dir] <- struct{}{}:
 			default:
 			}
-		} else if !d.blocked[dir] && d.ctx.Err() == nil {
+		} else if d.ctx.Err() == nil {
 			d.active[dir] = make(chan struct{}, 1)
 			d.wg.Add(1)
 			go func() {
@@ -158,6 +148,9 @@ func triggerPrompt(tasks []queuedTask) string {
 	positions := map[string]int{}
 	for _, item := range tasks {
 		message := item.task.Trigger
+		if item.task.Settings.Mode == "snapshot" && message.AgentSnapshot != nil {
+			message = Message{ID: message.ID, From: message.From, RoomID: message.RoomID, ContextKey: message.ContextKey, Type: "text", Text: *message.AgentSnapshot}
+		}
 		messages = append(messages, message)
 		requester := map[string]string{"from": message.From, "msgid": message.ID, "roomid": message.RoomID}
 		if pos, ok := positions[message.From]; ok {
@@ -169,23 +162,25 @@ func triggerPrompt(tasks []queuedTask) string {
 	}
 	raw, _ := json.Marshal(messages)
 	people, _ := json.Marshal(requesters)
-	return "trigger_messages:\n" + string(raw) + "\nrequesters:\n" + string(people)
+	context, _ := json.Marshal(tasks[0].task.Settings.Context)
+	return "trigger_messages:\n" + string(raw) + "\nrequesters:\n" + string(people) + "\nroom_context:\n" + string(context)
 }
 
-func (d *Dispatcher) saveTasks(tasks []queuedTask, status string, cause error) bool {
+func (d *Dispatcher) saveTasks(tasks []queuedTask, status string, cause error) {
 	for _, item := range tasks {
 		item.task.Status = status
 		item.task.Error = ""
 		if cause != nil {
 			item.task.Error = cause.Error()
 		}
-		if err := d.rooms.tasks.save(item); err != nil {
-			d.block(filepath.Dir(filepath.Dir(item.file)))
-			return false
+		d.rooms.tasks.save(item)
+		if cause != nil {
+			slog.Error("message task failed", "channel", d.id, "task", item.task.ID, "status", status, "message", item.task.Trigger.ID, "localID", item.task.Trigger.LocalID, "room", item.task.Room, "reason", item.task.TriggerReason)
+		} else {
+			slog.Info("message task updated", "channel", d.id, "task", item.task.ID, "status", status, "message", item.task.Trigger.ID, "localID", item.task.Trigger.LocalID, "room", item.task.Room, "reason", item.task.TriggerReason)
 		}
 	}
 	d.notify()
-	return true
 }
 
 func (d *Dispatcher) process(dir string) {
@@ -194,13 +189,20 @@ func (d *Dispatcher) process(dir string) {
 	d.mu.Unlock()
 	for d.ctx.Err() == nil && d.connected() {
 		tasks := d.pending(dir)
+		settings, settingsErr := config.ReadRoomSettings(d.rooms.home, filepath.Base(dir))
+		raw, _ := json.Marshal(settings)
+		version := digest(raw)
 		valid := []queuedTask{}
 		for _, item := range tasks {
-			if d.options.Accept != nil && !d.options.Accept(item.task.Trigger) {
+			if settingsErr != nil {
+				d.saveTasks([]queuedTask{item}, "failed", settingsErr)
+			} else if !settings.Automatic || roomTriggerReason(settings.Trigger, item.task.Trigger, d.options.SelfID) == "" || (d.options.Accept != nil && !d.options.Accept(item.task.Trigger)) {
 				d.saveTasks([]queuedTask{item}, "skipped", nil)
 			} else if item.task.Trigger.ID == "" || item.task.Trigger.RoomID != item.task.Room {
 				d.saveTasks([]queuedTask{item}, "failed", errors.New("旧格式任务缺少完整触发消息，请重新发送"))
 			} else {
+				item.task.Settings = settings
+				item.task.ConfigurationVersion = version
 				valid = append(valid, item)
 			}
 		}
@@ -208,14 +210,20 @@ func (d *Dispatcher) process(dir string) {
 		if len(tasks) == 0 {
 			return
 		}
-		if !d.saveTasks(tasks, "running", nil) {
-			return
+		snapshot := tasks[0].task.Settings.Mode == "snapshot"
+		end := 1
+		for end < len(tasks) && tasks[end].task.ConfigurationVersion == tasks[0].task.ConfigurationVersion {
+			end++
 		}
-		thread, err := d.thread(dir)
+		tasks = tasks[:end]
+		if snapshot && len(tasks) > 1 {
+			d.saveTasks(tasks[:len(tasks)-1], "superseded", nil)
+			tasks = tasks[len(tasks)-1:]
+		}
+		d.saveTasks(tasks, "running", nil)
+		thread, err := d.thread(dir, tasks[0].task)
 		if err != nil {
-			if !d.saveTasks(tasks, "failed", err) {
-				return
-			}
+			d.saveTasks(tasks, "failed", err)
 			continue
 		}
 		ctx, cancel := context.WithTimeout(d.ctx, 30*time.Minute)
@@ -242,20 +250,23 @@ func (d *Dispatcher) process(dir string) {
 				if len(next) == 0 {
 					continue
 				}
-				if !d.saveTasks(next, "running", nil) {
-					cancel()
-					<-done
-					return
+				if snapshot {
+					continue
 				}
+				end := 0
+				for end < len(next) && next[end].task.ConfigurationVersion == first.ConfigurationVersion {
+					end++
+				}
+				next = next[:end]
+				if len(next) == 0 {
+					continue
+				}
+				d.saveTasks(next, "running", nil)
 				err = d.runner.Steer(ctx, thread, triggerPrompt(next))
 				if err == nil {
 					tasks = append(tasks, next...)
 				} else if errors.Is(err, agent.ErrTurnEnded) {
-					if !d.saveTasks(next, "pending", nil) {
-						cancel()
-						<-done
-						return
-					}
+					d.saveTasks(next, "pending", nil)
 				} else {
 					d.saveTasks(next, "unknown", err)
 				}
@@ -267,28 +278,36 @@ func (d *Dispatcher) process(dir string) {
 				if d.ctx.Err() != nil || errors.Is(err, agent.ErrUnknown) {
 					status = "unknown"
 				}
-				if !d.saveTasks(tasks, status, err) {
-					cancel()
-					return
-				}
+				d.saveTasks(tasks, status, err)
 				finished = true
 			}
 		}
 		cancel()
+		if snapshot {
+			if err := d.runner.Unsubscribe(d.ctx, thread); err != nil {
+				slog.Warn("snapshot thread unsubscribe failed", "channel", d.id, "room", first.Room, "error", err)
+			}
+		}
 	}
 }
 
-func (d *Dispatcher) block(dir string) {
-	d.mu.Lock()
-	d.blocked[dir] = true
-	d.mu.Unlock()
-	d.setError("Agent 任务状态保存失败，请修复存储后重新启用")
-}
-
-func (d *Dispatcher) thread(dir string) (string, error) {
+func (d *Dispatcher) thread(dir string, task Task) (string, error) {
+	canSend := task.Settings.AllowOutbound && (d.options.CanSend == nil || d.options.CanSend())
+	instructions := agentInstructions + "\nRoom prompt:\n" + task.Settings.Prompt
+	cfg, err := config.Load(d.rooms.home)
+	if err != nil {
+		return "", err
+	}
+	binary := cfg.MessageExecution.CodexBinary
+	if task.Settings.Mode == "snapshot" {
+		return d.runner.Thread(d.ctx, binary, dir, "", agent.ThreadOptions{Instructions: instructions + "\n" + snapshotInstructions, Tools: agentTools(canSend), Ephemeral: true, Model: task.Settings.Model})
+	}
 	var state struct {
 		ThreadID         string `json:"threadId"`
+		ToolsHash        string `json:"toolsHash"`
 		InstructionsHash string `json:"instructionsHash,omitempty"`
+		Model            string `json:"model,omitempty"`
+		AllowOutbound    bool   `json:"allowOutbound"`
 	}
 	file := filepath.Join(dir, "agent.json")
 	raw, err := os.ReadFile(file)
@@ -299,16 +318,20 @@ func (d *Dispatcher) thread(dir string) (string, error) {
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}
-	instructions := d.options.Instructions
-	if instructions == "" {
-		instructions = agentInstructions
+	tools, _ := json.Marshal(agentTools(canSend))
+	toolsHash := digest(tools)
+	if state.ThreadID != "" && (state.Model != task.Settings.Model || state.AllowOutbound != canSend || state.ToolsHash != toolsHash) {
+		if err := d.runner.Unsubscribe(d.ctx, state.ThreadID); err != nil {
+			return "", err
+		}
+		state.ThreadID = ""
 	}
-	id, err := d.runner.Thread(d.ctx, d.settings.Binary, dir, state.ThreadID, agent.ThreadOptions{Instructions: instructions, Tools: []any{agentSendTool()}})
+	id, err := d.runner.Thread(d.ctx, binary, dir, state.ThreadID, agent.ThreadOptions{Instructions: instructions, Tools: agentTools(canSend), Model: task.Settings.Model})
 	if err != nil {
 		return "", err
 	}
 	instructionsHash := digest([]byte(instructions))
-	update := d.options.UpdateInstructions && state.ThreadID != "" && state.InstructionsHash != instructionsHash
+	update := state.ThreadID != "" && state.InstructionsHash != instructionsHash
 	if update {
 		if err = d.runner.UpdateInstructions(d.ctx, id, instructions); err != nil {
 			return "", err
@@ -316,41 +339,15 @@ func (d *Dispatcher) thread(dir string) (string, error) {
 	}
 	if state.ThreadID == "" || update {
 		state.ThreadID = id
+		state.ToolsHash = toolsHash
 		state.InstructionsHash = instructionsHash
+		state.Model = task.Settings.Model
+		state.AllowOutbound = canSend
 		if err = writeJSON(file, state); err != nil {
 			return "", err
 		}
 	}
 	return id, nil
-}
-
-func (c *Channel) runAgentTurn(ctx context.Context, runner *agent.Runner, thread string, task Task, prompt string, started chan<- struct{}) error {
-	sent := map[string]bool{}
-	return runner.Turn(ctx, thread, task.Trigger.ID, prompt, func(ctx context.Context, call agent.ToolCall) (any, error) {
-		var input struct {
-			Event Event `json:"event"`
-		}
-		if json.Unmarshal(call.Arguments, &input) != nil || input.Event.Source != "aicat-agent://codex" || input.Event.Data.RoomID != task.Room {
-			return nil, errors.New("发送必须使用当前 Room 和允许的来源")
-		}
-		receipt, err := c.Send(ctx, input.Event)
-		if err == nil && receipt.Status == "sent" {
-			sent[input.Event.Data.Text.Content] = true
-		}
-		return receipt, err
-	}, func(ctx context.Context, itemID, text string) error {
-		if sent[text] {
-			return nil
-		}
-		receipt, err := c.Send(ctx, Event{SpecVersion: "1.0", ID: "codex-" + digest([]byte(itemID+"\x00"+text)), Source: "aicat-agent://codex", Type: SendRequested, ContentType: "application/json", Data: Message{Action: "send", RoomID: task.Room, Type: "text", Text: Text{Content: text}}})
-		if err != nil {
-			return err
-		}
-		if receipt.Status != "sent" {
-			return fmt.Errorf("%w: 回复发送结果不明", agent.ErrUnknown)
-		}
-		return nil
-	}, started, "messages_send")
 }
 
 func (d *Dispatcher) Close() {
@@ -360,22 +357,20 @@ func (d *Dispatcher) Close() {
 }
 
 type DispatcherOptions struct {
-	Source             string
-	Settings           channelconfig.MessageAgent
-	Connected          func() bool
-	Changed            func()
-	Error              func(string)
-	Accept             func(Message) bool
-	TriggerReason      func(Message) string
-	Instructions       string
-	UpdateInstructions bool
-	Execute            func(context.Context, *agent.Runner, string, Task, string, chan<- struct{}) error
+	CanSend   func() bool
+	SelfID    string
+	Source    string
+	Connected func() bool
+	Changed   func()
+	Accept    func(Message) bool
+	Execute   func(context.Context, *agent.Runner, string, Task, string, chan<- struct{}) error
 }
 
 func (s *Inbox) Dispatcher(ctx context.Context, options DispatcherOptions) *Dispatcher {
 	return dispatcherForRooms(ctx, s.rooms, options)
 }
 func dispatcherForRooms(ctx context.Context, rooms *roomStore, options DispatcherOptions) *Dispatcher {
-	return &Dispatcher{ctx: ctx, rooms: rooms, id: rooms.channel, runner: agent.New(), settings: options.Settings, source: options.Source, notify: options.Changed, isConnected: options.Connected, setError: options.Error, options: options, active: map[string]chan struct{}{}, blocked: map[string]bool{}, done: make(chan struct{}), wake: make(chan struct{}, 1)}
+	rooms.tasks.reset()
+	return &Dispatcher{ctx: ctx, rooms: rooms, id: rooms.channel, runner: agent.New(), source: options.Source, notify: options.Changed, isConnected: options.Connected, options: options, active: map[string]chan struct{}{}, done: make(chan struct{}), wake: make(chan struct{}, 1)}
 }
 func (s *Inbox) Tasks(source string) []Task { return s.rooms.tasks.list(source) }

@@ -6,6 +6,8 @@ aicat 是安装在用户节点上的常驻 Agent Gateway，核心由 Go 进程�
 
 ## 组件
 
+模块化、可扩展、可组合是 aicat 的核心设计原则。业务模块保持职责独立，由应用层装配；扩展通过统一接口接入，按需启用与组合。
+
 | 组件 | 职责 |
 | --- | --- |
 | MyGo | 窗口、托盘、菜单、快捷键、桌面生命周期，Go 服务到前端的类型绑定 |
@@ -42,24 +44,23 @@ flowchart TB
 | `internal/gateway/addons/api` | 把 HTTP handler 接入监听地址 | 只识别发给 aicat 的请求，不接管代理站点的同名路径 |
 | `internal/gateway/addons/traffic` | 把代理阶段转成流量观测 | 使用 traffic 的写入接口，不依赖 UI |
 | `internal/traffic` | 流量模型、有界记录、body 读取、查询与变化订阅 | 不依赖 gateway、go-mitmproxy 或 MyGo |
-| `internal/mcpserver` | 流量查询与 messages_send 的 MCP 适配 | 复用进程内服务，在入口认证 |
+| `internal/mcpserver` | 流量查询、rooms_reply 与 messages_send 的 MCP 适配 | 复用进程内服务，在入口认证 |
 | `internal/provider` | 供应商密钥存储、模型列表同步、带密钥的转发路由 | 不依赖 UI；转发时把调用交给 usage 记录 |
 | `internal/usage` | 模型调用的用量记录、从回复读取 Token、按时段汇总与 `/api/usage` | 不依赖 provider、traffic 或 UI |
 | `internal/extension` | 内置扩展的登记与启停：扩展交出 addon、额外解密判断、路由与后台任务，宿主只在扩展启用时使用它们 | 不导入任何具体扩展 |
 | `internal/codex` | Codex 扩展：模型列表合并、按模型分流、解密入口与 models.dev 目录（`catalog/`） | 只依赖 extension 与核心包 |
 | `internal/channelhost` | 应用内 Bun 宿主的 stdio、账号会话、子进程启停 | 不依赖 UI 或具体平台协议 |
-| `internal/messages` | 账号凭据、CloudEvent 校验、Room 追加日志、持久任务调度及发送回执 | 不依赖 MyGo 或具体渠道，复用 channelhost |
+| `internal/messages` | 账号凭据、CloudEvent 校验、Room 目录、配置、消息日志、内存调度、正式发布与持久外发状态 | 不依赖 MyGo 或具体渠道，复用 channelhost |
 | `internal/agent` | Codex app-server 子进程、JSONL 协议、Room thread 与受限动态工具调用 | 不依赖消息渠道或 UI，发送通过调用方提供的回调 |
-| `internal/wecomlocal` | 企业微信客户端扩展声明、本地读取器生命周期、MCP 发送回执与消息接入 | 平台数据库解析与客户端脚本执行留在 Bun TS 宿主，复用 messages 的 Inbox 和 Room 存储 |
 | `internal/channelconfig` | 渠道配置类型与字段校验 | 调用 config 的通用扩展存储，不承载宿主生命周期 |
-| `internal/channelplugin` | 官方渠道目录、安装暂存、包声明校验、当前版本记录、手动更新与卸载 | 不依赖 UI、消息处理或具体平台通信 |
+| `internal/channelplugin` | 通用 NPM manifest、推荐与动态目录、安装暂存、包声明校验、当前版本记录、手动更新与卸载 | 不依赖 UI、消息处理或具体平台通信 |
 | `internal/certificate` | 根证书身份、当前用户信任的检测与管理 | 不属于 gateway |
 | `internal/systemproxy` | 系统代理的接管、恢复日志与恢复 | 不属于 gateway |
 | `internal/config` | 串行、原子地读写唯一的 `aicat.yaml` | 保留未知字段与注释 |
 
-核心的网关业务是 `internal/gateway/addons/<业务>/` 下的 `proxy.Addon`；扩展的 addon 放在扩展自己的目录，经 `internal/extension` 接入，内置扩展只在 `internal/app/extensions.go` 登记一行，界面按 `ui/src/extensions/<ID>/` 目录自动加载（见 [扩展规范](extension-standard.md)）。持久化与业务查询是普通 Go 包，由 addon 或控制服务调用。go-mitmproxy 的缺口在 addon 侧适配，必要时向上游提交补丁，不维护私有 fork。
+核心的网关业务是 `internal/gateway/addons/<业务>/` 下的 `proxy.Addon`；扩展的 addon 放在扩展自己的目录，经 `internal/extension` 接入，内置扩展只在 `internal/app/extensions.go` 登记一行，界面按 `ui/src/extensions/<ID>/` 目录自动加载（见 [扩展规范](extension-standard.md)）。持久化与业务查询是普通 Go 包，由 addon 或控制服务调用。go-mitmproxy 的缺口优先在 addon 侧适配；当前 WebSocket 分发与缓存使用[临时依赖补丁](../patches/README.md)，构建从官方锁定版本准备隔离副本，不修改模块缓存。扩展宿主转发直接携带消息的可选回调，业务扩展不读取共享消息列表。
 
-扩展 UI 的 Body、Settings、Diagnostics 由各自目录声明：详情承载说明、启停和已安装扩展的配置表单，诊断页承载任务、测试与日志并复用扩展列表；SettingsPage 只承载通用与代理设置。扩展负责字段语义、专属校验和表单，config 通用服务统一读写 aicat.yaml 的 extensions.<ID>，不持有渠道专属字段类型，channelconfig 与扩展业务服务负责解码和校验，对应业务服务按私有文件约定保存凭据，不回传密钥。页面复用同一 Desktop 服务，不新增配置存储或管理 listener。
+内置扩展的 UI 由 Body、Settings、Diagnostics 声明；NPM 渠道使用通用配置与诊断页面，按 manifest.fields 渲染平台字段，凭据不回传。Room 行为在统一消息页面配置，渠道页没有 Codex 配置。Desktop 是唯一前端服务接口，包诊断经 Parts.ReadData 读取，不新增管理 listener。微扑克业务摘要与正式建议统一在消息页面显示。
 
 前端位于独立的 `ui/`（Vue 3 + TypeScript + Vite）。Go 的 `Desktop` 是前后端接口的唯一声明，MyGo 由它生成类型客户端；桌面绑定不监听 TCP。详见 [开发约定](development.md)。
 
@@ -146,11 +147,16 @@ UI、HTTP API 与 MCP 读取同一个服务实例；`Recorder` 是只交给代�
 
 ## 扩展执行
 
-内置扩展与可安装渠道共同经 internal/extension 管理。流量和 Codex 在 Go 进程内执行；channelplugin 目录声明的官方渠道由同一宿主登记，不逐个编写 Go 扩展。企业微信是当前受支持的可安装渠道。应用只携带 Bun、宿主和 SDK 兼容层；用户安装时使用应用内 Bun 下载官方 npm 包和依赖，禁用安装脚本、校验包声明后原子登记。启用时只读本地包，不安装依赖。SDK 兼容层由应用资源提供，已安装包通过链接引用，启动时本地迁移旧拷贝和应用路径，不重复下载插件。实验与生产复用同一份 shim 源码。
+流量与 Codex 模型路由在 Go 内运行；企业微信 BOT 经 OpenClaw 兼容适配加载官方包；所有 NPM 扩展的实现、打包和专属验收位于独立仓库，应用资源不附带其源码或归档。企业微信客户端与微扑克分别由 [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local) 和 [aicat-wpk](https://github.com/fishioon/aicat-wpk) 维护。通用包宿主不依赖平台SDK。声明、生命周期、动态登记及能力边界见[NPM 渠道包](extension-packages-design.md)。
 
-消息配置验证与正式启用分开：验证通过官方 SDK 做短连接鉴权，不运行入站消息处理；凭据与安装版本的验证指纹有效后才允许启用。插件原样加载，兼容层当前仅覆盖企业微信长连接私聊文本与主动发送，工具、CLI、Webhook 等能力不注册到应用。messages 的 Room 存储复用 JSONL 追加、尾部修复和原子落盘，任务存储在启动时恢复历史并维护待处理索引及最近快照。消息编排负责提示词、trigger_messages 和发送工具定义；agent 只负责 Codex 协议，按 Room 使用 turn/start 或 turn/steer。普通回复经统一主动发送和分段回执服务处理。详情见[企业微信 BOT](feature-map/wecom.md)。完整目标仍见[渠道扩展草案](message-extension-design.md)和[扩展包草案](extension-packages-design.md)。
+统一 gateway addon 将声明的 HTTP/页面/WebSocket 观测交给包，限制域名、路径、大小、队列及时间；包实现采集、解析与原生准备。企业微信客户端的Profile、密钥协议、只读SQLite/WAL和发送脚本由包维护，宿主提供实际用户Home、原版SQLite3MC库与准备进程管理。微扑克的collector、业务还原和采样也属于包。
 
-企业微信客户端是独立内置扩展 `wecom-local`，运行专用 Bun stdio 宿主，不加载 BOT 插件。`runtime/channel-host/wecom-local/` 负责只读数据库连接、消息解析、客户端脚本发送及读取游标保存；随包的原版 SQLite3 Multiple Ciphers 2.7.0 负责密钥派生、页解密与 WAL 事务可见性；`internal/wecomlocal` 负责目录配置、Base64 密钥私有保存和生命周期，消息交给 `messages.Inbox`。Inbox 复用现有 Room 追加和同步落盘，以摘要索引校验确定性事件 ID 的重放并补齐上下文，按明确配置的会话创建幂等 Agent 任务，复用与 BOT 相同的调度器。扩展的 Messages 接缝以接口提供配置、状态和发送能力；MCP messages_send 通过客户端脚本发送文本，按请求持久保存 pending/sent/unknown 回执，脚本正常完成回车发送即记 sent，不等待 DB/WAL 回流，客户端自动处理以首次连接的消息 ID 为起点，过滤历史与自发回流，Agent 的发送工具适配器接收回复正文，按任务与工具调用绑定请求 ID 和当前会话、组装 CloudEvent，通过主程序 HTTP MCP 回复，详见[企业微信客户端](feature-map/wecom-local.md)。
+消息经 Inbox.ReceiveAndDispatch 校验来源、同步落盘，再调度并确认。Room 按渠道、来源和平台会话隔离，room.json保存绑定，aicat.yaml的rooms.<id>保存行为。历史查询独立于包安装状态。消息页面经typed Desktop服务显示全部渠道的Room、业务摘要、正式回复、任务与发送状态。会话列表支持名称/渠道/标识搜索和异常筛选；异常来自持久外发失败/结果不明回执与本次运行保留的失败/结果不明任务，查询和查看不会清除异常。消息页面不维护阅读状态。
+
+Dispatcher 始终叠加固定Agent prompt和Room prompt，业务context作为数据。固定Codex app-server，model按Room选择并从model/list读取。普通对话复用持久thread及相同配置下的steer；snapshot独立临时thread，合并连续等待状态，日志不删。任务重启不恢复。配置版本影响后续任务，模型或工具权限改变重新建thread。
+
+正式回复必须显式rooms_reply，经真实HTTP MCP保存本地，返回saved。外发显式messages_send，检查渠道能力和Room授权，发送前保存意图与持久请求；reply_id复用已发布正文，重复请求返回回执，unknown不重发。平台结果由原包确认，普通输出不隐式发布。reply_to及context_key保证业务结果归属，旧账号subject不能写回新账号Room。完整契约见[消息接入规范](message-ingress-standard.md)。
+
 
 旧配置若仍启用 rewrite 或包含规则，启动明确报不支持，不静默跳过。旧插件文件不由主程序加载，也不自动删除。
 
@@ -167,11 +173,14 @@ UI、HTTP API 与 MCP 读取同一个服务实例；`Recorder` 是只交给代�
 | `credentials/wecom-local.json` | 企业微信客户端的 Base64 派生前密钥，绑定账号和目录，0600，不回传界面 |
 | `state/wecom-local/` | 企业微信客户端宿主锁与按账号、数据目录隔离的读取游标 |
 | `state/channel-host/` | 宿主未确认消息与进程锁，不是 Room 历史 |
-| `rooms/*/messages.jsonl`、`rooms/*/context/messages.log` | 按账号和会话隔离的事件流水与纯消息上下文 |
+| `rooms/*/context/messages.log` | 按账号和会话隔离的唯一消息日志，每行一条消息正文，供 Agent 读取 |
+| `logs/aicat.log` | 独立的 info、warn、error 运行日志，不记录聊天正文 |
 | `extensions/<ID>/current.json` | 当前使用的实际安装版本和依赖锁摘要 |
-| `extensions/<ID>/<版本>/` | 官方渠道包、依赖锁与版本安装记录 |
-| `rooms/*/agent.json`、`rooms/*/tasks/` | Room 的 Codex thread 绑定与持久执行状态，结果不明不重放 |
-| `messages/receipts/` | 出站 source+id 的持久回执；pending/unknown 不自动重发 |
+| `extensions/<ID>/<版本>/` | NPM 渠道包、依赖锁与版本安装记录 |
+| `channel-catalog.json` | 动态登记的渠道来源 |
+| `rooms/*/room.json` | 渠道、来源及平台会话绑定 |
+| `rooms/*/outbound/`、`deliveries/` | 持久外发请求和正文关联 |
+| `rooms/*/agent.json` | Room 的持久 Codex thread 绑定 |
 | `cache/models-dev.json` | models.dev 目录的本地副本 |
 
 证书与系统代理遵循以下约束：

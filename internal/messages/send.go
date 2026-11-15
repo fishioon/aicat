@@ -4,8 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -22,42 +21,6 @@ func (c *Channel) Send(ctx context.Context, event Event) (Receipt, error) {
 	}
 	c.sendMu.Lock()
 	defer c.sendMu.Unlock()
-	credentials, err := c.credentials()
-	if err != nil {
-		return Receipt{}, errors.New("账号未配置")
-	}
-	source := c.source(credentials.AccountID)
-	payload, _ := json.Marshal(event)
-	key := digest([]byte(c.id + "\x00" + credentials.AccountID + "\x00" + event.Source + "\x00" + event.ID))
-	file := filepath.Join(c.home, "messages", "receipts", key+".json")
-	var saved struct {
-		Receipt Receipt `json:"receipt"`
-		Digest  string  `json:"digest"`
-	}
-	b, err := os.ReadFile(file)
-	if err == nil {
-		if json.Unmarshal(b, &saved) != nil {
-			return Receipt{}, errors.New("发送记录损坏")
-		}
-		if saved.Digest != digest(payload) {
-			return Receipt{}, errors.New("同一发送标识不能使用不同内容")
-		}
-		if saved.Receipt.Status == "pending" {
-			saved.Receipt.Status = "unknown"
-			for i := range saved.Receipt.Parts {
-				if saved.Receipt.Parts[i].Status == "pending" {
-					saved.Receipt.Parts[i].Status = "unknown"
-				}
-			}
-			if err = writeJSON(file, saved); err != nil {
-				return Receipt{}, err
-			}
-		}
-		return saved.Receipt, nil
-	}
-	if !os.IsNotExist(err) {
-		return Receipt{}, err
-	}
 	c.mu.Lock()
 	a := c.account
 	phase := c.state.Phase
@@ -65,14 +28,7 @@ func (c *Channel) Send(ctx context.Context, event Event) (Receipt, error) {
 	if a == nil || phase != "connected" {
 		return Receipt{}, errors.New("账号尚未连接")
 	}
-	saved.Receipt = Receipt{Delivery: Delivery{Source: event.Source, ID: event.ID, Status: "pending"}}
-	saved.Digest = digest(payload)
-	if err = writeJSON(file, saved); err != nil {
-		return Receipt{}, err
-	}
-	if _, err = c.appendRecord(source, credentials.AccountID, event, "pending"); err != nil {
-		return Receipt{}, err
-	}
+	result := Receipt{Delivery: Delivery{Source: event.Source, ID: event.ID, Status: "pending"}}
 
 	parts := splitText(event.Data.Text.Content, 4000)
 	for i, text := range parts {
@@ -82,21 +38,16 @@ func (c *Channel) Send(ctx context.Context, event Event) (Receipt, error) {
 			part.ID = "part-" + digest([]byte(event.ID+"\x00"+strconv.Itoa(i)))
 		}
 		receipt := Delivery{Source: event.Source, ID: part.ID, Status: "pending"}
-		if len(parts) > 1 {
-			saved.Receipt.Parts = append(saved.Receipt.Parts, receipt)
-			if err = writeJSON(file, saved); err != nil {
-				return saved.Receipt, err
-			}
-			if _, err = c.appendRecord(source, credentials.AccountID, part, "pending"); err != nil {
-				return saved.Receipt, err
-			}
-		}
+
 		sendCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		result, sendErr := a.Send(sendCtx, part)
+		raw, sendErr := a.Send(sendCtx, part)
 		cancel()
 		var platformResult PlatformResult
 		if sendErr == nil {
-			sendErr = json.Unmarshal(result, &platformResult)
+			sendErr = json.Unmarshal(raw, &platformResult)
+			if sendErr == nil && (platformResult.ChatID != event.Data.RoomID || platformResult.Confirmation == "" && platformResult.MessageID == "") {
+				sendErr = errors.New("渠道没有返回匹配会话的发送确认")
+			}
 		}
 		if sendErr != nil {
 			receipt.Status = "unknown"
@@ -106,23 +57,28 @@ func (c *Channel) Send(ctx context.Context, event Event) (Receipt, error) {
 			receipt.Result = &platformResult
 		}
 		if len(parts) > 1 {
-			saved.Receipt.Parts[i] = receipt
+			result.Parts = append(result.Parts, receipt)
 		}
 		if receipt.Status == "unknown" || i == len(parts)-1 {
-			saved.Receipt.Status, saved.Receipt.Error, saved.Receipt.Result = receipt.Status, receipt.Error, receipt.Result
+			result.Status, result.Error, result.Result = receipt.Status, receipt.Error, receipt.Result
 		}
-		if err = writeJSON(file, saved); err != nil {
-			return saved.Receipt, err
+		c.mu.Lock()
+		c.state.Records = append(c.state.Records, Record{ID: part.ID, Event: part, Status: receipt.Status, RecordedAt: time.Now().UTC().Format(time.RFC3339Nano)})
+		if len(c.state.Records) > 50 {
+			c.state.Records = c.state.Records[len(c.state.Records)-50:]
 		}
-		if _, err = c.appendRecord(source, credentials.AccountID, part, receipt.Status); err != nil {
-			return saved.Receipt, err
+		c.mu.Unlock()
+		if receipt.Status == "sent" {
+			slog.Info("message sent", "channel", c.id, "request", part.ID)
+		} else {
+			slog.Error("message send failed", "channel", c.id, "request", part.ID)
 		}
 		c.changed()
 		if receipt.Status != "sent" {
 			break
 		}
 	}
-	return saved.Receipt, nil
+	return result, nil
 }
 
 func splitText(text string, limit int) []string {

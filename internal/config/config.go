@@ -11,7 +11,11 @@ import (
 )
 
 type Config struct {
-	UI         Preferences `yaml:"ui"`
+	MessageExecution struct {
+		CodexBinary string `yaml:"codexBinary,omitempty"`
+	} `yaml:"messageExecution,omitempty"`
+	Rooms      map[string]RoomSettings `yaml:"rooms,omitempty"`
+	UI         Preferences             `yaml:"ui"`
 	Navigation struct {
 		Pinned []string `yaml:"pinned"`
 	} `yaml:"navigation"`

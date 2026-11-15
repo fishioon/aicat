@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { host } from "../host";
-import { busy, run, say, shell, state } from "../state/desktop";
+import { busy, run, say, shell, state, navigate } from "../state/desktop";
 import { t } from "../i18n";
 
 const id = computed(() => shell.extension);
@@ -11,30 +11,6 @@ const enabled = computed(
 );
 const accountId = ref("");
 const secret = ref("");
-const agentEnabled = ref(false);
-const agentBinary = ref("");
-watch(
-  [
-    () => id.value,
-    () => channel.value?.agent.enabled,
-    () => channel.value?.agent.binary,
-  ],
-  () => {
-    agentEnabled.value = channel.value?.agent.enabled ?? false;
-    agentBinary.value = channel.value?.agent.binary ?? "";
-  },
-  { immediate: true },
-);
-async function saveAgent() {
-  if (
-    await run(() =>
-      host.updateExtensionConfig(id.value, {
-        agent: { enabled: agentEnabled.value, binary: agentBinary.value },
-      }),
-    )
-  )
-    say(t("Codex 配置已保存"));
-}
 watch(
   () => channel.value?.accountId,
   (id) => {
@@ -99,37 +75,9 @@ async function save() {
     <p v-if="enabled">
       {{ t("修改账号前请先停用扩展。停用保留账号和消息日志。") }}
     </p>
-    <h2>Codex</h2>
-    <form class="form" id="wecom-agent-form" @submit.prevent="saveAgent">
-      <label class="wide"
-        ><input
-          id="wecom-agent-enabled"
-          type="checkbox"
-          v-model="agentEnabled"
-          :disabled="enabled || busy"
-        />
-        {{ t("自动处理私聊消息") }}</label
-      >
-      <p class="wide">
-        {{
-          t(
-            "开启后，新收到的私聊文本交给 Codex。执行中的新消息会补充当前任务，回复自动发送到此会话。修改前请先停用扩展。",
-          )
-        }}
-      </p>
-      <label for="wecom-agent-binary">{{ t("Codex 可执行文件") }}</label>
-      <input
-        id="wecom-agent-binary"
-        class="field"
-        v-model="agentBinary"
-        :disabled="enabled || busy"
-        :placeholder="t('留空自动查找已安装的 Codex')"
-      />
-      <div class="acts wide">
-        <button id="wecom-agent-save" class="btn" :disabled="enabled || busy">
-          {{ t("保存 Codex 配置") }}
-        </button>
-      </div>
-    </form>
+    <p>{{ t("消息处理、model 和 Room prompt 在对应会话中设置。") }}</p>
+    <button class="btn" type="button" @click="navigate('messages')">
+      {{ t("打开消息") }}
+    </button>
   </div>
 </template>

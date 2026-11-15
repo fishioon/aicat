@@ -2,13 +2,14 @@ package messages
 
 import (
 	"encoding/json"
-	"github.com/fishioon/aicat/internal/channelconfig"
 )
 
 const Received = "org.aicat.message.received.v1"
 const SendRequested = "org.aicat.message.send.requested.v1"
+const ReplyPublished = "org.aicat.room.reply.published.v1"
 
 type Event struct {
+	Subject     string  `json:"subject,omitempty"`
 	SpecVersion string  `json:"specversion"`
 	ID          string  `json:"id"`
 	Source      string  `json:"source"`
@@ -23,6 +24,13 @@ type Text struct {
 }
 
 type Message struct {
+	Historical    bool            `json:"historical,omitempty"`
+	Summary       string          `json:"summary,omitempty"`
+	ReplyID       string          `json:"reply_id,omitempty"`
+	Delivery      *Delivery       `json:"delivery,omitempty"`
+	AgentSnapshot *Text           `json:"agent_snapshot,omitempty"`
+	ReplyTo       string          `json:"reply_to,omitempty"`
+	ContextKey    string          `json:"context_key,omitempty"`
 	SearchName    string          `json:"search_name,omitempty"`
 	LocalID       string          `json:"local_id,omitempty"`
 	ServerID      string          `json:"server_id,omitempty"`
@@ -52,9 +60,9 @@ type Message struct {
 }
 
 type AccountConfig struct {
-	Local     *channelconfig.LocalMessages `json:"local,omitempty"`
-	AccountID string                       `json:"accountId"`
-	Secret    string                       `json:"secret"`
+	Values    map[string]any `json:"values,omitempty"`
+	AccountID string         `json:"accountId"`
+	Secret    string         `json:"secret"`
 }
 
 type Receipt struct {
@@ -86,15 +94,14 @@ type Record struct {
 }
 
 type State struct {
-	Local      *channelconfig.LocalMessages `json:"local,omitempty"`
-	AccountID  string                       `json:"accountId"`
-	Configured bool                         `json:"configured"`
-	Validated  bool                         `json:"validated"`
-	Phase      string                       `json:"phase"`
-	Error      string                       `json:"error"`
-	PID        int                          `json:"pid"`
-	Records    []Record                     `json:"records"`
-	RoomDir    string                       `json:"roomDir"`
-	Agent      channelconfig.MessageAgent   `json:"agent"`
-	Tasks      []Task                       `json:"tasks"`
+	Dropped    uint64   `json:"dropped"`
+	AccountID  string   `json:"accountId"`
+	Configured bool     `json:"configured"`
+	Validated  bool     `json:"validated"`
+	Phase      string   `json:"phase"`
+	Error      string   `json:"error"`
+	PID        int      `json:"pid"`
+	Records    []Record `json:"records"`
+	RoomDir    string   `json:"roomDir"`
+	Tasks      []Task   `json:"tasks"`
 }

@@ -184,7 +184,7 @@ async function main() {
     await new Promise((r) => listener.close(r));
     fs.writeFileSync(
       path.join(home, "aicat.yaml"),
-      `gateway:\n  addr: 127.0.0.1:${port}\nui:\n  language: zh-Hans\n  theme: light\nextensions:\n  wecom:\n    enabled: false\n    retained: keep-me\n    agent:\n      enabled: false\n      binary: /tmp/preserved-agent\n  codex:\n    enabled: false\n`,
+      `gateway:\n  addr: 127.0.0.1:${port}\nui:\n  language: zh-Hans\n  theme: light\nextensions:\n  wecom:\n    enabled: false\n    retained: keep-me\n  codex:\n    enabled: false\n`,
     );
     fs.writeFileSync(
       path.join(root, "os-state.json"),
@@ -200,8 +200,94 @@ async function main() {
     page.setDefaultTimeout(20000);
     page.on("pageerror", (e) => report.errors.push(e.message));
     await start("1.0.0");
+    await page.locator("#extension-information summary").click();
+    const source = await page.locator("#extension-package-source").innerText();
+    assert(source.includes(`http://127.0.0.1:${server.address().port}`));
+    assert(source.includes(packageName + "@1.0.0"));
+    stall = true;
+    await page.locator("#extension-install").click();
+    await wait(() => stalled);
+    await wait(async () => (await state()).operation.stage === "downloading");
+    await page.locator("#extension-install-status progress").waitFor();
+    assert(await page.locator("#extension-install").isDisabled());
+    assert(
+      !((await page.locator("body").getAttribute("class")) || "")
+        .split(" ")
+        .includes("busy"),
+    );
+    await assert.rejects(
+      Promise.race([
+        rpc("InstallExtension", ["wecom"]),
+        pause(1500).then(() => {
+          throw Error("duplicate request blocked");
+        }),
+      ]),
+      (error) => !error.message.includes("duplicate request blocked"),
+    );
+    await page.locator("#nav-overview").click();
+    await page
+      .getByRole("heading", { name: "网关运行中", exact: true })
+      .waitFor();
+    await page.locator("#nav-extensions").click();
+    await page.locator("#extension-wecom").click();
+    await page.locator("#extension-install-cancel").waitFor();
+    await wait(async () =>
+      /已用 [1-9]\d* 秒/.test(
+        await page.locator("#extension-install-status").innerText(),
+      ),
+    );
+    await page.locator("#extension-information summary").click();
+    assert(await page.locator("#extension-package-source").isVisible());
+    const headingBox = await page.locator(".xd-head h1").boundingBox();
+    for (const selector of ["#extension-install-status"]) {
+      const box = await page.locator(selector).boundingBox();
+      assert(Math.abs(box.x - headingBox.x) < 2 && box.width > 300, selector);
+    }
+    await page.screenshot({ path: path.join(root, "install-downloading.png") });
+    await rpc("SetPreferences", [{ language: "en", theme: "dark" }]);
+    await wait(async () =>
+      (await page.locator("#extension-install-status").innerText()).includes(
+        "Downloading plugin",
+      ),
+    );
+    await page.setViewportSize({ width: 860, height: 900 });
+    await page.screenshot({
+      path: path.join(root, "install-downloading-en-dark.png"),
+    });
+    await page.locator("#extension-install-cancel").click();
+    await wait(
+      async () => (await state()).operation.status === "cancelled",
+      5000,
+    );
+    await wait(async () =>
+      (await page.locator("#extension-install-status").innerText()).includes(
+        "Installation cancelled",
+      ),
+    );
+    assert(!fs.existsSync(installedFile));
+    assert(
+      !fs
+        .readdirSync(path.dirname(installedFile))
+        .some((n) => n.startsWith(".install-")),
+    );
+    await rpc("SetPreferences", [{ language: "zh-Hans", theme: "light" }]);
+    await page.setViewportSize({ width: 1180, height: 900 });
+    stall = false;
+    stalled = false;
+    report.checks.push(
+      "slow install shows real download stage, elapsed time and indeterminate progress in Chinese/light and English/dark; navigation stays responsive; state survives leaving and returning; duplicates fail promptly; UI cancellation stops Bun and cleans staging",
+    );
     unavailable = true;
-    await assert.rejects(rpc("InstallExtension", ["wecom"]));
+    await page.locator("#extension-install").click();
+    await wait(async () => (await state()).operation.status === "failed");
+    await page.locator("#extension-install-status summary").click();
+    await page.locator("#extension-install-status pre").waitFor();
+    assert(
+      (
+        await page.locator("#extension-install-status pre").innerText()
+      ).includes("插件安装失败"),
+    );
+    await page.screenshot({ path: path.join(root, "install-failed.png") });
     assert(!fs.existsSync(installedFile));
     assert(
       !fs
@@ -211,6 +297,12 @@ async function main() {
     unavailable = false;
     await page.locator("#extension-install").click();
     await wait(async () => (await state()).installed);
+    await wait(async () => (await state()).operation.status === "completed");
+    await wait(async () =>
+      (await page.locator("#extension-install-status").innerText()).includes(
+        "插件已安装",
+      ),
+    );
     assert.equal((await state()).installedVersion, "1.0.0");
     assert(
       !fs.existsSync(
@@ -229,16 +321,11 @@ async function main() {
     report.checks.push(
       "registry failure cleans staging; retry installs specified NPM version without scripts or plugin execution; installation is idempotent",
     );
-    await page.locator("#wecom-agent-binary").fill("/tmp/updated-agent");
-    await page.locator("#wecom-agent-save").click();
-    await wait(
-      async () =>
-        (await rpc("ReadExtensionConfig", ["wecom"])).agent.binary ===
-        "/tmp/updated-agent",
+    assert.equal(
+      await page.locator("#wecom-agent-binary,#wecom-agent-enabled").count(),
+      0,
     );
-    await rpc("UpdateExtensionConfig", ["wecom", { agent: { enabled: true } }]);
     let config = await rpc("ReadExtensionConfig", ["wecom"]);
-    assert.equal(config.agent.binary, "/tmp/updated-agent");
     assert.equal(config.retained, "keep-me");
     const before = fs.readFileSync(path.join(home, "aicat.yaml"), "utf8");
     for (const patch of [
@@ -255,10 +342,10 @@ async function main() {
     await assert.rejects(
       rpc("UpdateExtensionConfig", ["codex", { agent: { enabled: true } }]),
     );
-    await assert.rejects(rpc("UpdateExtension", ["wecom-local"]));
-    await assert.rejects(rpc("UninstallExtension", ["wecom-local"]));
+    await assert.rejects(rpc("UpdateExtension", ["codex"]));
+    await assert.rejects(rpc("UninstallExtension", ["codex"]));
     report.checks.push(
-      "generic config read/write persists patches, preserves sibling fields, rejects reserved/secret/invalid fields without saving, and keeps built-in package operations unavailable",
+      "channel config preserves sibling fields and excludes execution settings, rejects reserved/secret/invalid fields without saving, and keeps built-in package operations unavailable",
     );
     fs.mkdirSync(path.join(home, "credentials"), { recursive: true });
     const credential = JSON.stringify({
@@ -288,8 +375,8 @@ async function main() {
     assert.equal((await state()).updateAvailable, true);
     assert.equal((await rpc("State")).messageChannels.wecom.validated, true);
     assert.equal(
-      (await rpc("ReadExtensionConfig", ["wecom"])).agent.binary,
-      "/tmp/updated-agent",
+      (await rpc("ReadExtensionConfig", ["wecom"])).retained,
+      "keep-me",
     );
     await page.locator("#extension-update").waitFor();
     unavailable = true;
@@ -363,7 +450,7 @@ async function main() {
       .locator("#dialog")
       .getByRole("button", { name: "确定", exact: true })
       .click();
-    await wait(async () => !(await state()).installed);
+    await wait(async () => !(await state()).packagePresent);
     await page.locator("#extension-install").waitFor();
     assert(!fs.existsSync(path.join(home, "extensions/wecom")));
     for (const file of [
@@ -373,8 +460,8 @@ async function main() {
     ])
       assert(fs.existsSync(path.join(home, file)));
     assert.equal(
-      (await rpc("ReadExtensionConfig", ["wecom"])).agent.binary,
-      "/tmp/updated-agent",
+      (await rpc("ReadExtensionConfig", ["wecom"])).retained,
+      "keep-me",
     );
     await rpc("UninstallExtension", ["wecom"]);
     await page.screenshot({ path: path.join(root, "uninstalled.png") });

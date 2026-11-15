@@ -766,10 +766,7 @@ async function verifyListSelection() {
     await navigate("extensions");
     await page.locator("#extensions-recommended").waitFor();
     assert.equal(await page.locator("#extension-wecom").count(), 1);
-    assert.equal(
-      await page.locator("#extension-wecom .st").innerText(),
-      "未安装",
-    );
+    assert.equal(await page.locator("#extension-wecom .st").count(), 0);
     assert.equal(await page.locator("#module-sidebar .tag").count(), 0);
     await page.locator("#extension-search").fill("no-match");
     assert.equal(await page.locator("#extension-traffic").count(), 0);

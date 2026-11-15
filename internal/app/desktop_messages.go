@@ -89,3 +89,13 @@ func (d *Desktop) UninstallExtension(ctx context.Context, id string) error {
 	defer d.app.notifyState()
 	return d.app.r.extensions.Uninstall(ctx, id)
 }
+
+func (d *Desktop) CancelExtensionInstallation(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !d.app.ready.Load() || d.app.quitting.Load() {
+		return errors.New("应用尚未就绪或正在退出")
+	}
+	return d.app.r.extensions.CancelInstallation(id)
+}

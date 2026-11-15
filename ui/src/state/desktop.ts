@@ -4,6 +4,7 @@ import { host } from "../host";
 import { language, t } from "../i18n";
 
 export type Route =
+  | "messages"
   | "overview"
   | "connect"
   | "provider"
@@ -18,7 +19,9 @@ export interface Location {
   path: string;
   app: string | null;
   query: string;
+  extensionQuery: string;
   selected: number;
+  room: string;
   extension: string;
   provider: string;
 }
@@ -30,6 +33,7 @@ export const shell = reactive({
   app: null as string | null,
   query: "",
   selected: 0,
+  room: "",
   extensionQuery: "",
   extension: "traffic",
   provider: "",
@@ -57,9 +61,30 @@ export function say(text: string) {
   show(text, "", 2600);
 }
 function snapshot(): Location {
-  const { route, host, path, app, query, selected, extension, provider } =
-    shell;
-  return { route, host, path, app, query, selected, extension, provider };
+  const {
+    route,
+    host,
+    path,
+    app,
+    query,
+    extensionQuery,
+    selected,
+    extension,
+    provider,
+    room,
+  } = shell;
+  return {
+    route,
+    host,
+    path,
+    app,
+    query,
+    extensionQuery,
+    selected,
+    extension,
+    provider,
+    room,
+  };
 }
 export function navigate(
   route: Route,
@@ -77,7 +102,9 @@ export function navigate(
       path: "",
       app: null,
       query: shell.query,
+      extensionQuery: shell.extensionQuery,
       selected: shell.selected,
+      room: shell.room,
       extension: shell.extension,
       provider: shell.provider,
       ...filter,
@@ -161,7 +188,7 @@ export async function startDesktop() {
   });
   window.addEventListener("pagehide", off, { once: true });
   await refresh();
-  navigate("overview");
+  if (shell.historyAt < 0) navigate("overview");
 }
 
 export interface MenuEntry {

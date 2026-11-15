@@ -13,13 +13,14 @@ aicat 会不断接入新的能力，每项能力都做成可以整块开关的�
 ## 约定
 
 - **登记**：内置扩展在 `internal/app/extensions.go` 登记一行，声明 ID、名称、简介、分类、是否需要信任证书、需要重启什么，以及它的 addon、额外解密、路由与后台任务。扩展页的列表、开关和证书提示都来自这份声明。
-- **界面**：扩展目录 `ui/src/extensions/<ID>/` 按 ID 自动加载。Body 只提供介绍与功能说明；Settings 提供扩展详情中的配置表单；Diagnostics 提供测试发送、状态、任务及日志。详情页负责介绍、版本来源、启停和简短状态，已安装扩展按声明直接挂载 Settings，并提供独立的“诊断”入口；通用容器不引用具体扩展目录。
+- **界面**：扩展目录 `ui/src/extensions/<ID>/` 按 ID 自动加载。Body 只提供必要的接入指引；Settings 提供扩展详情中的配置表单；Diagnostics 提供测试发送、状态、任务及日志。详情页负责一句简介、安装或启停和简短状态，版本来源等技术信息默认折叠，不展示详情/功能标签页和重复说明，已安装扩展按声明直接挂载 Settings，并提供独立的“诊断”入口；通用容器不引用具体扩展目录。
 - **图标**：平台扩展使用官方品牌图标，资源与来源说明放在扩展目录下的 assets/；通过 iconImage、iconImageDark 声明本地图片，随前端打包并跟随应用主题。aicat 自身功能保留功能图标。
 - **配置**：`aicat.yaml` 的 `extensions.<ID>` 一节，`enabled` 是开关，扩展自己的行为设置也放在这一节，由配置服务按扩展分区读取、合并提交字段后原子保存；扩展负责字段语义与专属校验，凭据由对应业务服务按私有文件约定保存，不写入行为配置或回传界面。
-- **ID**：内置扩展不含点（`traffic`、`codex`、`messages`）；社区扩展包写作「发布者.名称」（如 `acme.header-label`）。
-- **内置与社区**：内置扩展随 aicat 更新；流量与 Codex 在 Go 进程内执行，只读[企业微信客户端](feature-map/wecom-local.md)按需启动独立 Bun TS 读取器。企业微信 BOT 属于推荐目录中的可安装官方渠道，应用仅内置 Bun 与兼容宿主；安装后配置并通过真实鉴权验证，再启用正式收发。渠道不需要单独的 Go Extension，配置、启停及消息状态复用同一扩展入口。任意社区包和完整 OpenClaw 能力尚未开放，范围见[渠道宿主](extension-packages-design.md)。
+- **只读数据**：非消息扩展可通过 `Parts.ReadData` 提供按需查询，宿主与 `Desktop.ReadExtensionData` 只负责分发；结果由扩展自己整理。停用后可读取已有数据，不启动后台采集；配置与只读数据接口分开。
+- **ID**：内置扩展不含点（`traffic`、`codex`）；社区扩展包写作「发布者.名称」（如 `acme.header-label`）。
+- **内置与 NPM**：内置流量与 Codex 在 Go 进程内执行。企业微信 BOT 兼容官方 OpenClaw 包；企业微信客户端与微扑克使用 aicat API 的 NPM 包。推荐安装及任意声明 aicat API 的社区渠道包复用同一安装、配置、启停和消息服务；完整 OpenClaw 能力未开放，见[渠道宿主](extension-packages-design.md)。
 
-消息扩展通过 Parts.Messages 提供统一的账号配置、状态与发送服务；宿主按开关运行 Run，经 Desktop 的类型绑定提供配置和显式发送。状态变化沿用 DesktopChanged，不增加管理 listener 或前端轮询。具体企业微信范围见[企业微信 BOT](feature-map/wecom.md)。
+消息扩展必须遵守[消息接入规范](message-ingress-standard.md)，通过 Parts.Messages 提供统一的账号配置、状态与发送服务；宿主按开关运行 Run，经 Desktop 的类型绑定提供配置和显式发送。状态变化沿用 DesktopChanged，不增加管理 listener。具体企业微信范围见[企业微信 BOT](feature-map/wecom.md)。
 
 ## 现状
 
@@ -30,3 +31,5 @@ aicat 会不断接入新的能力，每项能力都做成可以整块开关的�
 流量是最早的内置能力，暂按现状保留，新扩展不照此做。
 
 可安装渠道的安装、更新、卸载与配置读写流程见[渠道包管理](extension-packages-design.md)。内置扩展不提供独立包更新和卸载。
+
+消息渠道按[NPM渠道包](extension-packages-design.md)声明实现，以[消息接入规范](message-ingress-standard.md)为数据流程边界。统一Room服务管理来源、历史、调度、prompt/model、发布与外发状态。渠道不建立Agent循环或业务消息页面。扩展的配置页只显示平台连接字段，Room设置在消息页面。通用ReadData供诊断查询；NPM包使用已声明能力，经统一gateway和stdio交接，不新增管理listener。

@@ -5,7 +5,7 @@ import { call, event, type Channel } from "mygo-runtime";
 // ---- Types ----
 
 export interface AccountConfig {
-  local?: LocalMessages;
+  values?: Record<string, unknown>;
   accountId: string;
   secret: string;
 }
@@ -57,6 +57,17 @@ export interface Delivery {
   error?: string;
 }
 
+export interface Descriptor {
+  format?: string;
+  id: string;
+  name: string;
+  summary: string;
+  package: string;
+  version: string;
+  publisher: string;
+  registry: string;
+}
+
 /** DesktopState is a coherent snapshot of settings and live desktop state. */
 export interface DesktopState {
   preferences: Preferences;
@@ -80,6 +91,7 @@ export interface DesktopState {
 }
 
 export interface Event {
+  subject?: string;
   specversion: string;
   id: string;
   source: string;
@@ -91,12 +103,19 @@ export interface Event {
 
 /** State is a registered extension and whether it is on. */
 export interface ExtensionState {
+  automaticSetup: boolean;
+  sendTargetLabel?: string;
+  canSend: boolean;
+  packageSource?: string;
+  packageFormat?: string;
+  configFields: Field[];
   /**
    * ID names its section in aicat.yaml (extensions.<ID>). A built-in's ID
    * has no dot; a community package's is publisher.name.
    */
   id: string;
   package: string;
+  registry: string;
   version: string;
   publisher: string;
   /**
@@ -120,10 +139,19 @@ export interface ExtensionState {
   enabled: boolean;
   installed: boolean;
   builtin: boolean;
+  canPrepare: boolean;
   ready: boolean;
   installedVersion: string;
   updateAvailable: boolean;
   packagePresent: boolean;
+  operation: Operation;
+}
+
+export interface Field {
+  key: string;
+  label: string;
+  type: string;
+  required: boolean;
 }
 
 /** Group sums the calls sharing a key: a model, a provider ID or an agent. */
@@ -161,22 +189,14 @@ export interface Input {
   key: string;
 }
 
-export interface LocalMessages {
-  accountId: string;
-  dataDir: string;
-  replyRooms?: Record<string, string>;
-  triggers?: Record<string, LocalTrigger>;
-}
-
-export interface LocalTrigger {
-  direct: boolean;
-  mention: boolean;
-  mentionAll: boolean;
-  keywords?: string[];
-  all: boolean;
-}
-
 export interface Message {
+  historical?: boolean;
+  summary?: string;
+  reply_id?: string;
+  delivery?: Delivery;
+  agent_snapshot?: Text;
+  reply_to?: string;
+  context_key?: string;
   search_name?: string;
   local_id?: string;
   server_id?: string;
@@ -205,11 +225,6 @@ export interface Message {
   text: Text;
 }
 
-export interface MessageAgent {
-  enabled: boolean;
-  binary: string;
-}
-
 export interface MessagesRecord {
   id: string;
   recordedAt: string;
@@ -219,7 +234,7 @@ export interface MessagesRecord {
 }
 
 export interface MessagesState {
-  local?: LocalMessages;
+  dropped: number;
   accountId: string;
   configured: boolean;
   validated: boolean;
@@ -228,32 +243,18 @@ export interface MessagesState {
   pid: number;
   records: MessagesRecord[];
   roomDir: string;
-  agent: MessageAgent;
   tasks: Task[];
 }
 
-/**
- * Model is one model a provider's own list says it serves. The list is the
- * truth about what the vendor serves today; anything it leaves out (a name,
- * a context window, reasoning levels) is filled in from the models.dev
- * catalog where the models are offered, not here.
- *
- * The way a list is asked for and read follows Magpie (MIT,
- * github.com/yetone/magpie internal/catalog/live.go).
- */
 export interface Model {
-  id: string;
-  name?: string;
-  context?: number;
-  output?: number;
-  efforts?: string[];
-  /** Images is the vendor's answer on image input; nil when it didn't say. */
-  images?: boolean;
+  model: string;
+  displayName: string;
+  isDefault: boolean;
 }
 
 /** ModelList is a provider's model list as last synced. */
 export interface ModelList {
-  models: Model[];
+  models: ProviderModel[];
   syncedAt?: string;
   /** Source is the URL that answered. */
   source?: string;
@@ -265,6 +266,16 @@ export interface ModelList {
    */
   error?: string;
   errorKind?: string;
+}
+
+export interface Operation {
+  action: string;
+  status: string;
+  stage: string;
+  startedAt: string;
+  finishedAt: string;
+  error: string;
+  cancellable: boolean;
 }
 
 export interface PlatformResult {
@@ -300,6 +311,25 @@ export interface Provider {
   syncing: boolean;
 }
 
+/**
+ * Model is one model a provider's own list says it serves. The list is the
+ * truth about what the vendor serves today; anything it leaves out (a name,
+ * a context window, reasoning levels) is filled in from the models.dev
+ * catalog where the models are offered, not here.
+ *
+ * The way a list is asked for and read follows Magpie (MIT,
+ * github.com/yetone/magpie internal/catalog/live.go).
+ */
+export interface ProviderModel {
+  id: string;
+  name?: string;
+  context?: number;
+  output?: number;
+  efforts?: string[];
+  /** Images is the vendor's answer on image input; nil when it didn't say. */
+  images?: boolean;
+}
+
 export interface Receipt {
   source: string;
   id: string;
@@ -331,6 +361,60 @@ export interface Response {
   proto?: string;
   headers: Header;
   body: BodyInfo;
+}
+
+export interface RoomIssue {
+  id: string;
+  kind: string;
+  status: string;
+  error: string;
+  messageId: string;
+}
+
+export interface RoomSettings {
+  name: string;
+  sendTarget: string;
+  automatic: boolean;
+  prompt: string;
+  model: string;
+  mode: string;
+  allowOutbound: boolean;
+  context: Record<string, string>;
+  trigger: RoomTrigger;
+}
+
+export interface RoomSummary {
+  id: string;
+  channel: string;
+  source: string;
+  conversation: string;
+  createdAt: string;
+  lastMessage: string;
+  updatedAt: string;
+  settings: RoomSettings;
+  issues: RoomIssue[];
+}
+
+export interface RoomTrigger {
+  all: boolean;
+  direct: boolean;
+  mention: boolean;
+  mentionAll: boolean;
+  keywords: string[];
+}
+
+export interface RoomView {
+  id: string;
+  channel: string;
+  source: string;
+  conversation: string;
+  createdAt: string;
+  lastMessage: string;
+  updatedAt: string;
+  settings: RoomSettings;
+  issues: RoomIssue[];
+  messages: Message[];
+  tasks: Task[];
 }
 
 export type State = "request" | "response" | "completed" | "failed" | "canceled";
@@ -374,6 +458,8 @@ export interface SystemproxyStatus {
 }
 
 export interface Task {
+  settings: RoomSettings;
+  configurationVersion: string;
   id: string;
   account: string;
   source: string;
@@ -429,6 +515,9 @@ export const Desktop = {
   body(id: BodyID): Promise<BodySnapshot> {
     return call("Desktop.Body", id);
   },
+  cancelExtensionInstallation(id: string): Promise<void> {
+    return call("Desktop.CancelExtensionInstallation", id);
+  },
   clearTraffic(): Promise<void> {
     return call("Desktop.ClearTraffic");
   },
@@ -453,8 +542,17 @@ export const Desktop = {
   installCertificate(): Promise<void> {
     return call("Desktop.InstallCertificate");
   },
+  installChannelPackage(descriptor: Descriptor): Promise<void> {
+    return call("Desktop.InstallChannelPackage", descriptor);
+  },
   installExtension(id: string): Promise<void> {
     return call("Desktop.InstallExtension", id);
+  },
+  listRoomModels(): Promise<Model[]> {
+    return call("Desktop.ListRoomModels");
+  },
+  listRooms(): Promise<RoomSummary[]> {
+    return call("Desktop.ListRooms");
   },
   openKeychain(): Promise<void> {
     return call("Desktop.OpenKeychain");
@@ -471,6 +569,15 @@ export const Desktop = {
   },
   readExtensionConfig(id: string): Promise<Record<string, unknown>> {
     return call("Desktop.ReadExtensionConfig", id);
+  },
+  readExtensionData(id: string, query: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return call("Desktop.ReadExtensionData", id, query);
+  },
+  readRoom(id: string, room: string): Promise<Record<string, unknown>> {
+    return call("Desktop.ReadRoom", id, room);
+  },
+  readRoomByID(id: string): Promise<RoomView> {
+    return call("Desktop.ReadRoomByID", id);
   },
   recheckCertificate(): Promise<void> {
     return call("Desktop.RecheckCertificate");
@@ -550,6 +657,9 @@ export const Desktop = {
   },
   updateExtensionConfig(id: string, patch: Record<string, unknown>): Promise<void> {
     return call("Desktop.UpdateExtensionConfig", id, patch);
+  },
+  updateRoomSettings(id: string, settings: RoomSettings): Promise<void> {
+    return call("Desktop.UpdateRoomSettings", id, settings);
   },
   /** Usage sums the model calls of a period: "today", "7d" or "30d". */
   usage(period: string): Promise<Report> {

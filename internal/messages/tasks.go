@@ -1,17 +1,13 @@
 package messages
 
 import (
-	"encoding/json"
-	"errors"
-	"os"
-	"path/filepath"
 	"sort"
 	"sync"
 )
 
 type queuedTask struct {
 	task Task
-	file string
+	dir  string
 }
 
 type taskStore struct {
@@ -20,30 +16,23 @@ type taskStore struct {
 	recent map[string][]Task
 }
 
-func newTaskStore(home, channel string) *taskStore {
-	s := &taskStore{active: map[string]queuedTask{}, recent: map[string][]Task{}}
-	files, _ := filepath.Glob(filepath.Join(home, "rooms", "*", "tasks", "*.json"))
-	for _, file := range files {
-		var task Task
-		raw, err := os.ReadFile(file)
-		if err != nil || json.Unmarshal(raw, &task) != nil || task.Account != channel {
-			continue
-		}
-		dir := filepath.Dir(filepath.Dir(file))
-		if task.Log != filepath.Join(dir, "context", "messages.log") || filepath.Base(dir) != digest([]byte(channel+"\x00"+task.Source+"\x00"+task.Room)) {
-			continue
-		}
-		s.remember(queuedTask{task: task, file: file})
-	}
-	return s
+func newTaskStore() *taskStore {
+	return &taskStore{active: map[string]queuedTask{}, recent: map[string][]Task{}}
+}
+
+func (s *taskStore) reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.active = map[string]queuedTask{}
+	s.recent = map[string][]Task{}
 }
 
 func (s *taskStore) remember(item queuedTask) {
 	task := item.task
 	if task.Status == "pending" || task.Status == "running" {
-		s.active[item.file] = item
+		s.active[item.task.ID] = item
 	} else {
-		delete(s.active, item.file)
+		delete(s.active, item.task.ID)
 	}
 	recent := s.recent[task.Source]
 	for i, t := range recent {
@@ -65,14 +54,10 @@ func (s *taskStore) remember(item queuedTask) {
 	s.recent[task.Source] = recent
 }
 
-func (s *taskStore) save(item queuedTask) error {
+func (s *taskStore) save(item queuedTask) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := writeJSON(item.file, item.task); err != nil {
-		return err
-	}
 	s.remember(item)
-	return nil
 }
 
 func (s *taskStore) list(source string) []Task {
@@ -86,32 +71,12 @@ func (s *taskStore) selectTasks(source, dir, status string) []queuedTask {
 	defer s.mu.RUnlock()
 	result := []queuedTask{}
 	for _, item := range s.active {
-		if item.task.Source == source && item.task.Status == status && (dir == "" || filepath.Dir(filepath.Dir(item.file)) == dir) {
+		if item.task.Source == source && item.task.Status == status && (dir == "" || item.dir == dir) {
 			result = append(result, item)
 		}
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i].file < result[j].file })
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].task.CreatedAt < result[j].task.CreatedAt || (result[i].task.CreatedAt == result[j].task.CreatedAt && result[i].task.ID < result[j].task.ID)
+	})
 	return result
-}
-
-func (s *taskStore) create(item queuedTask) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	raw, err := os.ReadFile(item.file)
-	if err == nil {
-		var saved Task
-		if json.Unmarshal(raw, &saved) != nil || saved.ID != item.task.ID || saved.Source != item.task.Source || saved.Account != item.task.Account || saved.Room != item.task.Room || saved.Log != item.task.Log || jsonDigest(saved.Trigger) != jsonDigest(item.task.Trigger) {
-			return errors.New("Agent 任务标识或触发内容冲突")
-		}
-		s.remember(queuedTask{task: saved, file: item.file})
-		return nil
-	}
-	if !os.IsNotExist(err) {
-		return err
-	}
-	if err = writeJSON(item.file, item.task); err != nil {
-		return err
-	}
-	s.remember(item)
-	return nil
 }

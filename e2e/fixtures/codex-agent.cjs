@@ -30,30 +30,50 @@ function parse(text) {
     assert(!m.event);
     assert(!m.account);
   }
-  assert(Array.isArray(JSON.parse(people)));
+  assert(Array.isArray(JSON.parse(people.split("\nroom_context:\n")[0])));
   return list;
 }
 function finish(thread) {
   const turn = active.get(thread);
   if (!turn) return;
-  for (const m of turn.messages) {
+  const next = turn.next || 0;
+  if (next < turn.messages.length) {
+    const m = turn.messages[next];
+    turn.next = next + 1;
+    const id = ++callID;
+    calls.set(id, { thread, forbidden: false });
     emit({
-      method: "item/completed",
+      id,
+      method: "item/tool/call",
       params: {
         threadId: thread,
         turnId: turn.id,
-        item: {
-          id: "item-" + m.msgid,
-          type: "agentMessage",
-          phase: "final_answer",
-          text:
-            m.msgid === "long-response"
-              ? "长🙂\n".repeat(1200)
-              : "Codex reply " + m.msgid,
+        tool: "messages_send",
+        arguments: {
+          event: {
+            text:
+              m.msgid === "long-response"
+                ? "长🙂\n".repeat(1200)
+                : "Codex reply " + m.msgid,
+          },
         },
       },
     });
+    return;
   }
+  emit({
+    method: "item/completed",
+    params: {
+      threadId: thread,
+      turnId: turn.id,
+      item: {
+        id: "ordinary",
+        type: "agentMessage",
+        phase: "final_answer",
+        text: "ordinary output must not be forwarded",
+      },
+    },
+  });
   emit({
     method: "turn/completed",
     params: { threadId: thread, turn: { id: turn.id, status: "completed" } },
@@ -74,9 +94,9 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
     if (!message.method) {
       const call = calls.get(message.id);
       assert(call);
-      assert.equal(message.result.success, false);
+      assert.equal(message.result.success, !call.forbidden);
       calls.delete(message.id);
-      schedule(call);
+      schedule(call.thread);
       return;
     }
     if (message.method === "initialized") return;
@@ -89,7 +109,7 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
       assert.equal(p.approvalPolicy, "never");
       assert(p.developerInstructions.includes("trigger_messages"));
       if (message.method === "thread/start")
-        assert.equal(p.dynamicTools[0].name, "messages_send");
+        assert(p.dynamicTools.some(x=>x.name==="messages_send")&&p.dynamicTools.some(x=>x.name==="rooms_reply"));
       const id = p.threadId || "thread-" + path.basename(p.cwd);
       workspaces.set(id, p.cwd);
       emit({ id: message.id, result: { thread: { id } } });
@@ -153,7 +173,7 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
             },
           },
         });
-        calls.set(callID, p.threadId);
+        calls.set(callID, { thread: p.threadId, forbidden: true });
       } else schedule(p.threadId);
       return;
     }

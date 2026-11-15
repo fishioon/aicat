@@ -53,11 +53,11 @@ function push(entry) {
   if (!account || account.source !== entry.event.source || account.closing) return;
   emit({id: entry.event.id, method: 'message_push', params: {accountId: account.id, session: account.session, event: entry.event}});
 }
-function ingest(account, room, message, msgtime = null, kind = 'text') {
+function ingest(account, room, message, msgtime = null, kind = 'text', roomType = 'unknown') {
   if (!account || account.closing || !room || !message.msgid) throw Error('INVALID_INBOUND');
   const event = {specversion: '1.0', id: crypto.randomUUID(), source: account.source,
     type: 'org.aicat.message.received.v1', datacontenttype: 'application/json', time: new Date().toISOString(),
-    data: {msgid:message.msgid,action:'send',from:message.from,tolist:[account.botId],roomid:room,msgtype:kind,text:{content:message.text ?? ''},...(msgtime ? {msgtime} : {})}};
+    data: {room_type:roomType,msgid:message.msgid,action:'send',from:message.from,tolist:[account.botId],roomid:room,msgtype:kind,text:{content:message.text ?? ''},...(msgtime ? {msgtime} : {})}};
   const entry = {event,accountId:account.id};
   if (Buffer.byteLength(JSON.stringify(pending)) + Buffer.byteLength(JSON.stringify(entry)) > 256 * 1024 * 1024) {
     state(account, 'error', 'UNCONFIRMED_QUEUE_FULL');
@@ -93,9 +93,9 @@ WSClient.prototype.emit = function (name, ...args) {
     if (name === 'event.disconnected_event') {account.blocked=true;state(account, 'blocked', 'ACCOUNT_CONNECTED_ELSEWHERE');}
     if (name === 'message') {
       const body = args[0]?.body;
-      if (body?.chattype !== 'single' || body?.msgtype !== 'text') {
+      if (!['single','group'].includes(body?.chattype) || body?.msgtype !== 'text' || (body.chattype==='group' && !body.chatid)) {
         if (body?.msgid && (body.chatid || body.from?.userid)) ingest(account, body.chatid || body.from.userid,
-          {msgid: body.msgid, from: body.from?.userid, text: 'Unsupported message type'}, null, 'unsupported');
+          {msgid: body.msgid, from: body.from?.userid, text: 'Unsupported message type'}, null, 'unsupported',body.chattype==='group'?'group':body.chattype==='single'?'direct':'unknown');
         return false;
       }
       const rawTime = Number(body.create_time);
@@ -113,7 +113,7 @@ const reply = {
   dispatchReplyWithBufferedBlockDispatcher: async ({ctx}) => {
     const key = JSON.stringify([ctx.AccountId, ctx.MessageSid]);
     ingest(accounts.get(ctx.AccountId), ctx.To.replace(/^wecom:/, ''),
-      {msgid: ctx.MessageSid, from: ctx.SenderId, text: ctx.RawBody ?? ctx.Body}, rawTimes.get(key) ?? null);
+      {msgid: ctx.MessageSid, from: ctx.SenderId, text: ctx.RawBody ?? ctx.Body}, rawTimes.get(key) ?? null,'text',ctx.ChatType==='group'?'group':'direct');
     rawTimes.delete(key);
     return {queuedFinal: false, counts: {tool: 0, block: 0, final: 0}};
   },
@@ -156,7 +156,7 @@ async function handle(method, params) {
     const account = {id: params.accountId, session: params.session, botId: params.botId, source: params.source,
       controller: new AbortController(), closing: false};
     config.channels.wecom.accounts[account.id] = {enabled: true, botId: params.botId, secret: params.secret,
-      websocketUrl: endpoint.href, dmPolicy: 'open', allowFrom: ['*'], groupPolicy: 'disabled',
+      websocketUrl: endpoint.href, dmPolicy: 'open', allowFrom: ['*'], groupPolicy: 'open',
       sendThinkingMessage: false, dynamicAgents: {enabled: false}};
     accounts.set(account.id, account);
     const resolved = channel.config.resolveAccount(config, account.id);

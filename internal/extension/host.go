@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sync"
 	"sync/atomic"
 
@@ -17,10 +18,14 @@ import (
 
 // Host holds the registered extensions and turns them on and off.
 type Host struct {
-	ctx     context.Context
-	home    string
-	plugins *channelplugin.Store
-	items   []*item
+	env       Env
+	itemsMu   sync.RWMutex
+	packageMu sync.Mutex
+	ctx       context.Context
+	home      string
+	plugins   *channelplugin.Store
+	items     []*item
+	changed   func()
 }
 
 type item struct {
@@ -35,21 +40,29 @@ type item struct {
 // New builds every extension; none is on yet. ctx bounds every extension's
 // background work.
 func New(ctx context.Context, env Env, extensions []Extension) (*Host, error) {
-	h := &Host{ctx: ctx, home: env.Home, plugins: channelplugin.New(env.Home)}
-	for _, descriptor := range channelplugin.Catalog {
+	h := &Host{env: env, ctx: ctx, home: env.Home, plugins: channelplugin.New(env.Home)}
+	descriptors, err := h.plugins.Descriptors()
+	if err != nil {
+		return nil, err
+	}
+	for _, descriptor := range descriptors {
 		if err := h.plugins.RefreshRuntime(descriptor.ID); err != nil {
 			return nil, fmt.Errorf("渠道兼容层更新失败：%w", err)
 		}
-		extensions = append(extensions, Extension{ID: descriptor.ID, Name: descriptor.Name, Summary: descriptor.Summary, Lede: descriptor.Summary, Categories: []string{"消息渠道"}, Package: descriptor.Package, Version: descriptor.Version, Publisher: descriptor.Publisher,
-			Build: func(env Env) (Parts, error) {
-				channel := messages.New(env.Home, descriptor.ID, platformEndpoint(), env.ChannelHost)
-				return Parts{Messages: channel, Configuration: channel, Run: channel.Run}, nil
-			}})
+		extensions = append(extensions, packageExtension(descriptor))
 	}
 	for _, e := range extensions {
+		if h.find(e.ID) != nil {
+			return nil, fmt.Errorf("扩展 ID 重复：%s", e.ID)
+		}
 		parts, err := e.Build(env)
 		if err != nil {
 			return nil, fmt.Errorf("extension %s: %w", e.ID, err)
+		}
+		if preparer, ok := parts.Messages.(interface{ PrepareRooms() error }); ok {
+			if err := preparer.PrepareRooms(); err != nil {
+				return nil, fmt.Errorf("extension %s rooms: %w", e.ID, err)
+			}
 		}
 		h.items = append(h.items, &item{Extension: e, parts: parts})
 	}
@@ -57,7 +70,7 @@ func New(ctx context.Context, env Env, extensions []Extension) (*Host, error) {
 }
 
 func (h *Host) find(id string) *item {
-	for _, it := range h.items {
+	for _, it := range h.registered() {
 		if it.ID == id {
 			return it
 		}
@@ -69,25 +82,49 @@ func (h *Host) find(id string) *item {
 // needs the root certificate trusted.
 func (h *Host) Known(id string) (known, needsTrust bool) {
 	it := h.find(id)
-	return it != nil, it != nil && it.NeedsTrust
+	if it == nil {
+		return false, false
+	}
+	if it.PackageFormat == "aicat" {
+		m, err := h.plugins.Manifest(id)
+		return true, err == nil && len(m.Capabilities.Intercepts) > 0
+	}
+	return true, it.NeedsTrust
 }
 
 // State is a registered extension and whether it is on.
 type State struct {
 	Extension
-	Enabled          bool   `json:"enabled"`
-	Installed        bool   `json:"installed"`
-	Builtin          bool   `json:"builtin"`
-	Ready            bool   `json:"ready"`
-	InstalledVersion string `json:"installedVersion"`
-	UpdateAvailable  bool   `json:"updateAvailable"`
-	PackagePresent   bool   `json:"packagePresent"`
+	Enabled          bool                    `json:"enabled"`
+	Installed        bool                    `json:"installed"`
+	Builtin          bool                    `json:"builtin"`
+	CanPrepare       bool                    `json:"canPrepare"`
+	Ready            bool                    `json:"ready"`
+	InstalledVersion string                  `json:"installedVersion"`
+	UpdateAvailable  bool                    `json:"updateAvailable"`
+	PackagePresent   bool                    `json:"packagePresent"`
+	Operation        channelplugin.Operation `json:"operation"`
 }
 
 // List is every registered extension, in the order they were registered.
 func (h *Host) List() []State {
-	out := make([]State, 0, len(h.items))
-	for _, it := range h.items {
+	out := []State{}
+	for _, it := range h.registered() {
+		descriptor := it.Extension
+		if d, ok := h.plugins.Descriptor(it.ID); ok {
+			descriptor.Version = d.Version
+		}
+		if sender, ok := it.parts.Messages.(interface{ CanSend() bool }); ok {
+			descriptor.CanSend = sender.CanSend()
+		}
+		if descriptor.PackageFormat == "aicat" {
+			if manifest, err := h.plugins.Manifest(it.ID); err == nil {
+				descriptor.AutomaticSetup = manifest.Prepare != ""
+				descriptor.SendTargetLabel = manifest.SendTargetLabel
+				descriptor.ConfigFields = manifest.Fields
+				descriptor.NeedsTrust = len(manifest.Capabilities.Intercepts) > 0
+			}
+		}
 		builtin := it.Package == ""
 		installed := builtin || it.parts.Messages != nil && it.parts.Messages.Installed()
 		ready := it.parts.Messages == nil || it.parts.Messages.Validated()
@@ -95,7 +132,7 @@ func (h *Host) List() []State {
 		if current, err := h.plugins.Current(it.ID); err == nil {
 			installedVersion = current.Version
 		}
-		out = append(out, State{Extension: it.Extension, Enabled: it.on.Load(), Installed: installed, Builtin: builtin, Ready: ready, InstalledVersion: installedVersion, UpdateAvailable: installed && !builtin && installedVersion != it.Version, PackagePresent: !builtin && h.plugins.Present(it.ID)})
+		out = append(out, State{CanPrepare: it.parts.Prepare != nil, Operation: h.plugins.Operation(it.ID), Extension: descriptor, Enabled: it.on.Load(), Installed: installed, Builtin: builtin, Ready: ready, InstalledVersion: installedVersion, UpdateAvailable: installed && !builtin && installedVersion != descriptor.Version, PackagePresent: !builtin && h.plugins.Present(it.ID)})
 	}
 	return out
 }
@@ -124,6 +161,11 @@ func (h *Host) SetEnabled(id string, on bool) error {
 			return err
 		}
 	}
+	if on && !it.on.Load() && it.parts.Prepare != nil {
+		if err := it.parts.Prepare(h.ctx); err != nil {
+			return err
+		}
+	}
 	if err := config.SetExtensionEnabled(h.home, id, on); err != nil {
 		return err
 	}
@@ -137,6 +179,13 @@ func (h *Host) set(it *item, on bool) error {
 	if on {
 		if err := h.CanEnable(it.ID); err != nil {
 			return err
+		}
+	}
+	if on {
+		if preparer, ok := it.parts.Messages.(interface{ PrepareRooms() error }); ok {
+			if err := preparer.PrepareRooms(); err != nil {
+				return err
+			}
 		}
 	}
 	it.on.Store(on)
@@ -159,14 +208,14 @@ func (h *Host) set(it *item, on bool) error {
 
 // Close turns every extension off.
 func (h *Host) Close() {
-	for _, it := range h.items {
+	for _, it := range h.registered() {
 		_ = h.Set(it.ID, false)
 	}
 }
 
 func (h *Host) MessageStates() map[string]messages.State {
 	out := make(map[string]messages.State)
-	for _, it := range h.items {
+	for _, it := range h.registered() {
 		if it.parts.Messages != nil {
 			out[it.ID] = it.parts.Messages.Snapshot()
 		}
@@ -175,7 +224,9 @@ func (h *Host) MessageStates() map[string]messages.State {
 }
 
 func (h *Host) OnChange(fn func()) {
-	for _, it := range h.items {
+	h.changed = fn
+	h.plugins.OnChange(fn)
+	for _, it := range h.registered() {
 		if it.parts.Messages != nil {
 			it.parts.Messages.OnChange(fn)
 		}
@@ -206,13 +257,69 @@ func (h *Host) SendMessage(ctx context.Context, channel string, event messages.E
 	if it == nil || it.parts.Messages == nil || !it.on.Load() {
 		return messages.Receipt{}, fmt.Errorf("消息渠道未启用")
 	}
-	return it.parts.Messages.Send(ctx, event)
+	if event.Type == messages.ReplyPublished {
+		binding, ok := it.parts.Messages.(interface{ BoundSource() (string, error) })
+		if !ok {
+			return messages.Receipt{}, fmt.Errorf("渠道缺少 Room 来源绑定")
+		}
+		source, err := binding.BoundSource()
+		if err != nil {
+			return messages.Receipt{}, err
+		}
+		if err = messages.CheckRoomBinding(channel, source, event); err != nil {
+			return messages.Receipt{}, err
+		}
+		receipt, err := messages.PublishReply(ctx, h.home, channel, source, event)
+		if err == nil && h.changed != nil {
+			h.changed()
+		}
+		return receipt, err
+	}
+	capability, ok := it.parts.Messages.(interface{ CanSend() bool })
+	if !ok || !capability.CanSend() {
+		return messages.Receipt{}, fmt.Errorf("这个渠道不支持外部发送")
+	}
+	binding, ok := it.parts.Messages.(interface{ BoundSource() (string, error) })
+	if !ok {
+		return messages.Receipt{}, fmt.Errorf("渠道缺少 Room 来源绑定")
+	}
+	source, err := binding.BoundSource()
+	if err != nil {
+		return messages.Receipt{}, err
+	}
+	if err = messages.CheckRoomBinding(channel, source, event); err != nil {
+		return messages.Receipt{}, err
+	}
+	if err = messages.CheckOutbound(ctx, h.home, channel, source, event.Data.RoomID); err != nil {
+		return messages.Receipt{}, err
+	}
+	receipt, err := messages.Deliver(ctx, h.home, channel, source, event, func(ctx context.Context, _ string, outbound messages.Event) (messages.Receipt, error) {
+		if !it.on.Load() {
+			return messages.Receipt{}, fmt.Errorf("消息渠道已停用")
+		}
+		if h.changed != nil {
+			h.changed()
+		}
+		return it.parts.Messages.Send(ctx, outbound)
+	})
+	if h.changed != nil {
+		h.changed()
+	}
+	return receipt, err
 }
 
 // Intercepts reports whether an extension that is on wants a CONNECT target
 // decrypted.
 func (h *Host) Intercepts(r *http.Request) bool {
-	for _, it := range h.items {
+	for _, it := range h.registered() {
+		if it.on.Load() && it.PackageFormat == "aicat" {
+			if channel, ok := it.parts.Messages.(gatewayChannel); ok {
+				u, err := url.Parse("https://" + r.Host)
+				if err == nil && matchesGatewayHosts(channel.GatewayCapabilities().Intercepts, u) {
+					return true
+				}
+			}
+		}
 		if it.parts.Intercepts != nil && it.on.Load() && it.parts.Intercepts(r) {
 			return true
 		}
@@ -223,7 +330,8 @@ func (h *Host) Intercepts(r *http.Request) bool {
 // Mount serves every extension's routes on mux. While an extension is off its
 // routes answer 503 and say so; its handler is not called.
 func (h *Host) Mount(mux *http.ServeMux) {
-	for _, it := range h.items {
+	h.mountRooms(mux)
+	for _, it := range h.registered() {
 		for pattern, handler := range it.parts.Routes {
 			mux.Handle(pattern, gatedHandler{it, handler})
 		}
@@ -251,8 +359,8 @@ func (g gatedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Addons are the extensions' gateway addons, each called only while its
 // extension is on.
 func (h *Host) Addons() []proxy.Addon {
-	var out []proxy.Addon
-	for _, it := range h.items {
+	out := []proxy.Addon{&nativeGateway{host: h}}
+	for _, it := range h.registered() {
 		if it.parts.Addon != nil {
 			out = append(out, gatedAddon{it.parts.Addon, &it.on})
 		}
@@ -337,6 +445,16 @@ func (g gatedAddon) WebSocketMessage(f *proxy.Flow) {
 		g.a.WebSocketMessage(f)
 	}
 }
+func (g gatedAddon) WebSocketMessageReceived(f *proxy.Flow, msg *proxy.WebSocketMessage) {
+	if !g.on.Load() {
+		return
+	}
+	if observer, ok := g.a.(proxy.WebSocketMessageObserver); ok {
+		observer.WebSocketMessageReceived(f, msg)
+	} else {
+		g.a.WebSocketMessage(f)
+	}
+}
 func (g gatedAddon) WebSocketEnd(f *proxy.Flow) {
 	if g.on.Load() {
 		g.a.WebSocketEnd(f)
@@ -380,12 +498,16 @@ func (h *Host) Uninstall(ctx context.Context, id string) error {
 	return h.changePackage(ctx, id, "uninstall")
 }
 
+func (h *Host) CancelInstallation(id string) error { return h.plugins.Cancel(id) }
+
 func (h *Host) changePackage(ctx context.Context, id, operation string) error {
 	it := h.find(id)
 	if it == nil || it.Package == "" {
 		return fmt.Errorf("没有可安装的渠道插件：%s", id)
 	}
-	it.mu.Lock()
+	if !it.mu.TryLock() {
+		return fmt.Errorf("扩展正在执行其他操作")
+	}
 	defer it.mu.Unlock()
 	if it.on.Load() {
 		return fmt.Errorf("请先停用渠道插件")
@@ -405,7 +527,7 @@ func (h *Host) changePackage(ctx context.Context, id, operation string) error {
 	case "update":
 		return h.plugins.Update(operationCtx, id)
 	case "uninstall":
-		return h.plugins.Uninstall(id)
+		return h.plugins.Uninstall(operationCtx, id)
 	}
 	return fmt.Errorf("未知包操作")
 }
@@ -415,7 +537,7 @@ func (h *Host) CanEnable(id string) error {
 	if it == nil {
 		return fmt.Errorf("没有这个扩展：%s", id)
 	}
-	if it.parts.Messages != nil && !it.parts.Messages.Validated() {
+	if it.parts.Prepare == nil && it.parts.Messages != nil && !it.parts.Messages.Validated() {
 		return fmt.Errorf("请先完成消息渠道配置和验证")
 	}
 	return nil

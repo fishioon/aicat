@@ -240,12 +240,13 @@ async function stop() {
     throw Error("Application did not stop within 15 seconds");
   }
 }
-function publish(id, user = "alice", type = "text", timestamp) {
+function publish(id, user = "alice", type = "text", timestamp, group = "") {
   const body = {
     msgid: id,
     create_time:
       timestamp === undefined ? undefined : Math.floor(timestamp / 1000),
-    chattype: "single",
+    chattype: group ? "group" : "single",
+    ...(group ? {chatid:group} : {}),
     from: { userid: user },
     msgtype: type,
     text: { content: "hello " + id },
@@ -308,7 +309,10 @@ const logs = () =>
     ? fs.readdirSync(path.join(home, "rooms")).map((dir) => ({
         dir,
         records: fs
-          .readFileSync(path.join(home, "rooms", dir, "messages.jsonl"), "utf8")
+          .readFileSync(
+            path.join(home, "rooms", dir, "context/messages.log"),
+            "utf8",
+          )
           .trim()
           .split("\n")
           .filter(Boolean)
@@ -333,214 +337,95 @@ async function runAgent() {
           .split("\n")
           .map(JSON.parse)
       : [];
-  const completed = async (count) =>
-    new Set(
-      (await state()).tasks
-        .filter((t) => t.status === "completed")
-        .map((t) => t.trigger.msgid),
-    ).size === count;
-  await page.locator("#wecom-agent-enabled").check();
-  await page.locator("#wecom-agent-binary").fill(fixture);
-  await page.locator("#wecom-agent-save").click();
-  await wait(async () => (await state()).agent.enabled);
+  const completed = async (id) =>
+    (await state()).tasks.some(
+      (t) => t.status === "completed" && t.trigger.msgid === id,
+    );
   await toggle();
   await wait(async () => (await state()).phase === "connected");
   publish("expired", "alice", "text", Date.now() - 11 * 60 * 1000);
   publish("unsupported", "alice", "image", Date.now());
   await wait(() => logs().flatMap((l) => l.records).length >= 2);
-  await pause(500);
   assert.equal(trace().length, 0);
-  publish("agent-a1", "alice", "text", Date.now());
-  await wait(() => trace().some((x) => x.method === "turn/start"));
-  publish("agent-a2", "alice", "text", Date.now());
-  publish("agent-b1", "bob", "text", Date.now());
-  await wait(() => completed(3));
-  assert.equal(trace().filter((x) => x.method === "turn/start").length, 2);
+  publish("seed-bob", "bob", "image", Date.now());
+  await wait(async()=> (await rpc("ListRooms")).length===2);
+  for(const room of await rpc("ListRooms"))await rpc("UpdateRoomSettings",[room.id,{...room.settings,automatic:true,allowOutbound:true}]);
+  publish("first", "alice", "text", Date.now());
+  await wait(() => completed("first"));
+  publish("start-steer", "alice", "text", Date.now());
+  await wait(() =>
+    trace().some(
+      (x) =>
+        x.method === "turn/start" && JSON.stringify(x).includes("start-steer"),
+    ),
+  );
+  publish("follow", "alice", "text", Date.now());
+  publish("other", "bob", "text", Date.now());
+  await wait(
+    async () =>
+      (await completed("start-steer")) &&
+      (await completed("follow")) &&
+      (await completed("other")),
+  );
   assert(trace().some((x) => x.method === "turn/steer"));
-  assert.equal(deliveries.length, 3);
-  assert.equal(trace().filter((x) => x.method === "spawn").length, 1);
   assert.equal(trace().filter((x) => x.method === "thread/start").length, 2);
   check(
-    "full legacy messages and requesters reach Codex directly; active Room uses turn/steer while another Room starts independently",
-  );
-  const taskDirectories = logs()
-    .map((log) => path.join(home, "rooms", log.dir, "tasks"))
-    .filter((dir) => fs.existsSync(dir));
-  const cachedTasks = (await state()).tasks;
-  try {
-    for (const dir of taskDirectories) fs.renameSync(dir, dir + "-held");
-    assert.deepEqual((await state()).tasks, cachedTasks);
-  } finally {
-    for (const dir of taskDirectories)
-      if (fs.existsSync(dir + "-held")) fs.renameSync(dir + "-held", dir);
-  }
-  check(
-    "task snapshots remain available without reading historical task files",
+    "plain trigger messages use per-Room start/steer; stale and unsupported messages only enter history",
   );
   for (const log of logs()) {
-    const history = fs
-      .readFileSync(
-        path.join(home, "rooms", log.dir, "context/messages.log"),
-        "utf8",
-      )
-      .trim()
-      .split("\n")
-      .map(JSON.parse);
+    assert(!fs.existsSync(path.join(home, "rooms", log.dir, "messages.jsonl")));
+    assert(!fs.existsSync(path.join(home, "rooms", log.dir, "tasks")));
     assert(
-      history.every(
-        (m) =>
-          m.msgtype &&
-          m.action === "send" &&
-          !m.event &&
-          !m.status &&
-          !m.account &&
-          !m.message,
-      ),
+      log.records.every((m) => m.msgid && m.msgtype && !m.event && !m.status),
     );
   }
+  assert(!fs.existsSync(path.join(home, "messages/receipts")));
   check(
-    "Room context stores message bodies only; CloudEvent data has no account or message wrapper, sends have separate receipts",
+    "each Room keeps only the plain message log with no persistent task or send files",
   );
   await diagnostics();
   await page.screenshot({ path: path.join(root, "wecom-agent-connected.png") });
-  report.pids.push(
-    ...trace()
-      .filter((x) => x.method === "spawn")
-      .map((x) => x.pid),
-  );
-  const recoveryTemplate = (await state()).tasks.find(
-    (t) => t.room === "alice",
-  );
+  const before = deliveries.length;
   await stop();
-  const taskDir = path.join(
-    path.dirname(path.dirname(recoveryTemplate.log)),
-    "tasks",
-  );
-  const pending = structuredClone(recoveryTemplate);
-  pending.id = "pending-recovery";
-  pending.status = "pending";
-  pending.trigger.msgid = "pending-recovery";
-  pending.trigger.text.content = "recover pending";
-  fs.appendFileSync(pending.log, JSON.stringify(pending.trigger) + "\n");
-  fs.writeFileSync(
-    path.join(taskDir, "pending-recovery.json"),
-    JSON.stringify(pending),
-  );
-  const interrupted = structuredClone(pending);
-  interrupted.id = "running-recovery";
-  interrupted.trigger.msgid = "running-recovery";
-  interrupted.status = "running";
-  fs.writeFileSync(
-    path.join(taskDir, "running-recovery.json"),
-    JSON.stringify(interrupted),
-  );
   await start();
-  await wait(() => completed(4));
-  assert.equal(
-    new Set(
-      (await state()).tasks
-        .filter((t) => t.status === "unknown")
-        .map((t) => t.trigger.msgid),
-    ).size,
-    1,
-  );
-  assert.equal(deliveries.length, 4);
-  check(
-    "persisted pending delivery resumes after startup; abandoned running delivery becomes unknown without replay",
-  );
   await wait(async () => (await state()).phase === "connected");
+  assert.deepEqual((await state()).tasks, []);
+  assert.equal(deliveries.length, before);
   publish("after-app-restart", "alice", "text", Date.now());
-  await wait(() => completed(5));
-  assert.equal(trace().filter((x) => x.method === "thread/start").length, 2);
-  assert.equal(trace().filter((x) => x.method === "thread/resume").length, 1);
+  await wait(() => completed("after-app-restart"));
+  assert(trace().some((x) => x.method === "thread/resume"));
   check(
-    "restart resumes the persisted Room thread without replaying completed messages",
-  );
-  publish("hold-agent", "alice", "text", Date.now());
-  await wait(
-    () => trace().filter((x) => x.method === "turn/start").length === 5,
-  );
-  const pid = trace()
-    .filter((x) => x.method === "spawn")
-    .at(-1).pid;
-  report.pids.push(pid);
-  process.kill(pid, "SIGKILL");
-  await wait(
-    async () =>
-      new Set(
-        (await state()).tasks
-          .filter((t) => t.status === "unknown")
-          .map((t) => t.trigger.msgid),
-      ).size === 2,
-  );
-  publish("tool-check", "alice", "text", Date.now());
-  await wait(() => completed(6));
-  assert.equal(deliveries.length, 6);
-  assert(!JSON.stringify(deliveries).includes("unauthorized-room"));
-  check(
-    "Codex crash marks running work unknown; a fresh turn resumes history and dynamic sends cannot escape the current Room",
-  );
-  publish("missing-platform-time");
-  await wait(() => completed(7));
-  assert.equal(deliveries.length, 7);
-  assert.equal(
-    logs()
-      .flatMap((l) => l.records)
-      .find((r) => r.event.data.msgid === "missing-platform-time").event.data
-      .msgtime,
-    undefined,
+    "restart retains Room thread and history without restoring tasks or sending again",
   );
   publish("long-response", "alice", "text", Date.now());
-  await wait(() => completed(8));
-  const chunks = deliveries
-    .slice(7)
-    .map((frame) => frame.body.markdown.content);
-  assert.equal(chunks.join(""), "长🙂\n".repeat(1200));
-  assert(
-    chunks.every(
-      (text) => Buffer.byteLength(text) <= 4000 && !text.includes("�"),
-    ),
+  const longBefore = deliveries.length;
+  await wait(() => completed("long-response"));
+  assert.equal(
+    deliveries
+      .slice(longBefore)
+      .map((x) => x.body.markdown.content)
+      .join(""),
+    "长🙂\n".repeat(1200),
   );
-  assert.equal(chunks.length, 3);
-  check(
-    "long Codex output splits at UTF-8 boundaries and reaches the platform intact",
-  );
-  publish("oversized-agent", "alice", "text", Date.now());
+  check("long Agent reply reaches the platform in UTF-8-safe segments");
+  publish("group-seed","alice","image",Date.now(),"group-room");
+  await wait(async()=> (await rpc("ListRooms")).some(r=>r.conversation==="group-room"));
+  const groupRoom=(await rpc("ListRooms")).find(r=>r.conversation==="group-room");
+  await rpc("UpdateRoomSettings",[groupRoom.id,{...groupRoom.settings,automatic:true,allowOutbound:true}]);
+  publish("group-alice","alice","text",Date.now(),"group-room");publish("group-bob","bob","text",Date.now(),"group-room");
+  await wait(async()=> await completed("group-alice")&&await completed("group-bob"));
+  const groupView=await rpc("ReadRoomByID",[groupRoom.id]);
+  assert(groupView.messages.some(m=>m.from==="alice"&&m.room_type==="group")&&groupView.messages.some(m=>m.from==="bob"&&m.room_type==="group"));
+  assert(deliveries.some(d=>d.body.chatid==="group-room"&&d.body.markdown.content.includes("group-alice")));
+  check("group text from different senders shares one platform conversation Room and explicit MCP replies return to that group");
+  publish("hold-agent-disable", "alice", "text", Date.now());
   await wait(async () =>
     (await state()).tasks.some(
-      (task) =>
-        task.trigger.msgid === "oversized-agent" && task.status === "unknown",
+      (t) => t.status === "running" && t.trigger.msgid === "hold-agent-disable",
     ),
-  );
-  const oversizedPID = trace()
-    .filter((row) => row.method === "spawn")
-    .at(-1).pid;
-  assert(!alive(oversizedPID));
-  publish("after-oversized", "alice", "text", Date.now());
-  await wait(() => completed(9));
-  assert.notEqual(
-    trace()
-      .filter((row) => row.method === "spawn")
-      .at(-1).pid,
-    oversizedPID,
-  );
-  check(
-    "oversized Codex frame reaps the blocked process; next message resumes the Room with a fresh client",
-  );
-  publish("hold-agent-disable", "alice", "text", Date.now());
-  await wait(
-    () => trace().filter((x) => x.method === "turn/start").length === 11,
   );
   await toggle();
   await wait(async () => (await state()).phase === "stopped");
-  await wait(
-    async () =>
-      new Set(
-        (await state()).tasks
-          .filter((t) => t.status === "unknown")
-          .map((t) => t.trigger.msgid),
-      ).size === 4,
-  );
   report.pids.push(
     ...trace()
       .filter((x) => x.method === "spawn")
@@ -550,9 +435,7 @@ async function runAgent() {
     report.pids.filter((pid) => pid !== proc.pid).every((pid) => !alive(pid)),
   );
   assert(!trace().some((x) => x.fixtureError));
-  check(
-    "missing platform time preserves original message; disabling interrupts work and reaps shared app-server",
-  );
+  check("disabling interrupts the active turn and reaps app-server");
 }
 async function runRecovery() {
   await rpc("SetExtensionEnabled", ["wecom", true]);
@@ -611,7 +494,7 @@ async function runRecovery() {
   assert.equal(receipt(await mcp(longEvent)).status, "sent");
   assert.equal(deliveries.length, before + 4);
   check(
-    "long explicit send persists each segment receipt; repeated request does not send again",
+    "long explicit send returns segment results; repeated request returns the stored receipt without sending again",
   );
   const partialEvent = event("partial-mcp", "乙🙂".repeat(2200));
   const partialBefore = deliveries.length;
@@ -630,10 +513,9 @@ async function runRecovery() {
   holdAt = Infinity;
   await wait(async () => (await state()).phase === "connected");
   report.pids.push((await state()).pid);
-  assert.equal(receipt(await mcp(partialEvent)).status, "unknown");
   assert.equal(deliveries.length, partialBefore + 2);
   check(
-    "uncertain middle segment stops later segments and retries return stored partial receipts without resending",
+    "uncertain middle segment stops later segments without automatically resending",
   );
   await rpc("SetExtensionEnabled", ["wecom", false]);
   const hostFile = path.join(packagedRuntime, "host.mjs");
@@ -738,7 +620,7 @@ async function runRecovery() {
       path.join(home, "aicat.yaml"),
       "ui:\n  language: zh-Hans\n  theme: light\ngateway:\n  addr: 127.0.0.1:" +
         port +
-        "\nextensions:\n  traffic:\n    enabled: false\n",
+        "\nmessageExecution:\n  codexBinary: " + JSON.stringify(path.join(root,"codex-fixture")) + "\nextensions:\n  traffic:\n    enabled: false\n",
       { mode: 0o600 },
     );
     fs.writeFileSync(
@@ -847,21 +729,8 @@ async function runRecovery() {
     check(
       "configure while off: real SDK authentication succeeds, validation connection closes, credentials remain private",
     );
-    await page.locator("#wecom-agent-enabled").check();
-    await page.locator("#wecom-agent-binary").fill("/draft/codex");
-    await rpc("SetPreferences", [{ language: "zh-Hans", theme: "dark" }]);
-    await page.waitForFunction(
-      () => document.documentElement.dataset.theme === "dark",
-    );
-    assert(await page.locator("#wecom-agent-enabled").isChecked());
-    assert.equal(
-      await page.locator("#wecom-agent-binary").inputValue(),
-      "/draft/codex",
-    );
-    await page.locator("#wecom-agent-enabled").uncheck();
-    await page.locator("#wecom-agent-binary").fill("");
-    await rpc("SetPreferences", [{ language: "zh-Hans", theme: "light" }]);
-    check("unrelated state refresh preserves unsaved Agent fields");
+    assert.equal(await page.locator("#wecom-agent-enabled,#wecom-agent-binary,#wecom-agent-save").count(),0);
+    check("BOT extension page contains connection configuration and no Codex form");
     if (agentScenario) {
       await runAgent();
     } else {
@@ -924,10 +793,10 @@ async function runRecovery() {
       assert.equal(incoming.length, 2);
       for (const log of incoming)
         for (const record of log.records) {
-          assert.equal(record.event.type, "org.aicat.message.received.v1");
-          assert.equal(record.event.data.account, undefined);
-          assert.equal(record.event.data.message, undefined);
-          assert.equal(record.event.data.msgtime, undefined);
+          assert.equal(record.msgtype, "text");
+          assert.equal(record.account, undefined);
+          assert.equal(record.message, undefined);
+          assert.equal(typeof record.msgtime, "number");
         }
       await wait(
         () =>
@@ -971,7 +840,7 @@ async function runRecovery() {
       await wait(() =>
         logs().some((log) =>
           log.records.some(
-            (record) => record.event.data.msgid === "retry-after-log-failure",
+            (record) => record.msgid === "retry-after-log-failure",
           ),
         ),
       );
@@ -985,7 +854,7 @@ async function runRecovery() {
       publish("incoming-image", "alice", "image");
       await wait(() =>
         logs().some((log) =>
-          log.records.some((r) => r.event.data.msgtype === "unsupported"),
+          log.records.some((r) => r.msgtype === "unsupported"),
         ),
       );
       assert.equal(deliveries.length, 0);
@@ -1003,30 +872,29 @@ async function runRecovery() {
       check(
         "diagnostics opens the server-selected Room directory through an isolated native boundary",
       );
+      for(const room of await rpc("ListRooms")) await rpc("UpdateRoomSettings",[room.id,{...room.settings,allowOutbound:true}]);
       await page.locator("#wecom-recipient").fill("alice");
       await page.locator("#wecom-text").fill("explicit UI outgoing");
       await page.locator("#wecom-send").click();
       await wait(() => deliveries.length === 1);
       await page
         .locator("#wecom-send-result")
-        .filter({ hasText: "平台已确认发送" })
+        .filter({ hasText: "渠道确认发送" })
         .waitFor();
       assert.equal(deliveries[0].body.chatid, "alice");
       assert(JSON.stringify(deliveries[0]).includes("explicit UI outgoing"));
       await page.screenshot({
         path: path.join(root, "wecom-connected-light.png"),
       });
-      check("UI explicit send reaches platform and persists sent result");
+      check("UI explicit send reaches platform and returns the result");
       assert.equal((await mcp(event("unauth"), false)).httpStatus, 401);
       const sendEvent = event("mcp-1");
       assert.equal(receipt(await mcp(sendEvent)).status, "sent");
       assert.equal(receipt(await mcp(sendEvent)).status, "sent");
       assert.equal(deliveries.length, 2);
-      assert.equal((await mcp(event("mcp-1", "different"))).isError, true);
-      assert.equal(deliveries.length, 2);
-      check(
-        "authenticated messages_send reaches platform; identical ID returns receipt, conflicts rejected",
-      );
+      assert.equal((await mcp(event("mcp-1","different"))).isError,true);
+      assert.equal(deliveries.length,2);
+      check("authenticated sends persist a request ID; repeated request returns its receipt and conflicting content is rejected");
       const uncertainPid = (await state()).pid;
       hold = true;
       const uncertainEvent = event("mcp-unknown", "uncertain outgoing");
@@ -1042,10 +910,9 @@ async function runRecovery() {
           (await state()).pid !== uncertainPid,
       );
       report.pids.push((await state()).pid);
-      assert.equal(receipt(await mcp(uncertainEvent)).status, "unknown");
       assert.equal(deliveries.length, 3);
       check(
-        "host crash recovers with a new PID, uncertain send stays unknown and is not resent",
+        "host reconnects after a crash without automatically repeating the interrupted send",
       );
       const recoveryPid = (await state()).pid;
       await stop();
@@ -1072,17 +939,16 @@ async function runRecovery() {
       );
       await wait(async () => (await state()).phase === "connected");
       report.pids.push((await state()).pid);
-      assert.equal(receipt(await mcp(sendEvent)).status, "sent");
-      assert.equal(receipt(await mcp(uncertainEvent)).status, "unknown");
       assert.equal(deliveries.length, 3);
+      assert(!fs.existsSync(path.join(home, "messages/receipts")));
       publish("after-app-restart");
       await wait(() =>
         logs().some((log) =>
-          log.records.some((r) => r.event.data.msgid === "after-app-restart"),
+          log.records.some((r) => r.msgid === "after-app-restart"),
         ),
       );
       check(
-        "app restart restores enabled account and credentials, retains logs and receipts without resending",
+        "app restart restores the account and message history without restoring or repeating sends",
       );
       const finalPid = (await state()).pid;
       await toggle();

@@ -3,7 +3,6 @@ package app
 import (
 	"github.com/fishioon/aicat/internal/codex"
 	"github.com/fishioon/aicat/internal/extension"
-	"github.com/fishioon/aicat/internal/wecomlocal"
 )
 
 // builtins are the built-in extensions, one line each. aicat knows nothing
@@ -11,7 +10,6 @@ import (
 var builtins = []extension.Extension{
 	trafficExtension,
 	codex.Extension,
-	wecomlocal.Extension,
 }
 
 // traffic is the oldest built-in and not yet built as the others are: its

@@ -1,9 +1,40 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { host } from "../host";
 import { busy, run, shell, state } from "../state/desktop";
 import { t } from "../i18n";
 const id = computed(() => shell.extension);
+const extension = computed(() =>
+  state.value?.extensions.find((x) => x.id === id.value),
+);
+const diagnostics = ref<Record<string, unknown>>();
+const diagnosticsError = ref("");
+const reading = ref(false);
+let readGeneration = 0;
+async function readDiagnostics() {
+  const request = ++readGeneration;
+  if (extension.value?.packageFormat !== "aicat") return;
+  reading.value = true;
+  try {
+    const result = await host.readExtensionData(id.value, {});
+    if (request === readGeneration) {
+      diagnostics.value = result;
+      diagnosticsError.value = "";
+    }
+  } catch (e) {
+    if (request === readGeneration) diagnosticsError.value = String(e);
+  } finally {
+    if (request === readGeneration) reading.value = false;
+  }
+}
+watch(
+  id,
+  () => {
+    diagnostics.value = undefined;
+    void readDiagnostics();
+  },
+  { immediate: true },
+);
 const channel = computed(() => state.value?.messageChannels[id.value]);
 const enabled = computed(
   () => !!state.value?.extensions.find((x) => x.id === id.value)?.enabled,
@@ -19,6 +50,8 @@ function taskStatus(status: string) {
     completed: "已完成",
     failed: "执行失败",
     unknown: "结果不明",
+    superseded: "已由更新状态替代",
+    skipped: "已跳过",
   };
   return t(labels[status] ?? status);
 }
@@ -48,7 +81,7 @@ async function send() {
     });
     result.value =
       receipt.status === "sent"
-        ? t("平台已确认发送")
+        ? t("渠道确认发送")
         : t("发送结果不明，请勿重新发送");
     if (receipt.status === "sent") {
       text.value = "";
@@ -71,48 +104,66 @@ async function send() {
         </tr>
       </tbody>
     </table>
-    <h2>{{ t("测试发送") }}</h2>
-    <p>{{ t("此操作会向指定收件人发送真实消息。") }}</p>
-    <form class="form" id="wecom-send-form" @submit.prevent="send">
-      <label for="wecom-recipient">{{ t("收件人 User ID") }}</label>
-      <input
-        id="wecom-recipient"
-        class="field"
-        v-model="recipient"
-        autocomplete="off"
-        required
-      />
-      <label for="wecom-text">{{ t("文本") }}</label>
-      <textarea
-        id="wecom-text"
-        class="field"
-        v-model="text"
-        rows="3"
-        maxlength="1000"
-        required
-      />
-      <div class="acts">
-        <button
-          id="wecom-send"
-          class="btn"
-          :disabled="
-            busy ||
-            !enabled ||
-            channel?.phase !== 'connected' ||
-            !recipient.trim() ||
-            !text.trim()
-          "
-        >
-          {{ t("发送") }}
-        </button>
-      </div>
-    </form>
-    <p id="wecom-send-result" role="status">{{ result }}</p>
+    <section v-if="extension?.packageFormat === 'aicat'">
+      <h2>{{ t("渠道诊断") }}</h2>
+      <button
+        class="btn"
+        type="button"
+        :disabled="reading"
+        @click="readDiagnostics"
+      >
+        {{ t("刷新诊断") }}
+      </button>
+      <p v-if="diagnosticsError" role="alert">{{ diagnosticsError }}</p>
+      <details v-if="diagnostics">
+        <summary>{{ t("诊断数据") }}</summary>
+        <pre>{{ JSON.stringify(diagnostics, null, 2) }}</pre>
+      </details>
+    </section>
+    <template v-if="extension?.canSend">
+      <h2>{{ t("测试发送") }}</h2>
+      <p>{{ t("此操作会向已授权外发的 Room 发送真实消息。") }}</p>
+      <form class="form" id="wecom-send-form" @submit.prevent="send">
+        <label for="wecom-recipient">{{ t("目标会话 ID") }}</label>
+        <input
+          id="wecom-recipient"
+          class="field"
+          v-model="recipient"
+          autocomplete="off"
+          required
+        />
+        <label for="wecom-text">{{ t("文本") }}</label>
+        <textarea
+          id="wecom-text"
+          class="field"
+          v-model="text"
+          rows="3"
+          maxlength="1000"
+          required
+        />
+        <div class="acts">
+          <button
+            id="wecom-send"
+            class="btn"
+            :disabled="
+              busy ||
+              !enabled ||
+              channel?.phase !== 'connected' ||
+              !recipient.trim() ||
+              !text.trim()
+            "
+          >
+            {{ t("发送") }}
+          </button>
+        </div>
+      </form>
+      <p id="wecom-send-result" role="status">{{ result }}</p>
+    </template>
     <h2>{{ t("本次运行的消息") }}</h2>
     <p>
       {{
         t(
-          "收到的消息和发送结果写入本地 Room 流水日志。可手动发送、通过 messages_send 调用，或开启 Codex 自动处理私聊。",
+          "消息、正式回复和外发状态统一保存在 Room。自动处理、model 和 prompt 在消息页面的对应会话中设置。",
         )
       }}
     </p>

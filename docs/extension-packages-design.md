@@ -1,73 +1,50 @@
-# OpenClaw 渠道宿主与安装
+# NPM 消息渠道包
 
-AICat 内置 Bun 与渠道宿主，扩展列表展示受支持的官方 OpenClaw 渠道包，用户安装后配置、验证并启用。第一期以企业微信长连接 Bot 为完整交付范围，单账号、私聊文本、主动 sendText；微信、飞书、群聊、媒体、开放插件市场及任意 npm/git 包加载不属于当前支持范围。
+流量与 Codex 模型路由是内置扩展；消息渠道通过 NPM 安装。推荐目录包括企业微信官方 OpenClaw BOT、`@aicat/wecom-local` 与 `@aicat/wpk`。后两个包分别在独立的 [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local) 与 [aicat-wpk](https://github.com/fishioon/aicat-wpk) 仓库维护，尚未发布到公网 registry；目录元数据不代表包已可下载。主仓库及应用资源只提供通用宿主，不包含 NPM 扩展源码或归档。企业微信官方包走专用 OpenClaw 兼容适配，平台 SDK 不作为通用原生宿主的顶层依赖。
 
-只读[企业微信客户端](feature-map/wecom-local.md)是独立内置扩展，不属于官方渠道包安装范围；它运行随应用分发的 TS 读取器，与 BOT 分开配置、启停和保存游标。
+## 安装与生命周期
 
-## 模块职责
+`internal/channelplugin` 使用应用内置 Bun 安装固定版本，禁用生命周期脚本，校验包身份、入口、API 与锁文件摘要，在暂存目录完成后原子切换 current.json。失败或取消保留原版本；停用后可更新、卸载，卸载保留配置、凭据、Room 和包业务数据。安装进度与取消复用扩展宿主服务。
 
-| 模块 | 职责 |
-| --- | --- |
-| channelplugin | 维护已验证的官方包目录，准备包与依赖，管理当前安装版本、手动更新和卸载 |
-| channelconfig | 定义渠道配置类型、字段约束和校验；调用通用配置存储 |
-| extension | 统一展示内置扩展与可安装渠道，安装、配置验证及启用状态门控 |
-| channelhost | 启停应用内 Bun、stdio 会话、账号会话绑定及调用 |
-| Bun 宿主 | 加载原版插件，提供 OpenClaw SDK 兼容接口，桥接收消息和主动发送 |
-| messages | 凭据与验证指纹、来源校验、Room 日志、任务交付与发送回执 |
-| agent | 旧版 Codex app-server 的 thread/start、thread/resume、turn/start、turn/steer 及普通回复 |
+扩展列表的「安装 NPM 渠道」允许登记声明 aicat API 的第三方包，无需修改或重编宿主。包名、固定版本、registry 与派生渠道 ID 校验后持久登记于 channel-catalog.json。不能覆盖推荐来源或改已有包身份。所有 NPM 渠道均从声明的 registry 安装，不在应用构建时打包或安装。旧配置和 Room 保留在用户 Home，安装相同渠道包后由通用兼容迁移接续；启动不自动补装已卸载的扩展。
 
-增加受支持渠道以目录声明与宿主公共能力为边界，不为每个渠道编写 Go Extension。当前 SDK shim 与平台鉴权适配只覆盖已验证的企业微信版本，不宣称任意 OpenClaw 插件或其所有工具都能运行。
+## 原生声明
 
-## 安装与目录
+```json
+{
+  "name":"@example/chat",
+  "version":"1.0.0",
+  "type":"module",
+  "aicat":{
+    "api":1,"id":"example.chat","entry":"index.mjs",
+    "identityFields":["account"],
+    "fields":[{"key":"account","type":"string","label":"账号","required":true}],
+    "capabilities":{"send":true},
+    "room":{"mode":"conversation","trigger":{"all":true}}
+  }
+}
+```
 
-应用资源包含固定 Bun、宿主、验证入口、兼容层与内置客户端读取器。原版渠道包不随应用分发，也不在应用启动或账号启用时自动安装。
+入口及可选 prepare 都必须是包内常规文件，解析符号链接后不能越界。fields 支持 string/directory/boolean/secret；公开字段存 extensions.<id>.settings，secret 保存在私有 credentials.<values>，空值保留现有凭据。身份字段只能引用必填公开文本字段，不能把 model、prompt 或 Agent 配置塞进渠道字段。
 
-用户点击安装后，使用应用内 Bun 在 Home 的私有暂存目录执行依赖安装，禁用包安装脚本，registry 使用 HTTPS 官方 npm 服务。目录锁定渠道包名与版本；安装产生依赖锁并记录摘要。包名、版本、OpenClaw 渠道声明、入口普通文件与路径边界校验成功后，移动到 extensions/<ID>/<版本>/，最后原子写入 extensions/<ID>/current.json。安装失败清理暂存，不显示为已安装。重复安装有效包不重新下载；损坏的安装可通过安装操作重新准备并原子替换。
+Room 默认模板可以描述业务 prompt、上下文及处理模式，但不能自行开启自动处理或外发。首次创建 Room 时写入，包升级不覆盖用户配置。
 
-current.json 记录当前安装包、实际版本、安装时间与依赖锁摘要；版本目录内 installation.json 必须与它一致。推荐目录的版本是安装和更新目标，运行时只按 current.json 选择实际版本，不按推荐版本推算目录。current.json、安装记录、bun.lock 与原包 package.json 共同判断本地安装是否可用。正式启用只加载该目录的原版入口，不改官方插件文件。插件依赖通过已安装包解析，SDK shim 由应用提供。
+## 宿主协议
 
-## 配置读写
+每渠道独立 Bun 进程和 state/<channel>，通过 stdio JSONL 的 channel_open/close/send/observe、channel_status 与 message_push 交接；凭据通过 stdin，session 与 source 由 Go 绑定。createChannel(api) 返回 open、close 与可选 send/observe。api 包含 configuration、stateDirectory、signal、status、publish 及已声明的 native context。
 
-行为配置仍只保存到 aicat.yaml 的 extensions.<ID>。通用 config 只认识 enabled 与扩展自有字段映射，ReadExtension 与 UpdateExtension 提供读取和串行合并保存；字段类型与业务校验由 channelconfig、messages 或具体扩展提供。表单调用 ReadExtensionConfig / UpdateExtensionConfig，启用状态通过专用开关管理，凭据通过 ConfigureMessageChannel 保存和验证。更新只合并提交字段，校验失败不写文件；不允许通过配置接口写 enabled、Secret 或未知业务字段。
+publish 先进入宿主持久待确认队列，实际 Room fsync 确认后 Promise 才完成。失败保留队列，重启重推；账号和来源变化不能重推到另一账号。单事件最多 256 KiB，待确认队列最多 32 MiB；协议帧有上限，进程独占锁防止并发宿主覆盖状态。插件控制采集游标，但不能自己写 Room 或创建 Agent。
 
-修改需要先停用扩展；下次启用由 Go 读取配置与凭据，通过 stdio 注入 Bun 宿主，并转换为原版 OpenClaw 配置视图。不开放运行中插件修改用户配置的接口；游标和任务继续写各自的状态或业务存储。
+## 能力
 
-## 更新与卸载
+- Send 为可选平台外发，仍需 Room 允许且渠道启用。
+- Hosts/Intercepts 精确声明代理观测与解密域名，Page/Routes 将采集入口限制在 /.aicat/<id>/，WebSocket 声明帧观测。统一 gateway addon 转交包入口，按大小/时间/队列上限交接；停用或无效采集路径本地拒绝，不转发给平台。
+- prepare 需要明确 native 声明。当前原生能力 wecom-local 提供实际用户 Home、应用共享的原版 SQLite3MC 库，以及用户启用时的一次性准备。平台 Profile、查询、数据库解析、发送脚本均随 NPM 包维护；宿主仅提供能力与进程生命周期。
 
-安装、更新、卸载、配置写入和启停由 extension 按扩展串行协调。内置扩展随应用发布，只能启停，不提供独立更新或卸载。
+NPM 扩展是受信任的本机可执行代码，并非沙箱。能力声明用于接缝和资源边界，不宣称隔离包自身的本机权限。
 
-用户先停用再手动更新。UpdateExtension 只准备推荐目录指定的目标版本，沿用暂存安装与校验，全部成功后切换 current.json；准备失败或进程在准备期间退出，旧记录与旧版本仍可用。更新保留配置、凭据、状态和 Room 数据，并保持停用；鉴权指纹绑定实际安装版本，因此更新后需要重新验证。旧版本目录保留，但没有自动更新、运行中替换或手动版本选择界面。
+统一消息页面读取 Room 服务；扩展页只负责安装、连接、平台字段与诊断。完整数据和工具契约见[消息接入规范](message-ingress-standard.md)。
 
-用户在更多菜单确认卸载后，UninstallExtension 先持久保存停用状态，撤销 current.json，再删除该扩展全部包目录。配置、凭据、状态和 Room 数据保留；重复卸载可清理残留目录，重新安装后仍保持停用。没有 current.json 的旧安装目录不会被自动识别或迁移。
+## 仓库与验收边界
 
-## 账号与生命周期
-
-安装、配置验证、正式启用是三个动作。用户保存 Bot ID 和 Secret 后，通过官方 SDK 的临时连接验证真实鉴权，鉴权成功即关闭；失败返回错误且不能启用。验证不启动渠道处理器，不触发 Agent 或发送平台消息。官方插件的固定成功 probeAccount 不用作鉴权依据。
-
-凭据保存到 credentials/<ID>.json，0600；界面不回传 Secret。验证指纹关联凭据、插件版本与平台端点，不是独立行为配置。行为仍只保存在 aicat.yaml。
-
-首次启用才启动宿主与正式平台连接。停用取消账号及 Codex 工作并回收不用的进程，保留安装、凭据和 Room 数据。重启只恢复已安装、已验证且保存了启用意图的渠道，不联网补装缺少的插件。
-
-## 消息与能力
-
-OpenClaw 插件通过注册和运行时回调与宿主交互。兼容层将入站消息转成 AICat CloudEvent，data 直接使用旧版消息正文；平台私有回复上下文不交给 Codex。
-
-AICat 的公共发送语义是主动 sendText。第一期企业微信使用插件 outbound.sendText，底层走官方 SDK sendMessage。普通 Codex 输出由 AICat 主动发回，显式 messages_send 复用同一发送与回执服务。平台不支持主动发送时，不能仅靠接口转换宣称具备不受时效限制的主动能力。
-
-插件附带工具、CLI、HTTP 路由、prompt hooks 不直接注册进 AICat；媒体和群聊保持明确的不支持状态。独立 Bun 进程不是操作系统沙箱，官方插件仍按应用权限执行。
-
-## 验收
-
-- 后台界面完成“推荐 → 安装 → 配置真实格式凭据 → 鉴权验证 → 启用 → 私聊 → Codex → 主动回复”。
-- 应用资源无渠道原包；安装原包与 SDK 在启停和收发后保持文件摘要不变。
-- registry 失败不留下安装，重试成功，重复安装幂等，损坏记录可修复。
-- 配置鉴权失败不能启用；验证结束关闭连接，不产生消息或 Agent 任务。
-- Room 日志与任务保存后才确认入站；失败不确认，未确认消息及 pending 交付可恢复，unknown 不自动重跑或重发。
-- 同 Room 执行中新消息使用 turn/steer，不同 Room 保持独立 thread。
-- 真正的企业微信与 Codex 联调使用隔离 Home，并另行核对收件端。纯 headless 结果不代替真实平台送达或原生桌面覆盖。
-
-具体入口与工件见[企业微信 BOT](feature-map/wecom.md)。
-
-## 生命周期定向验收
-
-`node e2e/extension-lifecycle.cjs bin/aicat-e2e build/extension-lifecycle-<run>` 使用隔离 Home、本地 NPM 包源、真实 Bun 安装器与 Desktop 服务，通过 headless Chromium 验证配置合并与拒绝非法写入、安装失败清理、禁止安装脚本、推荐版本与实际安装版本分离、更新失败与中断恢复、卸载保留数据及重新安装。报告保留命令、二进制摘要、日志和截图。`wecom.cjs` 使用原版插件验证运行中拒绝配置修改、更新及卸载，配置只读结果不包含凭据。
+aicat 的 `make verify` 和 `make e2e` 不依赖扩展源码仓库，使用合成渠道夹具验证 NPM 安装与公共消息链路。扩展仓库独立运行 `npm run check`、`npm pack --ignore-scripts` 与 `npm run e2e -- --aicat ../aicat`；后台 E2E 将本仓库的实际包交给本机 registry，通过 aicat 公共服务验证完整接入链路，工件保存在各自 `build/`。扩展专属测试不复制回主仓库。

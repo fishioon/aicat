@@ -25,10 +25,29 @@ import SettingsPage from "./components/SettingsPage.vue";
 import ExtensionsPage from "./components/ExtensionsPage.vue";
 import OverviewPage from "./components/OverviewPage.vue";
 import ConnectPage from "./components/ConnectPage.vue";
+import MessagesPage from "./components/MessagesPage.vue";
 import ProviderPage from "./components/ProviderPage.vue";
 
 const settings = computed(
   () => shell.route === "proxy" || shell.route === "general",
+);
+const hasSidebar = computed(
+  () =>
+    settings.value ||
+    shell.route === "messages" ||
+    shell.route === "traffic" ||
+    shell.route === "extensions" ||
+    shell.route === "extension-diagnostics",
+);
+const sidebarLabel = computed(() =>
+  t(shell.sidebarHidden ? "展开侧边栏" : "收起侧边栏"),
+);
+const sidebarId = computed(() =>
+  hasSidebar.value
+    ? shell.route === "traffic"
+      ? "traffic-sidebar"
+      : "module-sidebar"
+    : undefined,
 );
 const overview = computed(
   () =>
@@ -47,6 +66,7 @@ function appName(key: string) {
   return key ? key.replace(/^\w+:/, "") : t("未知应用");
 }
 const crumbs = computed(() => {
+  if (shell.route === "messages") return [t("消息")];
   if (overview.value)
     return shell.route === "connect"
       ? [t("主页"), t("接入 Agent")]
@@ -209,29 +229,47 @@ window.desktop = {
 };
 </script>
 <template>
-  <header class="titlebar" id="titlebar">
-    <span class="hist">
+  <header
+    class="titlebar"
+    :class="{ 'sidebar-expanded': hasSidebar && !shell.sidebarHidden }"
+    id="titlebar"
+  >
+    <div class="titlebar-controls">
+      <span class="hist">
+        <button
+          id="history-back"
+          class="icon-btn"
+          :aria-label="t('后退')"
+          :title="t('后退')"
+          :disabled="shell.historyAt <= 0"
+          @click="travel(-1)"
+        >
+          <Icon name="back" />
+        </button>
+        <button
+          id="history-forward"
+          class="icon-btn"
+          :aria-label="t('前进')"
+          :title="t('前进')"
+          :disabled="shell.historyAt >= shell.history.length - 1"
+          @click="travel(1)"
+        >
+          <Icon name="chev" />
+        </button>
+      </span>
       <button
-        id="history-back"
+        id="sidebar-toggle"
         class="icon-btn"
-        :aria-label="t('后退')"
-        :title="t('后退')"
-        :disabled="shell.historyAt <= 0"
-        @click="travel(-1)"
+        :disabled="!hasSidebar"
+        :aria-label="sidebarLabel"
+        :title="sidebarLabel"
+        :aria-expanded="hasSidebar ? !shell.sidebarHidden : undefined"
+        :aria-controls="sidebarId"
+        @click="shell.sidebarHidden = !shell.sidebarHidden"
       >
-        <Icon name="back" />
+        <Icon name="sidebar" />
       </button>
-      <button
-        id="history-forward"
-        class="icon-btn"
-        :aria-label="t('前进')"
-        :title="t('前进')"
-        :disabled="shell.historyAt >= shell.history.length - 1"
-        @click="travel(1)"
-      >
-        <Icon name="chev" />
-      </button>
-    </span>
+    </div>
     <div
       class="crumb"
       id="breadcrumb"
@@ -274,6 +312,15 @@ window.desktop = {
         @click="navigate('overview')"
       >
         <Icon name="home" />
+      </button>
+      <button
+        id="nav-messages"
+        :title="t('消息')"
+        :aria-label="t('消息')"
+        :aria-current="shell.route === 'messages' ? 'page' : undefined"
+        @click="navigate('messages')"
+      >
+        <Icon name="messages" />
       </button>
       <button
         v-if="trafficPinned"
@@ -324,7 +371,13 @@ window.desktop = {
         <Icon name="settings" />
       </button>
     </nav>
-    <main class="page" id="module-page" v-if="state">
+    <main
+      class="page"
+      :class="{ 'sidebar-hidden': shell.sidebarHidden }"
+      id="module-page"
+      v-if="state"
+    >
+      <MessagesPage v-if="shell.route === 'messages'" />
       <OverviewPage v-if="shell.route === 'overview'" />
       <ConnectPage v-else-if="shell.route === 'connect'" />
       <ProviderPage v-else-if="shell.route === 'provider'" />

@@ -10,21 +10,28 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 )
 
 type Descriptor struct {
+	Format    string `json:"format,omitempty"`
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Summary   string `json:"summary"`
 	Package   string `json:"package"`
 	Version   string `json:"version"`
 	Publisher string `json:"publisher"`
+	Registry  string `json:"registry"`
 }
 
-var Catalog = []Descriptor{{ID: "wecom", Name: "企业微信 BOT", Summary: "官方 OpenClaw 企业微信长连接机器人插件", Package: "@wecom/wecom-openclaw-plugin", Version: catalogVersion("2026.10.30"), Publisher: "WecomTeam"}}
+var Catalog = []Descriptor{
+	{ID: "wecom", Name: "企业微信 BOT", Summary: "官方 OpenClaw 企业微信长连接机器人插件", Package: "@wecom/wecom-openclaw-plugin", Version: catalogVersion("2026.10.30"), Publisher: "WecomTeam", Registry: registry()},
+	{ID: "wpk", Name: "微扑克", Summary: "将游戏桌的牌局消息接入 Room", Format: "aicat", Package: "@aicat/wpk", Version: "0.1.0", Publisher: "aicat", Registry: registry()},
+	{ID: "wecom-local", Name: "企业微信客户端", Summary: "读取客户端会话消息到 Room，经授权可通过客户端发送文本", Format: "aicat", Package: "@aicat/wecom-local", Version: "0.1.0", Publisher: "aicat", Registry: registry()},
+}
 
 type Installation struct {
 	Package     string `json:"package"`
@@ -34,8 +41,9 @@ type Installation struct {
 }
 
 type Store struct {
-	home string
-	mu   sync.Mutex
+	home       string
+	mu         sync.Mutex
+	operations operationState
 }
 
 func New(home string) *Store { return &Store{home: home} }
@@ -70,7 +78,7 @@ func (s *Store) root(id string) string {
 }
 
 func (s *Store) Current(id string) (Installation, error) {
-	d, ok := Find(id)
+	d, ok := s.find(id)
 	if !ok {
 		return Installation{}, errors.New("未知渠道插件")
 	}
@@ -85,16 +93,10 @@ func (s *Store) Current(id string) (Installation, error) {
 	return installed, nil
 }
 
+var fixedVersion = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`)
+
 func validVersion(version string) bool {
-	if version == "" || version == "." || version == ".." {
-		return false
-	}
-	for _, ch := range version {
-		if !(ch >= '0' && ch <= '9' || ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || strings.ContainsRune(".-+_", ch)) {
-			return false
-		}
-	}
-	return true
+	return len(version) <= 128 && fixedVersion.MatchString(version)
 }
 
 func (s *Store) Directory(id string) string {
@@ -106,7 +108,7 @@ func (s *Store) Directory(id string) string {
 }
 
 func (s *Store) Present(id string) bool {
-	if _, ok := Find(id); !ok {
+	if _, ok := s.find(id); !ok {
 		return false
 	}
 	_, err := os.Stat(s.root(id))
@@ -114,7 +116,7 @@ func (s *Store) Present(id string) bool {
 }
 
 func (s *Store) installationEntry(id string) (string, error) {
-	d, ok := Find(id)
+	d, ok := s.find(id)
 	if !ok {
 		return "", errors.New("未知渠道插件")
 	}
@@ -145,6 +147,9 @@ func (s *Store) Entry(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if d, ok := s.find(id); ok && d.Format == "aicat" {
+		return entry, nil
+	}
 	runtime, err := RuntimeDir()
 	if err != nil {
 		return "", err
@@ -156,6 +161,9 @@ func (s *Store) Entry(id string) (string, error) {
 }
 
 func (s *Store) RefreshRuntime(id string) error {
+	if d, ok := s.find(id); ok && d.Format == "aicat" {
+		return nil
+	}
 	if _, err := s.installationEntry(id); err != nil {
 		return nil
 	}
@@ -229,6 +237,22 @@ func replacePath(target, next string) error {
 
 func inspect(dir string, d Descriptor) (string, error) {
 	packageDir := filepath.Join(dir, "node_modules", filepath.FromSlash(d.Package))
+	root, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return "", err
+	}
+	resolvedPackage, err := filepath.EvalSymlinks(packageDir)
+	if err != nil {
+		return "", err
+	}
+	relative, err := filepath.Rel(root, resolvedPackage)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", errors.New("渠道包目录越界")
+	}
+	if d.Format == "aicat" {
+		_, entry, err := inspectManifest(packageDir, d)
+		return entry, err
+	}
 	var manifest struct {
 		Name     string `json:"name"`
 		Version  string `json:"version"`
@@ -283,52 +307,56 @@ func inspect(dir string, d Descriptor) (string, error) {
 }
 
 func (s *Store) Install(ctx context.Context, id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, ok := Find(id)
-	if !ok {
-		return errors.New("未知渠道插件")
-	}
-	if _, err := s.installationEntry(id); err == nil {
-		runtime, err := RuntimeDir()
-		if err != nil {
-			return err
+	return s.operate(ctx, id, "install", func(ctx context.Context) error {
+		d, ok := s.find(id)
+		if !ok {
+			return errors.New("未知渠道插件")
 		}
-		return bindRuntime(s.Directory(id), runtime)
-	}
-	return s.prepare(ctx, d)
+		if _, err := s.installationEntry(id); err == nil {
+			runtime, err := RuntimeDir()
+			if err != nil {
+				return err
+			}
+			if d.Format == "aicat" {
+				return nil
+			}
+			return bindRuntime(s.Directory(id), runtime)
+		}
+		return s.prepare(ctx, d)
+	})
 }
 
 func (s *Store) Update(ctx context.Context, id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, ok := Find(id)
-	if !ok {
-		return errors.New("未知渠道插件")
-	}
-	if _, err := s.installationEntry(id); err != nil {
-		return err
-	}
-	installed, err := s.Current(id)
-	if err != nil {
-		return err
-	}
-	if installed.Version == d.Version {
-		return nil
-	}
-	return s.prepare(ctx, d)
+	return s.operate(ctx, id, "update", func(ctx context.Context) error {
+		d, ok := s.find(id)
+		if !ok {
+			return errors.New("未知渠道插件")
+		}
+		if _, err := s.installationEntry(id); err != nil {
+			return err
+		}
+		installed, err := s.Current(id)
+		if err != nil {
+			return err
+		}
+		if installed.Version == d.Version {
+			return nil
+		}
+		return s.prepare(ctx, d)
+	})
 }
 
-func (s *Store) Uninstall(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := Find(id); !ok {
-		return errors.New("未知渠道插件")
-	}
-	if err := os.Remove(filepath.Join(s.root(id), "current.json")); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	return os.RemoveAll(s.root(id))
+func (s *Store) Uninstall(ctx context.Context, id string) error {
+	return s.operate(ctx, id, "uninstall", func(ctx context.Context) error {
+		s.stage(id, "removing")
+		if _, ok := s.find(id); !ok {
+			return errors.New("未知渠道插件")
+		}
+		if err := os.Remove(filepath.Join(s.root(id), "current.json")); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return os.RemoveAll(s.root(id))
+	})
 }
 
 func (s *Store) prepare(ctx context.Context, d Descriptor) error {
@@ -348,18 +376,27 @@ func (s *Store) prepare(ctx context.Context, d Descriptor) error {
 		return err
 	}
 	defer os.RemoveAll(stage)
-	pkg := map[string]any{"name": "aicat-channel-package", "private": true, "type": "module", "dependencies": map[string]string{d.Package: d.Version, "openclaw": "file:" + filepath.Join(runtime, "shim")}}
+	deps := map[string]string{d.Package: d.Version}
+	if d.Format != "aicat" {
+		deps["openclaw"] = "file:" + filepath.Join(runtime, "shim")
+	}
+	pkg := map[string]any{"name": "aicat-channel-package", "private": true, "type": "module", "dependencies": deps}
 	raw, _ := json.Marshal(pkg)
 	if err = os.WriteFile(filepath.Join(stage, "package.json"), raw, 0600); err != nil {
 		return err
 	}
 	installCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(installCtx, filepath.Join(runtime, "bun"), "install", "--ignore-scripts", "--save-text-lockfile", "--no-progress", "--registry", registry())
+	args := []string{"install", "--ignore-scripts", "--save-text-lockfile", "--no-progress", "--registry", d.Registry}
+	cmd := exec.CommandContext(installCtx, filepath.Join(runtime, "bun"), args...)
 	cmd.Dir = stage
 	cmd.Env = []string{"HOME=" + stage, "PATH=" + runtime, "TMPDIR=" + os.TempDir(), "BUN_INSTALL_CACHE_DIR=" + filepath.Join(s.home, "cache", "channel-packages")}
+	s.stage(d.ID, "downloading")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		if errors.Is(installCtx.Err(), context.DeadlineExceeded) {
+			return errors.New("下载插件超时，请检查网络后重试（最长等待 3 分钟）")
+		}
 		if installCtx.Err() != nil {
 			return fmt.Errorf("插件安装中断：%w", installCtx.Err())
 		}
@@ -369,11 +406,17 @@ func (s *Store) prepare(ctx context.Context, d Descriptor) error {
 		}
 		return fmt.Errorf("插件安装失败（%v）：%s", err, detail)
 	}
+	if err = installCtx.Err(); err != nil {
+		return err
+	}
+	s.stage(d.ID, "verifying")
 	if _, err = inspect(stage, d); err != nil {
 		return err
 	}
-	if err = bindRuntime(stage, runtime); err != nil {
-		return err
+	if d.Format != "aicat" {
+		if err = bindRuntime(stage, runtime); err != nil {
+			return err
+		}
 	}
 	lock, err := os.ReadFile(filepath.Join(stage, "bun.lock"))
 	if err != nil {
@@ -383,6 +426,12 @@ func (s *Store) prepare(ctx context.Context, d Descriptor) error {
 	installed := Installation{Package: d.Package, Version: d.Version, InstalledAt: time.Now().UTC().Format(time.RFC3339Nano), LockSHA256: hex.EncodeToString(sum[:])}
 	raw, _ = json.Marshal(installed)
 	if err = os.WriteFile(filepath.Join(stage, "installation.json"), raw, 0600); err != nil {
+		return err
+	}
+	if err = installCtx.Err(); err != nil {
+		return err
+	}
+	if err = s.activate(installCtx, d.ID); err != nil {
 		return err
 	}
 	if err = replacePath(filepath.Join(parent, d.Version), stage); err != nil {

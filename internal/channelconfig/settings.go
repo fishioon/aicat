@@ -40,26 +40,15 @@ func Validate(settings Settings) error {
 		if err := settings.Local.Validate(); err != nil {
 			return err
 		}
-		if settings.Agent.Enabled && len(settings.Local.ReplyRooms) == 0 {
-			return errors.New("请先配置自动处理会话的 Room ID 和唯一搜索名称")
-		}
+
 	}
 	return nil
 }
 
-func SetLocalMessages(home, id string, settings LocalMessages) error {
-	return config.UpdateExtension(home, id, map[string]any{"local": settings}, validateValues)
-}
-
-func validateValues(values map[string]any) error {
-	settings, err := Decode(values)
-	if err != nil {
-		return err
-	}
-	return Validate(settings)
-}
-
 func CheckPatch(patch map[string]any, local bool) error {
+	if _, exists := patch["agent"]; exists {
+		return errors.New("自动处理、prompt 和 model 请在 Room 中设置")
+	}
 	if _, exists := patch["local"]; exists && !local {
 		return errors.New("扩展不支持本地数据库配置")
 	}

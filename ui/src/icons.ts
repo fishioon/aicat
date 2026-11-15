@@ -1,5 +1,15 @@
 // 16px outline geometry from docs/design/aicat-redesign.html.
 const paths: Record<string, string> = {
+  person:
+    '<circle cx="8" cy="5" r="2.5"/><path d="M3.5 14v-2a4.5 4.5 0 0 1 9 0v2"/>',
+  people:
+    '<circle cx="6" cy="5" r="2.5"/><path d="M1.5 14v-2a4.5 4.5 0 0 1 9 0v2M10 2.5a2.5 2.5 0 0 1 0 5M12 9a4 4 0 0 1 2.5 3.7V14"/>',
+  warning:
+    '<path d="m7.1 2.4-5.5 10a1 1 0 0 0 .9 1.6h11a1 1 0 0 0 .9-1.6l-5.5-10a1 1 0 0 0-1.8 0Z"/><path d="M8 6v3M8 11.5v.1"/>',
+  messages:
+    '<path d="M13.5 10.5a2 2 0 0 1-2 2H6l-3.5 2v-3a2 2 0 0 1-1-1.7V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2Z"/>',
+  sidebar:
+    '<rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M6 2.5v11"/>',
   lock: '<rect x="3.5" y="7" width="9" height="7" rx="1.5"/><path d="M5 7V4.5a3 3 0 0 1 6 0V7"/>',
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
   search: '<circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/>',

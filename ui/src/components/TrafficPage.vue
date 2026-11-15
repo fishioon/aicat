@@ -137,7 +137,7 @@ async function key(event: KeyboardEvent) {
 }
 </script>
 <template>
-  <div class="split" :class="{ collapsed: shell.sidebarHidden }">
+  <div class="split">
     <TrafficSidebar />
     <section id="traffic-page" class="main tr" :class="{ open }">
       <div class="tools toolbar">

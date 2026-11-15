@@ -21,7 +21,11 @@ func Send(ctx context.Context, home, address, channel string, event messages.Eve
 	if err != nil {
 		return messages.Receipt{}, errors.New("MCP 凭据不可读")
 	}
-	raw, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": event.ID, "method": "tools/call", "params": map[string]any{"name": "messages_send", "arguments": map[string]any{"channel": channel, "event": event}}})
+	tool := "messages_send"
+	if event.Type == messages.ReplyPublished {
+		tool = "rooms_reply"
+	}
+	raw, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": event.ID, "method": "tools/call", "params": map[string]any{"name": tool, "arguments": map[string]any{"channel": channel, "event": event}}})
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+address+"/mcp", bytes.NewReader(raw))
 	if err != nil {
 		return messages.Receipt{}, err
@@ -59,7 +63,7 @@ func Send(ctx context.Context, home, address, channel string, event messages.Eve
 		payload = []byte(result.Result.Content[0].Text)
 	}
 	var receipt messages.Receipt
-	if json.Unmarshal(payload, &receipt) != nil || receipt.ID != event.ID || receipt.Source != event.Source || (receipt.Status != "sent" && receipt.Status != "unknown" && receipt.Status != "pending") {
+	if json.Unmarshal(payload, &receipt) != nil || receipt.ID != event.ID || receipt.Source != event.Source || (receipt.Status != "sent" && receipt.Status != "unknown" && receipt.Status != "pending" && receipt.Status != "saved" && receipt.Status != "failed") {
 		return messages.Receipt{}, errors.New("MCP 未返回匹配的发送回执")
 	}
 	return receipt, nil

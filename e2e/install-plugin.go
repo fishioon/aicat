@@ -15,10 +15,14 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	store := channelplugin.New(os.Args[1])
-	if err := store.Install(ctx, "wecom"); err != nil {
+	id := "wecom"
+	if len(os.Args) > 2 {
+		id = os.Args[2]
+	}
+	if err := store.Install(ctx, id); err != nil {
 		panic(err)
 	}
-	entry, err := store.Entry("wecom")
+	entry, err := store.Entry(id)
 	if err != nil {
 		panic(err)
 	}

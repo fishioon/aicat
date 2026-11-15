@@ -39,7 +39,7 @@
 | `make e2e` | 构建后运行完整后台验收：无头浏览器、HTTP/TLS、MCP、扩展生命周期与消息 fixture，不操作真实桌面或账号 |
 | `make design-shots` | 渲染 `aicat-redesign.html` 各场景的浅深色截图到 `build/design-shots/`，`SCENES="overview traffic"` 只渲染指定场景；用于标注评审 |
 
-`runtime/channel-host/` 保存宿主及共享 SDK shim 源文件，prepare.mjs 在构建阶段复制源码和 Bun 1.4.4，无需安装宿主运行依赖；同时用 Python 3.9+ 和 clang 从锁定源码构建原版 SQLite3 Multiple Ciphers 2.7.0，构建缓存位于 build/sqlite3mc-stock/。首次构建需下载归档，可用 AICAT_SQLITE3MC_SOURCE 指定同 SHA-256 的本地归档；成品无需 Python、编译器或网络下载。客户端读取器位于 wecom-local/，TS 开发检查使用 runtime/channel-host/package-lock.json 锁定的类型依赖，`make channel-check` 执行严格类型检查；成品不包含这些开发依赖。产物在 bin/channel-host/；make app 将其放入 Contents/Resources/channel-host/。宿主修改后重新构建。官方渠道插件由用户点击安装时用应用内 Bun 下载，禁用安装脚本；用户启动或启用时不安装依赖。
+`runtime/channel-host/` 保存宿主及共享 SDK shim 源文件，prepare.mjs 在构建阶段复制源码和 Bun 1.4.4，无需安装宿主运行依赖；同时用 Python 3.9+ 和 clang 从锁定源码构建原版 SQLite3 Multiple Ciphers 2.7.0，构建缓存位于 build/sqlite3mc-stock/。首次构建需下载归档，可用 AICAT_SQLITE3MC_SOURCE 指定同 SHA-256 的本地归档；成品无需 Python、编译器或网络下载。`make channel-check` 检查通用宿主与共享适配层的 JavaScript 语法。NPM 扩展的源码、类型依赖、打包和专属 E2E 在独立仓库维护，主工程构建不访问这些仓库，也不把扩展归档放入成品。产物在 bin/channel-host/；make app 将其放入 Contents/Resources/channel-host/。宿主修改后重新构建。官方渠道插件由用户点击安装时用应用内 Bun 下载，禁用安装脚本；用户启动或启用时不安装依赖。
 
 开发时可在一个终端运行 `npm --prefix ui run dev`，另一个终端运行 `MYGO_DEV_URL=http://127.0.0.1:5173 make run`，或使用构建后的 `MYGO_DEV_URL=http://127.0.0.1:5173 bin/aicat-dev --home <隔离目录>`，在 WebView 中使用 Vite 热更新。首次先执行 `make bindings`。开发 URL 仅对开发二进制生效；生产链接标记优先于 `MYGO_ENV` 和 `MYGO_DEV_URL`。MyGo 配置也保留官方 CLI 的 dev/build 字段，CLI 打包会进行签名，应在明确准备分发时使用。
 
@@ -99,20 +99,11 @@ node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
 # 仅验证 Codex 扩展：证书提示与启停、模型列表同步、models.dev 补全、直连与解密两个入口的分流、426、流量记录不含密钥
 node e2e/codex.cjs bin/aicat-e2e build/codex-e2e
 
-# 仅验证客户端 Room 新消息自动触发、start/steer、MCP 回复与任务恢复
-python3 e2e/wecom-local-agent.py
-# 仅验证按会话的私聊、群提及和关键词触发、元数据及格式升级重放
-python3 e2e/wecom-local-triggers.py
-# 仅验证客户端本地 DB → Room、WAL 增量与崩溃恢复
-make cli channel-check
-python3 e2e/wecom-local.py
-# 仅验证 MCP → 客户端脚本完成即成功、独立 DB/WAL 回流、幂等与崩溃恢复
-python3 e2e/wecom-local-send.py
-# 使用前一步合成工件，后台验证客户端扩展入口、配置、启停与诊断
-node e2e/wecom-local-ui.cjs bin/aicat-e2e build/wecom-local-e2e-<run>
+# 仅验证统一消息页的记录、异常排查和折叠设置，输出报告、日志和截图
+node e2e/messages.cjs bin/aicat-e2e build/messages-<run>
 # 仅验证企业微信 BOT 的配置、私聊收发、Room 确认和重启恢复
 node e2e/wecom.cjs bin/aicat-e2e
-# 仅验证 Codex 私聊任务、会话隔离、显式回复及重启/崩溃恢复（协议进程替身）
+# 仅验证 Codex 私聊任务、会话隔离、显式回复及重启不恢复任务（协议进程替身）
 node e2e/wecom.cjs bin/aicat-e2e build/wecom-agent-e2e agent
 # 仅验证图标在 WebView/浏览器、浅深色和不同宽度下的居中与边界
 node e2e/desktop.cjs bin/aicat-e2e build/icons-e2e icons
@@ -120,7 +111,9 @@ node e2e/desktop.cjs bin/aicat-e2e build/icons-e2e icons
 
 只经浏览器预览驱动的场景（`tray.cjs`、`traffic-default.cjs`、`tunnel.cjs`、`redesign.cjs`、`provider.cjs`、`codex.cjs`）以 `AICAT_E2E_BACKGROUND=1` 启动验收二进制：原生窗口保持隐藏、不抢焦点、不出现 Dock 图标，可在后台反复运行。该开关只存在于 `e2e` tag 构建。采集按钮的 `traffic-default.cjs` 不连接原生自动化，保留浏览器截图、日志与报告；原 `desktop.cjs ... traffic-default` 命令也转交此后台入口。`desktop.cjs` 的其他场景及 `prototype.py --only desktop` 要驱动并断言真实 WKWebView 窗口的显示/隐藏，仍会弹出窗口。
 
-`make e2e` 使用 `e2e/prototype.py --background` 汇总后台场景，保留每组报告、日志、截图、运行命令和源码 hash，失败仍执行其余组并以非零状态退出。原生窗口、WKWebView 交互、真实授权和真实消息送达不在后台覆盖内。
+NPM 扩展的专属验收在各自仓库执行：企业微信客户端见 [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local)，微扑克见 [aicat-wpk](https://github.com/fishioon/aicat-wpk)。在对应仓库运行 `npm run e2e -- --aicat ../aicat`，以实际外部 NPM 包和本机 registry 验证完整接入链路，不需要发布包或复制源码到主仓库。
+
+`make e2e` 使用 `e2e/prototype.py --background` 汇总后台场景，包含品牌语言、标题栏导航、托盘资源及 WebSocket 补丁验证，保留每组报告、日志、截图、运行命令、源码和二进制 hash；源码摘要包含依赖补丁与构建入口，失败仍执行其余组并以非零状态退出。原生窗口、WKWebView 交互、真实授权和真实消息送达不在后台覆盖内。
 
 `e2e/prototype.py` 不带 `--background` 或 `--only` 时会操作真实桌面，须事先取得明确同意；三组必须全部通过。`--output` 指定工件根目录，默认 `build/full-e2e-*/`。
 
@@ -143,9 +136,53 @@ smoke 和 E2E 必须使用隔离 `--home`，不写真实 `~/.aicat/`，不修改
 
 ## 本地构建与已安装应用
 
-本地 app 构建不签名，`make verify` 不包含签名或安装，不覆盖已安装应用。不得将本地未签名产物直接覆盖安装。
+`make app` 生成待签名应用，`make verify` 不包含证书签名或安装，不覆盖已安装应用。Go 的 macOS arm64 可执行文件可能带有编译器生成的 ad-hoc 临时签名；这种本机构建可以启动，但不代表整个 `.app` 的资源签名完整，也不提供跨版本固定的证书身份。不得将待签名产物直接覆盖安装。
 
-更新已获授权的 macOS 安装时，先确认现有签名证书及 designated requirement；沿用原证书签署新 app 并核对 requirement 一致后才覆盖。缺少原证书或无法保持身份时，说明阻塞，不换成未签名或其他身份的包。
+Make 使用 `scripts/proxy-go.py` 准备锁定版本的临时 WebSocket 补丁，`go.mod` 与模块缓存不变。直接编译、vet 或生成绑定时同样使用 `python3 scripts/proxy-go.py <Go 参数>`，详见[补丁说明](../patches/README.md)。
+
+### 固定本机签名身份
+
+本机安装使用下列固定身份，后续更新直接沿用，不重新生成或替换证书。用户已授权以此身份更新本机 aicat，无需每次重新确认签名身份；macOS 钥匙串要求的密码或授权仍由用户在系统弹窗中完成。
+
+| 项目 | 固定值 |
+| --- | --- |
+| 证书名称 | `aicat Local Code Signing` |
+| 证书 SHA-1 / codesign identity | `57BF8FA4BB71891C5F9E5655112190280F97E8B7` |
+| 私钥与证书所在钥匙串 | `~/Library/Keychains/login.keychain-db` |
+| 公开证书副本 | `~/Library/Application Support/aicat/CodeSigning/aicat-local-codesign.pem` |
+| Bundle identifier | `ai.netcat.aicat` |
+| 安装位置 | `~/Applications/aicat.app` |
+
+签名身份按节点固定，不把开发机证书替换到其他节点。`mini` 的现有安装位于 `/Applications/aicat.app`，沿用它原有的同名证书，SHA-1 为 `4AD9591BF05FD28CABB7887EC5E7981DFF6E366C`；其 requirement 的 leaf 指纹必须保持 `4ad9591bf05fd28cabb7887ec5e7981dff6e366c`。该节点的证书与私钥在用户 `fish` 的 login 钥匙串中。通过 root SSH 检查或签名时，用 `launchctl asuser 501 sudo -H -u fish` 在该用户的 GUI 会话中执行 `security` 和 `codesign`，并显式指定 `/Users/fish/Library/Keychains/login.keychain-db`；root SSH 域中的“无有效身份”不能作为证书缺失的结论。
+
+固定的 designated requirement 为：
+
+```text
+designated => identifier "ai.netcat.aicat" and certificate leaf = H"57bf8fa4bb71891c5f9e5655112190280f97e8b7"
+```
+
+证书仅在当前用户域按 `codeSign` 策略信任，用于本机自签名，不是 Apple Developer ID，也没有公证。公开 PEM 文件不含私钥，单独保留它不能恢复签名能力。不要把私钥或钥匙串凭据写入仓库、日志或验收工件。缺少此证书或私钥、证书失效、已安装应用的身份不匹配时，停止覆盖并说明阻塞，不自动创建新身份，不改用 ad-hoc 签名。
+
+### 签名与替换安装
+
+1. 完成本轮构建和验收，将 `build/desktop/aicat.app` 复制到本次独立的 `build/install-<run>/aicat.app`。保留待签名原产物和旧应用备份，不重新运行整套 E2E 来代替安装校验。
+2. 使用 `security find-identity -v -p codesigning` 确认固定 SHA-1 的身份可用。对已安装应用执行 `codesign --verify --deep --strict` 和 `codesign -d -r-`，核对其完整性和固定 requirement；校验失败则停止覆盖。
+3. 从内到外签名 SQLite3MC 动态库、Bun 和整个应用。以下命令中的 `signing_app` 必须指向本次待安装副本：
+
+```sh
+signing_app="$PWD/build/install-<run>/aicat.app"
+signing_identity=57BF8FA4BB71891C5F9E5655112190280F97E8B7
+codesign --force --sign "$signing_identity" --timestamp=none "$signing_app/Contents/Resources/channel-host/sqlite3mc/libsqlite3mc.dylib"
+codesign --force --sign "$signing_identity" --timestamp=none "$signing_app/Contents/Resources/channel-host/bun"
+codesign --force --sign "$signing_identity" --timestamp=none --identifier ai.netcat.aicat "$signing_app"
+codesign --verify --deep --strict --verbose=2 "$signing_app"
+codesign -d -r- "$signing_app"
+```
+
+4. 必须与已安装应用逐字比较 designated requirement，不能只比较证书名称。使用 `codesign -d -r-` 输出 requirement。钥匙串弹窗由用户授权 codesign 使用固定私钥，可选择“始终允许”；不索要聊天中的密码，也不放宽其他应用对私钥的访问。
+5. 从应用菜单正常退出当前实例，确认进程已结束，让退出流程恢复系统代理并关闭业务服务。桌面入口不使用 `kill -TERM` 代替正常退出。备份 `~/Applications/aicat.app`，用 `ditto` 将签名副本复制到同级临时路径，验证签名和 requirement 后再通过重命名替换；切换失败恢复旧应用。不删除或覆盖 `~/.aicat/` 中的配置、凭据和业务数据。
+6. 对最终安装路径再次执行完整签名验证并比较 requirement，然后启动 `~/Applications/aicat.app`。核对实际进程路径、网关监听、原生主页就绪和原有配置可见，不主动发送消息或触发系统授权验收。异常时保留日志和备份，正常退出失败实例后回退旧包。
+7. 在本次 `build/install-<run>/` 保存安装报告、提交 SHA、证书 SHA-1、requirement、签名前后与最终安装校验、运行路径和监听结果。安装备份和验收工件不入库。
 
 ## 参考
 

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/fishioon/aicat/internal/channelconfig"
 	"github.com/fishioon/aicat/internal/channelplugin"
 	"io"
 	"os"
@@ -25,15 +24,14 @@ type EventHandler func(json.RawMessage) (any, error)
 type StatusHandler func(string, string)
 
 type Binding struct {
-	Driver     string                       `json:"driver,omitempty"`
-	Local      *channelconfig.LocalMessages `json:"local,omitempty"`
-	AccountID  string                       `json:"accountId"`
-	Session    string                       `json:"session"`
-	BotID      string                       `json:"botId"`
-	Secret     string                       `json:"secret"`
-	Source     string                       `json:"source"`
-	Endpoint   string                       `json:"endpoint,omitempty"`
-	SendScript string                       `json:"sendScript,omitempty"`
+	NativeContext map[string]string `json:"nativeContext,omitempty"`
+	Configuration map[string]any    `json:"configuration,omitempty"`
+	AccountID     string            `json:"accountId"`
+	Session       string            `json:"session"`
+	BotID         string            `json:"botId"`
+	Secret        string            `json:"secret"`
+	Source        string            `json:"source"`
+	Endpoint      string            `json:"endpoint,omitempty"`
 }
 
 type Manager struct {
@@ -62,7 +60,6 @@ type response struct {
 
 type Account struct {
 	Binding
-	Position string
 	p        *process
 	onEvent  EventHandler
 	onStatus StatusHandler
@@ -89,10 +86,9 @@ func (m *Manager) Open(ctx context.Context, binding Binding, onEvent EventHandle
 			return nil, err
 		}
 		script := "host.mjs"
-		if binding.Driver == "wecom-local" {
-			script = "wecom-local/host.ts"
-		} else if binding.Driver != "" {
-			return nil, errors.New("未知渠道宿主")
+		if d, ok := channelplugin.New(m.home).Descriptor(binding.AccountID); ok && d.Format == "aicat" {
+			script = "native.mjs"
+
 		}
 		for _, file := range []string{"bun", script} {
 			if _, err = os.Stat(filepath.Join(dir, file)); err != nil {
@@ -100,21 +96,19 @@ func (m *Manager) Open(ctx context.Context, binding Binding, onEvent EventHandle
 			}
 		}
 		stateName := "channel-host"
-		if binding.Driver != "" {
-			stateName = binding.Driver
+		if script == "native.mjs" {
+			stateName = binding.AccountID
 		}
 		state := filepath.Join(m.home, "state", stateName)
 		if err = os.MkdirAll(state, 0700); err != nil {
 			return nil, err
 		}
-		entry := ""
-		if binding.Driver == "" {
-			entry, err = channelplugin.New(m.home).Entry(binding.AccountID)
-			if err != nil {
-				return nil, err
-			}
+		entry, err := channelplugin.New(m.home).Entry(binding.AccountID)
+		if err != nil {
+			return nil, err
 		}
 		cmd := exec.Command(filepath.Join(dir, "bun"), filepath.Join(dir, script), state, entry)
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		cmd.Dir = dir
 		cmd.Env = []string{"HOME=" + state, "TMPDIR=" + filepath.Join(state, "tmp"), "PATH=" + dir, "LANG=en_US.UTF-8"}
 		stdout, err := cmd.StdoutPipe()
@@ -142,7 +136,7 @@ func (m *Manager) Open(ctx context.Context, binding Binding, onEvent EventHandle
 	}
 	p.accounts[binding.AccountID] = a
 	p.mu.Unlock()
-	opened, openErr := p.call(ctx, "channel_open", binding)
+	_, openErr := p.call(ctx, "channel_open", binding)
 	if err := openErr; err != nil {
 		p.mu.Lock()
 		delete(p.accounts, binding.AccountID)
@@ -154,13 +148,7 @@ func (m *Manager) Open(ctx context.Context, binding Binding, onEvent EventHandle
 		}
 		return nil, err
 	}
-	if binding.Driver == "wecom-local" {
-		var value struct {
-			Position string `json:"position"`
-		}
-		_ = json.Unmarshal(opened, &value)
-		a.Position = value.Position
-	}
+
 	return a, nil
 }
 
@@ -238,11 +226,13 @@ func (p *process) read(stdout io.ReadCloser) {
 			result, err := a.onEvent(frame.Params.Event)
 			if err == nil {
 				_ = p.write(map[string]any{"jsonrpc": "2.0", "id": frame.ID, "result": result})
+			} else {
+				_ = p.write(map[string]any{"jsonrpc": "2.0", "id": frame.ID, "error": map[string]any{"code": -32001, "message": "ROOM_RECEIVE_FAILED"}})
 			}
 		}
 	}
 	_ = stdout.Close()
-	_ = p.cmd.Process.Kill()
+	_ = syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL)
 	_ = p.cmd.Wait()
 	close(p.done)
 }
@@ -254,13 +244,13 @@ func (p *process) stop() {
 		return
 	case <-time.After(5 * time.Second):
 	}
-	_ = p.cmd.Process.Signal(syscall.SIGTERM)
+	_ = syscall.Kill(-p.cmd.Process.Pid, syscall.SIGTERM)
 	select {
 	case <-p.done:
 		return
 	case <-time.After(2 * time.Second):
 	}
-	_ = p.cmd.Process.Kill()
+	_ = syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL)
 	<-p.done
 }
 
@@ -287,6 +277,10 @@ func (a *Account) Done() <-chan struct{} { return a.p.done }
 func (a *Account) PID() int              { return a.p.cmd.Process.Pid }
 func (a *Account) Send(ctx context.Context, event any) (json.RawMessage, error) {
 	return a.p.call(ctx, "channel_send", map[string]any{"accountId": a.AccountID, "session": a.Session, "event": event})
+}
+
+func (a *Account) Observe(ctx context.Context, event any) (json.RawMessage, error) {
+	return a.p.call(ctx, "channel_observe", map[string]any{"accountId": a.AccountID, "session": a.Session, "event": event})
 }
 
 func (m *Manager) Validate(ctx context.Context, id, botID, secret, endpoint string) error {

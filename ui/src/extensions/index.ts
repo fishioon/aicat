@@ -1,8 +1,9 @@
 import { state } from "../state/desktop";
 import type { ExtensionState } from "../generated/mygo";
+import NativeBody from "../channels/NativeBody.vue";
+import NativeSettings from "../channels/NativeSettings.vue";
 import ChannelSettings from "../channels/Settings.vue";
 import ChannelDiagnostics from "../channels/Diagnostics.vue";
-import ChannelBody from "../channels/Body.vue";
 import { t } from "../i18n";
 import type { ExtensionUI } from "./types";
 
@@ -22,9 +23,16 @@ const channelIcons = import.meta.glob<string>("./*/assets/*.png", {
 });
 const channelUI = (id: string): ExtensionUI => ({
   iconImage: channelIcons[`./${id}/assets/${id}.png`],
-  Settings: ChannelSettings,
+  Settings:
+    state.value?.extensions.find((x) => x.id === id)?.packageFormat === "aicat"
+      ? NativeSettings
+      : ChannelSettings,
   Diagnostics: ChannelDiagnostics,
-  Body: ChannelBody,
+  Body: state.value?.extensions.some(
+    (x) => x.id === id && x.enabled && x.needsTrust,
+  )
+    ? NativeBody
+    : undefined,
   status: () => {
     const x = state.value?.extensions.find((x) => x.id === id);
     const channel = state.value?.messageChannels[id];
@@ -40,14 +48,20 @@ const channelUI = (id: string): ExtensionUI => ({
                 ? "已连接"
                 : "正在连接"
               : !channel?.validated
-                ? "请配置并验证账号"
-                : "配置验证通过，可以启用",
+                ? x?.automaticSetup
+                  ? "启用时自动准备账号"
+                  : "请配置并验证账号"
+                : x.packageFormat === "aicat"
+                  ? "配置完成，可以启用"
+                  : "配置验证通过，可以启用",
         ),
     };
   },
 });
 export const uiOf = (id: string): ExtensionUI =>
-  uis[id] ??
+  (state.value?.extensions.find((x) => x.id === id)?.packageFormat === "aicat"
+    ? channelUI(id)
+    : uis[id]) ??
   (state.value?.extensions.find((x) => x.id === id)?.package
     ? channelUI(id)
     : {});

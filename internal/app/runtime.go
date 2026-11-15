@@ -30,6 +30,7 @@ type Options struct {
 	Intercept  []string
 }
 type runtime struct {
+	closeLog              func()
 	traffic               *traffic.Service
 	gateway               *gateway.Gateway
 	capture               *capture.Addon
@@ -49,7 +50,18 @@ type runtime struct {
 	extensions            *extension.Host
 }
 
-func start(ctx context.Context, o Options) (*runtime, error) {
+func start(ctx context.Context, o Options) (result *runtime, startErr error) {
+	closeLog, err := openRuntimeLog(o.Home)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if startErr != nil {
+			slog.Error("aicat startup failed", "err", startErr)
+			closeLog()
+		}
+	}()
+
 	cfg, err := config.Load(o.Home)
 	if err != nil {
 		return nil, err
@@ -140,7 +152,7 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 		calls.Close()
 		return nil, err
 	}
-	r := &runtime{traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.ExtensionEnabled("traffic"), initialRecording: cfg.Traffic.Recording, providers: providers, usage: calls, extensions: extensions}
+	r := &runtime{closeLog: closeLog, traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.ExtensionEnabled("traffic"), initialRecording: cfg.Traffic.Recording, providers: providers, usage: calls, extensions: extensions}
 	for id, section := range cfg.Extensions {
 		if known, _ := extensions.Known(id); known && section.Enabled {
 			_ = extensions.Set(id, true)
@@ -176,6 +188,7 @@ func start(ctx context.Context, o Options) (*runtime, error) {
 	}
 }
 func (r *runtime) close() error {
+	defer r.closeLog()
 	restoreErr := r.connection.prepareQuit()
 	r.cancel()
 	<-r.done

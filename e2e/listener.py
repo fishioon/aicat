@@ -45,7 +45,7 @@ def main():
         log_offset=(root/'app.log').stat().st_size
         proc=subprocess.Popen([str(binary)]+(['serve'] if opts.transport_only else [])+['--home',str(home)],env=env,stdout=log,stderr=log)
         wait_for(lambda:proc.poll() is None and (opts.transport_only or sock_path.exists()) and api()[0]==200,15)
-        wait_for(lambda:'aicat ready at ' in (root/'app.log').read_text()[log_offset:],15)
+        wait_for(lambda:'aicat ready at' in (root/'app.log').read_text()[log_offset:],15)
         if opts.transport_only:return
     def stop():
         nonlocal proc,auto

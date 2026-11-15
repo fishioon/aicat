@@ -15,7 +15,6 @@ export interface ExtensionUI {
   status?(): { text: string; id?: string } | undefined;
   // menu adds entries to the gear menu, before "copy identifier".
   menu?(): MenuEntry[];
-  // Body shows the detail and features tabs; it takes a `tab` prop.
   Body?: Component;
   Settings?: Component;
   Diagnostics?: Component;

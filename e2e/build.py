@@ -76,6 +76,11 @@ state.certificate.Trusted;
             snippet.unlink(missing_ok=True)
         report['checks'].append('generated methods reject wrong arguments, ad-hoc commands and old DTO casing')
         bundle = Path('build/desktop/aicat.app')
+        runtime = bundle / 'Contents/Resources/channel-host'
+        assert not (runtime / 'packages').exists()
+        assert not (runtime / 'packages.json').exists()
+        assert not list(bundle.rglob('*.tgz')), 'NPM extension archives shipped in app'
+        report['checks'].append('production bundle contains the shared host without NPM extension archives')
         archive = root / 'aicat-macos.zip'
         with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as out:
             for file in bundle.rglob('*'):
