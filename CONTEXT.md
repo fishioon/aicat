@@ -53,6 +53,7 @@ NPM 扩展的实现、打包与专属验收在独立仓库维护，主仓库及�
 - **消息渠道**：通过NPM安装的平台接入，负责连接、解析、识别平台会话及可选外发，不拥有Agent、Room存储或业务消息页面。扩展页只配置平台连接和诊断，支持动态登记第三方aicat渠道包。
 - **Room**：渠道、绑定来源、平台会话确定的持久会话；企微群/私聊各一个，扑克桌一个，一手牌是Room内的context_key。Room拥有消息历史、名称、自动处理、model、prompt、context、mode、触发、外发授权与寻址。新Room默认不自动执行和外发；包模板只初始化一次。
 - **消息页面**：常驻导航入口，作为后台记录与排查入口，统一显示所有渠道的Room、消息、业务摘要、正式回复、任务和外发状态；提供搜索与异常筛选，不维护未读或阅读位置。「添加消息渠道」跳转扩展并以 `tag:channel` 筛选渠道。Room设置由右侧面板编辑，模型、prompt、context和处理模式默认折叠；停用或卸载渠道仍可读历史。
+- **定时规则（Schedule）**：Agent 通过 schedules_set、schedules_list、schedules_delete 管理当前 Room 的定时消息规则，包含稳定 ID、名称、任务内容、单次 at 或五段 cron、周期时区与启停状态。规则持久保存，到点向绑定 Room 写入带 schedule 标识的系统消息并复用原 Agent 处理，不引入独立的 Task 管理能力。定时消息遵守 Room 自动处理、渠道启停和账号绑定，绕过普通消息触发筛选；周期由 cron 调度，单次使用 time.AfterFunc，到点先持久停用规则再投递；应用离线或渠道不可用时跳过，不重试、不补跑。外发仍须显式 messages_send 与 Room 授权。
 - **消息 Agent**：暂固定Codex app-server，不开放Agent管理或渠道Codex配置。model按Room选择，空值使用Codex默认，错误不静默回退。固定Agent prompt与Room prompt组合，具体座位等事实放context。conversation复用thread与配置相同的steer，snapshot独立执行并合并等待状态；重启不恢复任务。
 - **正式回复与外发**：rooms_reply经HTTP MCP保存到Room，saved仅为本地保存。messages_send在渠道能力和Room授权允许时交原包发送，reply_id可复用已发布正文。外发先存意图与请求，重复请求返回持久回执，unknown不自动重发；普通输出不隐式发布或发送。sent只代表渠道声明的确认边界，不表示对端已读。
 - **企业微信客户端**：NPM包@aicat/wecom-local，平台Profile、一次性密钥准备、原版SQLite3MC只读DB/WAL、游标与发送脚本均由包维护；首次跳历史，后续续读，落盘确认后推进游标；账号和目录隔离，提及来自结构化ID。见[客户端](docs/feature-map/wecom-local.md)。

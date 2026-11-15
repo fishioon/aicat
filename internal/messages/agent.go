@@ -48,12 +48,12 @@ type Dispatcher struct {
 
 func newDispatcher(ctx context.Context, c *Channel) *Dispatcher {
 	credentials, _ := c.credentials()
-	return dispatcherForRooms(ctx, c.rooms, DispatcherOptions{CanSend: c.CanSend, SelfID: c.selfID(), Source: c.source(credentials.AccountID), Connected: func() bool { c.mu.Lock(); defer c.mu.Unlock(); return c.account != nil && c.state.Phase == "connected" }, Changed: c.changed, Execute: MCPExecutor(MCPExecutorOptions{Channel: c.id, Send: c.mcp})})
+	return dispatcherForRooms(ctx, c.rooms, DispatcherOptions{CanSend: c.CanSend, SelfID: c.selfID(), Source: c.source(credentials.AccountID), Connected: func() bool { c.mu.Lock(); defer c.mu.Unlock(); return c.account != nil && c.state.Phase == "connected" }, Changed: c.changed, Execute: MCPExecutor(MCPExecutorOptions{Channel: c.id, Send: c.mcp, Schedule: c.schedule})})
 }
 
 func (d *Dispatcher) Enqueue(source string, record Record) {
 	message := record.Event.Data
-	if message.Outgoing || message.Historical || (d.options.Accept != nil && !d.options.Accept(message)) || message.Type != "text" || strings.TrimSpace(message.Text.Content) == "" {
+	if message.Outgoing || message.Historical || (message.Schedule == nil && d.options.Accept != nil && !d.options.Accept(message)) || message.Type != "text" || strings.TrimSpace(message.Text.Content) == "" {
 		return
 	}
 	var timestamp time.Time
@@ -77,8 +77,8 @@ func (d *Dispatcher) Enqueue(source string, record Record) {
 	dir := d.rooms.directory(source, message.RoomID)
 	log := filepath.Join(dir, "context", "messages.log")
 	task := Task{ID: record.ID, Account: d.id, Source: source, Room: record.Event.Data.RoomID, Log: log, Status: "pending", CreatedAt: record.RecordedAt, Trigger: record.Event.Data}
-	task.Settings = settings
-	raw, _ := json.Marshal(settings)
+	task.Settings = taskSettings(settings, message)
+	raw, _ := json.Marshal(task.Settings)
 	task.ConfigurationVersion = digest(raw)
 	task.TriggerReason = roomTriggerReason(settings.Trigger, message, d.options.SelfID)
 	if settingsErr != nil {
@@ -190,19 +190,18 @@ func (d *Dispatcher) process(dir string) {
 	for d.ctx.Err() == nil && d.connected() {
 		tasks := d.pending(dir)
 		settings, settingsErr := config.ReadRoomSettings(d.rooms.home, filepath.Base(dir))
-		raw, _ := json.Marshal(settings)
-		version := digest(raw)
 		valid := []queuedTask{}
 		for _, item := range tasks {
 			if settingsErr != nil {
 				d.saveTasks([]queuedTask{item}, "failed", settingsErr)
-			} else if !settings.Automatic || roomTriggerReason(settings.Trigger, item.task.Trigger, d.options.SelfID) == "" || (d.options.Accept != nil && !d.options.Accept(item.task.Trigger)) {
+			} else if !settings.Automatic || roomTriggerReason(settings.Trigger, item.task.Trigger, d.options.SelfID) == "" || (item.task.Trigger.Schedule == nil && d.options.Accept != nil && !d.options.Accept(item.task.Trigger)) {
 				d.saveTasks([]queuedTask{item}, "skipped", nil)
 			} else if item.task.Trigger.ID == "" || item.task.Trigger.RoomID != item.task.Room {
 				d.saveTasks([]queuedTask{item}, "failed", errors.New("旧格式任务缺少完整触发消息，请重新发送"))
 			} else {
-				item.task.Settings = settings
-				item.task.ConfigurationVersion = version
+				item.task.Settings = taskSettings(settings, item.task.Trigger)
+				raw, _ := json.Marshal(item.task.Settings)
+				item.task.ConfigurationVersion = digest(raw)
 				valid = append(valid, item)
 			}
 		}
@@ -374,3 +373,10 @@ func dispatcherForRooms(ctx context.Context, rooms *roomStore, options Dispatche
 	return &Dispatcher{ctx: ctx, rooms: rooms, id: rooms.channel, runner: agent.New(), source: options.Source, notify: options.Changed, isConnected: options.Connected, options: options, active: map[string]chan struct{}{}, done: make(chan struct{}), wake: make(chan struct{}, 1)}
 }
 func (s *Inbox) Tasks(source string) []Task { return s.rooms.tasks.list(source) }
+
+func taskSettings(settings config.RoomSettings, message Message) config.RoomSettings {
+	if message.Schedule != nil {
+		settings.Mode = "conversation"
+	}
+	return settings
+}

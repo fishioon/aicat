@@ -44,13 +44,14 @@ flowchart TB
 | `internal/gateway/addons/api` | 把 HTTP handler 接入监听地址 | 只识别发给 aicat 的请求，不接管代理站点的同名路径 |
 | `internal/gateway/addons/traffic` | 把代理阶段转成流量观测 | 使用 traffic 的写入接口，不依赖 UI |
 | `internal/traffic` | 流量模型、有界记录、body 读取、查询与变化订阅 | 不依赖 gateway、go-mitmproxy 或 MyGo |
-| `internal/mcpserver` | 流量查询、rooms_reply 与 messages_send 的 MCP 适配 | 复用进程内服务，在入口认证 |
+| `internal/mcpserver` | 流量查询、Room 回复、外发与定时规则的 MCP 适配 | 复用进程内服务，在入口认证 |
 | `internal/provider` | 供应商密钥存储、模型列表同步、带密钥的转发路由 | 不依赖 UI；转发时把调用交给 usage 记录 |
 | `internal/usage` | 模型调用的用量记录、从回复读取 Token、按时段汇总与 `/api/usage` | 不依赖 provider、traffic 或 UI |
 | `internal/extension` | 内置扩展的登记与启停：扩展交出 addon、额外解密判断、路由与后台任务，宿主只在扩展启用时使用它们 | 不导入任何具体扩展 |
 | `internal/codex` | Codex 扩展：模型列表合并、按模型分流、解密入口与 models.dev 目录（`catalog/`） | 只依赖 extension 与核心包 |
 | `internal/channelhost` | 应用内 Bun 宿主的 stdio、账号会话、子进程启停 | 不依赖 UI 或具体平台协议 |
 | `internal/messages` | 账号凭据、CloudEvent 校验、Room 目录、配置、消息日志、内存调度、正式发布与持久外发状态 | 不依赖 MyGo 或具体渠道，复用 channelhost |
+| `internal/scheduler` | 定时规则管理，周期使用 robfig/cron，单次使用 time.AfterFunc，触发时投递 Room 消息 | 不依赖渠道、Agent 或 UI，由 app 注入 Room 校验与消息投递 |
 | `internal/agent` | Codex app-server 子进程、JSONL 协议、Room thread 与受限动态工具调用 | 不依赖消息渠道或 UI，发送通过调用方提供的回调 |
 | `internal/channelconfig` | 渠道配置类型与字段校验 | 调用 config 的通用扩展存储，不承载宿主生命周期 |
 | `internal/channelplugin` | 通用 NPM manifest、推荐与动态目录、安装暂存、包声明校验、当前版本记录、手动更新与卸载 | 不依赖 UI、消息处理或具体平台通信 |
@@ -154,6 +155,8 @@ UI、HTTP API 与 MCP 读取同一个服务实例；`Recorder` 是只交给代�
 消息经 Inbox.ReceiveAndDispatch 校验来源、同步落盘，再调度并确认。Room 按渠道、来源和平台会话隔离，room.json保存绑定，aicat.yaml的rooms.<id>保存行为。历史查询独立于包安装状态。消息页面经typed Desktop服务显示全部渠道的Room、业务摘要、正式回复、任务与发送状态。会话列表支持名称/渠道/标识搜索和异常筛选；异常来自持久外发失败/结果不明回执与本次运行保留的失败/结果不明任务，查询和查看不会清除异常。消息页面不维护阅读状态。
 
 Dispatcher 始终叠加固定Agent prompt和Room prompt，业务context作为数据。固定Codex app-server，model按Room选择并从model/list读取。普通对话复用持久thread及相同配置下的steer；snapshot独立临时thread，合并连续等待状态，日志不删。任务重启不恢复。配置版本影响后续任务，模型或工具权限改变重新建thread。
+
+定时规则通过 MCP 管理，定义保存于 aicat.yaml 的 schedules。周期规则直接注册到 robfig/cron，单次规则使用 time.AfterFunc；只注册未来时间，进程重启不补跑错过的触发。单次到点先持久停用规则再投递，周期失败只记日志并等下一个 cron 时间，不重试；无独立交付状态文件。系统消息先写入原 Room 日志，再进入原 Dispatcher；账号绑定、自动处理和渠道状态不符时跳过本次，普通提及/关键词规则不筛掉定时消息。定时消息按 conversation 处理，避免被 snapshot 合并替代；现有内存 Task 仍只表示一次 Agent 处理。修改和删除规则会取消尚未触发的注册，不撤回已投递的消息。
 
 正式回复必须显式rooms_reply，经真实HTTP MCP保存本地，返回saved。外发显式messages_send，检查渠道能力和Room授权，发送前保存意图与持久请求；reply_id复用已发布正文，重复请求返回回执，unknown不重发。平台结果由原包确认，普通输出不隐式发布。reply_to及context_key保证业务结果归属，旧账号subject不能写回新账号Room。完整契约见[消息接入规范](message-ingress-standard.md)。
 

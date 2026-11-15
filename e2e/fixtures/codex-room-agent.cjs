@@ -5,10 +5,17 @@ const emit=x=>process.stdout.write(JSON.stringify(x)+'\n');
 const threads=new Map(),active=new Map(),calls=new Map();let seq=0,call=100;
 function parse(text){return JSON.parse(text.split('trigger_messages:\n')[1].split('\nrequesters:\n')[0]);}
 function finish(thread){const t=active.get(thread);if(!t)return;emit({method:'item/completed',params:{threadId:thread,turnId:t.id,item:{type:'agentMessage',id:'ordinary',phase:'final_answer',text:'ordinary output must not be published'}}});emit({method:'turn/completed',params:{threadId:thread,turn:{id:t.id,status:'completed'}}});active.delete(thread);}
+function scheduleCall(thread){
+ const t=active.get(thread),action=t.scheduleActions.shift();
+ if(!action){t.scheduleActions=null;return send(thread);}
+ const id=++call;calls.set(id,{thread,phase:'schedule'});
+ emit({id,method:'item/tool/call',params:{threadId:thread,turnId:t.id,tool:action.name,arguments:action.arguments}});
+}
 function send(thread){
  const t=active.get(thread);if(!t)return;
  const m=t.messages.at(-1),gates=path.join(root,'codex-gates.json');
  if(fs.existsSync(gates)&&JSON.parse(fs.readFileSync(gates)).includes(m.msgid)){t.timer=setTimeout(()=>send(thread),50);return;}
+ if(!t.scheduled&&m.text.content.startsWith('schedule-actions:')){t.scheduled=true;t.scheduleActions=JSON.parse(m.text.content.slice('schedule-actions:'.length));return scheduleCall(thread);}
  if(m.text.content==='ordinary-only')return finish(thread);
  if(m.text.content.includes('hold-agent'))return;
  const id=++call;const args={event:{text:'正式回复 '+m.msgid,reply_to:m.msgid}};
@@ -20,7 +27,8 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
  const m=JSON.parse(line),p=m.params;trace(m);
  if(!m.method){
   const c=calls.get(m.id);calls.delete(m.id);if(!c)return;const t=active.get(c.thread);if(!t)return;
-  const text=t.messages.at(-1).text.content;
+  if(c.phase==='schedule')return scheduleCall(c.thread);
+  const last=t.messages.at(-1),text=last.schedule?.prompt||last.text.content;
   if(c.phase==='publish'&&m.result?.success&&text.startsWith('send:')){
    const receipt=JSON.parse(m.result.contentItems.find(x=>x.type==='inputText')?.text||m.result.contentItems[0].text);
    const id=++call;calls.set(id,{thread:c.thread,phase:'send'});

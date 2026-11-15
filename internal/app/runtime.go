@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/fishioon/aicat/internal/certificate"
 	"github.com/fishioon/aicat/internal/channelhost"
@@ -14,6 +15,7 @@ import (
 	"github.com/fishioon/aicat/internal/mcpserver"
 	"github.com/fishioon/aicat/internal/messages"
 	"github.com/fishioon/aicat/internal/provider"
+	"github.com/fishioon/aicat/internal/scheduler"
 	"github.com/fishioon/aicat/internal/systemproxy"
 	"github.com/fishioon/aicat/internal/traffic"
 	"github.com/fishioon/aicat/internal/usage"
@@ -48,6 +50,7 @@ type runtime struct {
 	providers             *provider.Store
 	usage                 *usage.Store
 	extensions            *extension.Host
+	schedulerDone         chan struct{}
 }
 
 func start(ctx context.Context, o Options) (result *runtime, startErr error) {
@@ -110,7 +113,13 @@ func start(ctx context.Context, o Options) (result *runtime, startErr error) {
 		}
 		return mcpserver.Send(ctx, o.Home, listenaddr.ClientAddress(gw.Status().Addr), channel, event)
 	}
-	extensions, err := extension.New(runCtx, extension.Env{Home: o.Home, MCPSend: sendMCP, MCPReady: func() bool {
+	scheduleMCP := func(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
+		if gw == nil {
+			return nil, errors.New("MCP 网关尚未就绪")
+		}
+		return mcpserver.Call(ctx, o.Home, listenaddr.ClientAddress(gw.Status().Addr), name, args)
+	}
+	extensions, err := extension.New(runCtx, extension.Env{Home: o.Home, MCPSend: sendMCP, MCPSchedule: scheduleMCP, MCPReady: func() bool {
 		if gw == nil {
 			return false
 		}
@@ -128,7 +137,14 @@ func start(ctx context.Context, o Options) (result *runtime, startErr error) {
 		return nil, err
 	}
 	extensions.Mount(endpoints)
-	tools, toolsErr := mcpserver.New(o.Home, service, extensions.SendMessage)
+	schedules, err := scheduler.Open(o.Home, extensions.CheckScheduledRoom, extensions.DeliverScheduled)
+	if err != nil {
+		cancel()
+		service.Close()
+		calls.Close()
+		return nil, err
+	}
+	tools, toolsErr := mcpserver.New(o.Home, service, extensions.SendMessage, schedules)
 	if toolsErr != nil {
 		slog.Warn("MCP unavailable", "err", toolsErr)
 		tools = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -172,6 +188,8 @@ func start(ctx context.Context, o Options) (result *runtime, startErr error) {
 	select {
 	case <-gw.Ready():
 		r.connection.startup()
+		r.schedulerDone = make(chan struct{})
+		go func() { defer close(r.schedulerDone); schedules.Run(runCtx) }()
 		slog.Info("aicat ready at", "addr", cfg.Gateway.Addr, "ca", filepath.Join(caDir, "mitmproxy-ca-cert.pem"), "interceptHosts", cfg.Gateway.InterceptHosts)
 		return r, nil
 	case <-r.done:
@@ -192,6 +210,7 @@ func (r *runtime) close() error {
 	restoreErr := r.connection.prepareQuit()
 	r.cancel()
 	<-r.done
+	<-r.schedulerDone
 	r.extensions.Close()
 	err := r.err
 	// Socket teardown terminates flow callbacks before releasing traffic storage.

@@ -433,16 +433,19 @@ onBeforeUnmount(() => {
               :id="'room-message-' + message.msgid"
             >
               <span class="room-avatar" aria-hidden="true"
-                ><img v-if="message.outgoing" :src="logo" alt="" /><Icon
-                  v-else
-                  name="person"
+                ><img
+                  v-if="message.outgoing || message.schedule"
+                  :src="logo"
+                  alt="" /><Icon v-else name="person"
               /></span>
               <div class="room-message-content">
                 <div class="room-message-meta">
                   <span :title="message.from">{{
                     message.outgoing
                       ? "aicat"
-                      : compact(message.from || t("渠道消息"))
+                      : message.schedule
+                        ? t("定时系统消息")
+                        : compact(message.from || t("渠道消息"))
                   }}</span
                   ><span v-if="message.outgoing" class="room-agent-label"
                     >Agent</span

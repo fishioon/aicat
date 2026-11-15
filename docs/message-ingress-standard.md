@@ -42,6 +42,12 @@
 
 任务只保存在内存，重启不恢复、不从日志重放。model、工具契约或工具权限变化会重新建立 thread；Room prompt 变化向持久 thread 更新指令。
 
+## 定时消息
+
+Agent 通过 schedules_set、schedules_list、schedules_delete 管理当前 Room 的定时规则，动态工具由宿主绑定稳定 Room ID；外部 HTTP MCP 调用必须提供 room_id。规则只产生消息，不直接执行模型或发送平台消息。单次使用带时区偏移的 at，周期使用五段 cron 与显式 IANA timezone。
+
+到点后 aicat 校验当前渠道账号、连接与 Room 自动处理开关，向同一 messages.log 保存 sender_kind=system、from=aicat://scheduler 且带 schedule 元数据的入站消息，再交原 Dispatcher。渠道入站、正式回复和外发不能伪造 schedule。系统消息绕过普通提及/关键词过滤，按 conversation 处理避免 snapshot 合并；回复仍须显式调用原 MCP 工具。周期由 cron 调度，单次使用 time.AfterFunc，到点先持久停用。重启只恢复未来触发，错过或投递失败不重试、不补跑；schedules_list 只返回规则与下一触发时间，不维护独立交付状态。普通 Agent Task 仍不跨重启恢复。
+
 ## 回复与外发
 
 Agent 显式调用工具，宿主绑定当前 Room、来源及请求 ID，再通过真实 HTTP `/mcp` 及 Bearer 认证执行。普通 commentary/final_answer 不自动发布或外发。

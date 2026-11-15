@@ -28,6 +28,7 @@ type Channel struct {
 	failures           chan channelFailure
 	inbox              *Inbox
 	mcp                MCPSender
+	schedule           ScheduleCaller
 	manifest           *channelplugin.Manifest
 	observations       chan any
 }
@@ -381,3 +382,5 @@ func (c *Channel) Validate(ctx context.Context) error {
 }
 
 func (c *Channel) SetMCPSender(send MCPSender) { c.mcp = send }
+
+func (c *Channel) SetScheduleCaller(call ScheduleCaller) { c.schedule = call }

@@ -17,7 +17,7 @@ func (s *Inbox) ReceiveAndDispatch(source string, raw json.RawMessage, d *Dispat
 	if len(raw) > 16<<20 || json.Unmarshal(raw, &incoming) != nil {
 		return Record{}, errors.New("无效入站消息")
 	}
-	if incoming.Source != source || incoming.Type != Received || incoming.SpecVersion != "1.0" || incoming.ContentType != "application/json" || incoming.ID == "" || incoming.Data.ID == "" || incoming.Data.RoomID == "" {
+	if incoming.Source != source || incoming.Type != Received || incoming.SpecVersion != "1.0" || incoming.ContentType != "application/json" || incoming.ID == "" || incoming.Data.ID == "" || incoming.Data.RoomID == "" || incoming.Data.Schedule != nil {
 		return Record{}, errors.New("无效入站消息")
 	}
 	if incoming.Time != "" {

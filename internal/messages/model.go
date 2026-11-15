@@ -2,6 +2,8 @@ package messages
 
 import (
 	"encoding/json"
+
+	"github.com/fishioon/aicat/internal/scheduler"
 )
 
 const Received = "org.aicat.message.received.v1"
@@ -24,39 +26,40 @@ type Text struct {
 }
 
 type Message struct {
-	Historical    bool            `json:"historical,omitempty"`
-	Summary       string          `json:"summary,omitempty"`
-	ReplyID       string          `json:"reply_id,omitempty"`
-	Delivery      *Delivery       `json:"delivery,omitempty"`
-	AgentSnapshot *Text           `json:"agent_snapshot,omitempty"`
-	ReplyTo       string          `json:"reply_to,omitempty"`
-	ContextKey    string          `json:"context_key,omitempty"`
-	SearchName    string          `json:"search_name,omitempty"`
-	LocalID       string          `json:"local_id,omitempty"`
-	ServerID      string          `json:"server_id,omitempty"`
-	Sequence      string          `json:"sequence,omitempty"`
-	ContentType   int64           `json:"content_type,omitempty"`
-	Flag          int64           `json:"flag,omitempty"`
-	Outgoing      bool            `json:"outgoing,omitempty"`
-	RoomType      string          `json:"room_type,omitempty"`
-	MentionIDs    []string        `json:"mention_ids,omitempty"`
-	MentionAll    bool            `json:"mention_all,omitempty"`
-	MentionStatus string          `json:"mention_status,omitempty"`
-	SenderKind    string          `json:"sender_kind,omitempty"`
-	MediaStatus   string          `json:"media_status,omitempty"`
-	RawContent    string          `json:"raw_content,omitempty"`
-	Image         json.RawMessage `json:"image,omitempty"`
-	Voice         json.RawMessage `json:"voice,omitempty"`
-	File          json.RawMessage `json:"file,omitempty"`
-	Link          json.RawMessage `json:"link,omitempty"`
-	ID            string          `json:"msgid,omitempty"`
-	Action        string          `json:"action"`
-	From          string          `json:"from,omitempty"`
-	ToList        []string        `json:"tolist,omitempty"`
-	RoomID        string          `json:"roomid"`
-	Time          *int64          `json:"msgtime,omitempty"`
-	Type          string          `json:"msgtype"`
-	Text          Text            `json:"text"`
+	Schedule      *scheduler.Occurrence `json:"schedule,omitempty"`
+	Historical    bool                  `json:"historical,omitempty"`
+	Summary       string                `json:"summary,omitempty"`
+	ReplyID       string                `json:"reply_id,omitempty"`
+	Delivery      *Delivery             `json:"delivery,omitempty"`
+	AgentSnapshot *Text                 `json:"agent_snapshot,omitempty"`
+	ReplyTo       string                `json:"reply_to,omitempty"`
+	ContextKey    string                `json:"context_key,omitempty"`
+	SearchName    string                `json:"search_name,omitempty"`
+	LocalID       string                `json:"local_id,omitempty"`
+	ServerID      string                `json:"server_id,omitempty"`
+	Sequence      string                `json:"sequence,omitempty"`
+	ContentType   int64                 `json:"content_type,omitempty"`
+	Flag          int64                 `json:"flag,omitempty"`
+	Outgoing      bool                  `json:"outgoing,omitempty"`
+	RoomType      string                `json:"room_type,omitempty"`
+	MentionIDs    []string              `json:"mention_ids,omitempty"`
+	MentionAll    bool                  `json:"mention_all,omitempty"`
+	MentionStatus string                `json:"mention_status,omitempty"`
+	SenderKind    string                `json:"sender_kind,omitempty"`
+	MediaStatus   string                `json:"media_status,omitempty"`
+	RawContent    string                `json:"raw_content,omitempty"`
+	Image         json.RawMessage       `json:"image,omitempty"`
+	Voice         json.RawMessage       `json:"voice,omitempty"`
+	File          json.RawMessage       `json:"file,omitempty"`
+	Link          json.RawMessage       `json:"link,omitempty"`
+	ID            string                `json:"msgid,omitempty"`
+	Action        string                `json:"action"`
+	From          string                `json:"from,omitempty"`
+	ToList        []string              `json:"tolist,omitempty"`
+	RoomID        string                `json:"roomid"`
+	Time          *int64                `json:"msgtime,omitempty"`
+	Type          string                `json:"msgtype"`
+	Text          Text                  `json:"text"`
 }
 
 type AccountConfig struct {

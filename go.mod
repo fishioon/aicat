@@ -8,6 +8,7 @@ require (
 	github.com/klauspost/compress v1.18.6
 	github.com/lqqyt2423/go-mitmproxy v1.9.4
 	github.com/modelcontextprotocol/go-sdk v1.8.0
+	github.com/robfig/cron/v3 v3.0.1
 	golang.org/x/net v0.61.0
 	golang.org/x/sys v0.49.0
 	gopkg.in/yaml.v3 v3.0.1

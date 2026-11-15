@@ -14,6 +14,7 @@ func packageExtension(descriptor channelplugin.Descriptor) Extension {
 		Build: func(env Env) (Parts, error) {
 			channel := messages.New(env.Home, descriptor.ID, platformEndpoint(), channelhost.New(env.Home))
 			channel.SetMCPSender(env.MCPSend)
+			channel.SetScheduleCaller(env.MCPSchedule)
 			parts := Parts{Messages: channel, Configuration: channel, Run: channel.Run}
 			if descriptor.Format == "aicat" {
 				parts.ReadData = channel.ReadNativeData

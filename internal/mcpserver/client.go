@@ -17,18 +17,31 @@ import (
 )
 
 func Send(ctx context.Context, home, address, channel string, event messages.Event) (messages.Receipt, error) {
-	token, err := os.ReadFile(filepath.Join(home, "mcp-token"))
-	if err != nil {
-		return messages.Receipt{}, errors.New("MCP 凭据不可读")
-	}
 	tool := "messages_send"
 	if event.Type == messages.ReplyPublished {
 		tool = "rooms_reply"
 	}
-	raw, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": event.ID, "method": "tools/call", "params": map[string]any{"name": tool, "arguments": map[string]any{"channel": channel, "event": event}}})
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+address+"/mcp", bytes.NewReader(raw))
+	args, _ := json.Marshal(map[string]any{"channel": channel, "event": event})
+	payload, err := Call(ctx, home, address, tool, args)
 	if err != nil {
 		return messages.Receipt{}, err
+	}
+	var receipt messages.Receipt
+	if json.Unmarshal(payload, &receipt) != nil || receipt.ID != event.ID || receipt.Source != event.Source || (receipt.Status != "sent" && receipt.Status != "unknown" && receipt.Status != "pending" && receipt.Status != "saved" && receipt.Status != "failed") {
+		return messages.Receipt{}, errors.New("MCP 未返回匹配的发送回执")
+	}
+	return receipt, nil
+}
+
+func Call(ctx context.Context, home, address, tool string, args json.RawMessage) (json.RawMessage, error) {
+	token, err := os.ReadFile(filepath.Join(home, "mcp-token"))
+	if err != nil {
+		return nil, errors.New("MCP 凭据不可读")
+	}
+	raw, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": "aicat", "method": "tools/call", "params": map[string]any{"name": tool, "arguments": args}})
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+address+"/mcp", bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
 	}
 	request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
 	request.Header.Set("Content-Type", "application/json")
@@ -39,11 +52,11 @@ func Send(ctx context.Context, home, address, channel string, event messages.Eve
 	client := &http.Client{Transport: transport, Timeout: 125 * time.Second}
 	response, err := client.Do(request)
 	if err != nil {
-		return messages.Receipt{}, errors.New("MCP 发送调用未能取得回执")
+		return nil, errors.New("MCP 工具调用未能取得回执")
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return messages.Receipt{}, fmt.Errorf("MCP 发送调用返回 HTTP %d", response.StatusCode)
+		return nil, fmt.Errorf("MCP 工具调用返回 HTTP %d", response.StatusCode)
 	}
 	var result struct {
 		Error  json.RawMessage `json:"error"`
@@ -56,15 +69,11 @@ func Send(ctx context.Context, home, address, channel string, event messages.Eve
 		} `json:"result"`
 	}
 	if json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&result) != nil || len(result.Error) > 0 || result.Result.IsError {
-		return messages.Receipt{}, errors.New("MCP 发送请求被拒绝或响应无效")
+		return nil, errors.New("MCP 工具请求被拒绝或响应无效")
 	}
 	payload := result.Result.Structured
 	if len(payload) == 0 && len(result.Result.Content) > 0 {
 		payload = []byte(result.Result.Content[0].Text)
 	}
-	var receipt messages.Receipt
-	if json.Unmarshal(payload, &receipt) != nil || receipt.ID != event.ID || receipt.Source != event.Source || (receipt.Status != "sent" && receipt.Status != "unknown" && receipt.Status != "pending" && receipt.Status != "saved" && receipt.Status != "failed") {
-		return messages.Receipt{}, errors.New("MCP 未返回匹配的发送回执")
-	}
-	return receipt, nil
+	return payload, nil
 }

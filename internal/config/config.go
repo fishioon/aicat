@@ -15,6 +15,7 @@ type Config struct {
 		CodexBinary string `yaml:"codexBinary,omitempty"`
 	} `yaml:"messageExecution,omitempty"`
 	Rooms      map[string]RoomSettings `yaml:"rooms,omitempty"`
+	Schedules  map[string]Schedule     `yaml:"schedules,omitempty"`
 	UI         Preferences             `yaml:"ui"`
 	Navigation struct {
 		Pinned []string `yaml:"pinned"`

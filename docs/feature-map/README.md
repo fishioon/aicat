@@ -17,6 +17,7 @@ aicat 的品牌定位是「你的通用 AI 连接工具」，采用模块化设�
 | [供应商接入](providers.md) | 让 aicat 保管供应商密钥并同步模型列表，Agent 经 aicat 调用模型 | 主页 → 接入供应商；同一监听地址的 `/v1/messages`、`/v1/chat/completions`、`/v1/responses`、`/v1/models` |
 | [Codex 扩展](codex.md) | 在 Codex 的模型列表中使用供应商的模型，保留 ChatGPT 登录 | 扩展 → 已安装 → Codex；解密 `chatgpt.com` 或 `openai_base_url` 指向 `/backend-api/codex` |
 | [微扑克](wpk.md) | NPM采集包，牌桌Room中的业务快照和正式分析 | 扩展 → 推荐 → 微扑克；消息 → 桌Room |
+| [定时消息](schedules.md) | Agent 创建单次或周期规则，到点向原 Room 投递系统消息 | MCP schedules_set、schedules_list、schedules_delete |
 | [统一消息](messages.md) | 所有渠道的Room、正式回复和设置 | 消息导航 |
 | [企业微信客户端](wecom-local.md) | 本地消息增量进入 Room，Agent 通过 MCP 请求客户端脚本发送文本 | 扩展 → 已安装 → 企业微信客户端 |
 | [企业微信 BOT](wecom.md) | 配置机器人、接收私聊文本并通过界面或 MCP 显式发送 | 扩展 → 推荐 → 企业微信 BOT → 安装 → 配置验证 → 启用 |
@@ -63,6 +64,7 @@ npm --prefix e2e ci
 | HTTP/TLS 接入 | `python3 e2e/prototype.py --only transport --output build/feature-map-transport-<run>` |
 | 流量与 MCP | `python3 e2e/prototype.py --only mcp --output build/feature-map-mcp-<run>` |
 | Codex 扩展、模型同步与两个入口 | `node e2e/codex.cjs bin/aicat-e2e build/feature-map-codex-<run>` |
+| 定时规则管理、系统消息、离线跳过与隔离 | `node e2e/schedules.cjs bin/aicat-e2e build/schedules-<run>` |
 | 消息记录、异常排查、折叠设置与阅读状态移除 | `node e2e/messages.cjs bin/aicat-e2e build/messages-<run>` |
 | 供应商密钥与转发 | `node e2e/provider.cjs bin/aicat-e2e build/feature-map-provider-<run>` |
 | 扩展包安装、更新、卸载与配置读写 | `node e2e/extension-lifecycle.cjs bin/aicat-e2e build/extension-lifecycle-<run>` |

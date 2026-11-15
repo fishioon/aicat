@@ -140,7 +140,7 @@ def main():
         check('MCP initializes with the supported protocol', code == 200 and initialized['result']['protocolVersion'] == '2025-06-18')
         code, tools = rpc('tools/list')
         names = {value['name'] for value in tools['result']['tools']}
-        check('traffic and explicit message send MCP tools are advertised', names == {'traffic_list', 'traffic_get', 'traffic_body', 'rooms_reply', 'messages_send'})
+        check('traffic, explicit replies and schedule MCP tools are advertised', names == {'traffic_list', 'traffic_get', 'traffic_body', 'rooms_reply', 'messages_send', 'schedules_set', 'schedules_list', 'schedules_delete'})
         check('MCP without token is rejected', rpc('tools/list', authorized=False)[0] == 401)
         check('MCP with browser Origin is rejected', rpc('tools/list', extra={'Origin': 'http://localhost'})[0] == 403)
         for name in ['plugins_guide', 'plugins_validate', 'plugins_put', 'rules_put', 'rules_test', 'rewrite_status', 'rewrite_logs']:

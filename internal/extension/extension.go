@@ -54,6 +54,7 @@ type Extension struct {
 type Env struct {
 	MCPReady    func() bool
 	MCPSend     func(context.Context, string, messages.Event) (messages.Receipt, error)
+	MCPSchedule messages.ScheduleCaller
 	Home        string
 	ChannelHost *channelhost.Manager
 	Providers   *provider.Store

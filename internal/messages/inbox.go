@@ -22,7 +22,7 @@ func NewInbox(home, channel string) *Inbox {
 
 func (s *Inbox) Receive(source string, raw json.RawMessage) (Record, error) {
 	var event Event
-	if len(raw) > 16<<20 || json.Unmarshal(raw, &event) != nil || event.SpecVersion != "1.0" || event.ContentType != "application/json" || event.Type != Received || event.Source != source || event.ID == "" || event.Data.ID == "" || event.Data.RoomID == "" || event.Data.ReplyID != "" || event.Data.Delivery != nil {
+	if len(raw) > 16<<20 || json.Unmarshal(raw, &event) != nil || event.SpecVersion != "1.0" || event.ContentType != "application/json" || event.Type != Received || event.Source != source || event.ID == "" || event.Data.ID == "" || event.Data.RoomID == "" || event.Data.ReplyID != "" || event.Data.Delivery != nil || event.Data.Schedule != nil {
 		return Record{}, errors.New("无效渠道消息")
 	}
 	if event.Time != "" {

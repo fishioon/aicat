@@ -7,6 +7,9 @@ import (
 )
 
 func roomTriggerReason(trigger config.RoomTrigger, message Message, self string) string {
+	if message.Schedule != nil {
+		return "schedule"
+	}
 	if trigger.All {
 		return "all"
 	}

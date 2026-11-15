@@ -12,11 +12,13 @@ import (
 )
 
 type MCPSender func(context.Context, string, Event) (Receipt, error)
+type ScheduleCaller func(context.Context, string, json.RawMessage) (json.RawMessage, error)
 type MCPExecutorOptions struct {
 	Channel        string
 	Send           MCPSender
 	Target         func(Task) (Message, error)
 	RequireReplyTo bool
+	Schedule       ScheduleCaller
 }
 
 func MCPExecutor(options MCPExecutorOptions) func(context.Context, *agent.Runner, string, Task, string, chan<- struct{}) error {
@@ -39,6 +41,21 @@ func MCPExecutor(options MCPExecutorOptions) func(context.Context, *agent.Runner
 		err = r.TurnWithModel(ctx, thread, task.Trigger.ID, prompt, task.Settings.Model, func(ctx context.Context, call agent.ToolCall) (any, error) {
 			if deliveryErr != nil {
 				return nil, deliveryErr
+			}
+			if strings.HasPrefix(call.Name, "schedules_") {
+				if options.Schedule == nil {
+					return nil, errors.New("定时任务 MCP 不可用")
+				}
+				var args map[string]json.RawMessage
+				if json.Unmarshal(call.Arguments, &args) != nil || args == nil {
+					return nil, errors.New("无效定时任务参数")
+				}
+				if _, exists := args["room_id"]; exists {
+					return nil, errors.New("定时任务只能绑定当前 Room")
+				}
+				args["room_id"], _ = json.Marshal(roomID(options.Channel, task.Source, task.Room))
+				raw, _ := json.Marshal(args)
+				return options.Schedule(ctx, call.Name, raw)
 			}
 			var input struct {
 				Event struct {
@@ -64,7 +81,7 @@ func MCPExecutor(options MCPExecutorOptions) func(context.Context, *agent.Runner
 			if text == "" {
 				text = data.Text.Content
 			}
-			if data.Delivery != nil || data.Outgoing {
+			if data.Delivery != nil || data.Outgoing || data.Schedule != nil {
 				deliveryErr = errors.New("不能伪造回复或发送结果")
 				return nil, deliveryErr
 			}
@@ -113,7 +130,7 @@ func MCPExecutor(options MCPExecutorOptions) func(context.Context, *agent.Runner
 				return receipt, nil
 			}
 			return receipt, nil
-		}, func(context.Context, string, string) error { return nil }, started, "rooms_reply,messages_send")
+		}, func(context.Context, string, string) error { return nil }, started, "rooms_reply,messages_send,schedules_set,schedules_list,schedules_delete")
 		if deliveryErr != nil {
 			return deliveryErr
 		}

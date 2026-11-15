@@ -45,7 +45,7 @@ def main():
             ('extension-icons', 'extension-icons'), ('extension-categories', 'extension-categories'),
             ('extension-lifecycle', 'extension-lifecycle'), ('settings-navigation', 'settings-navigation'),
             ('wecom', 'wecom'), ('wecom-agent', 'wecom'),
-            ('rooms', 'rooms'), ('messages', 'messages'),
+            ('rooms', 'rooms'), ('messages', 'messages'), ('schedules', 'schedules'),
         ):
             stages[name] = ['node', f'e2e/{script}.cjs', args.binary, str(root / name)]
         for name in ('overview', 'connect', 'provider-lifecycle', 'provider-model-state', 'inspector-copy', 'proxy-settings', 'certificate', 'certificate-entries', 'traffic-browse', 'traffic-content', 'traffic-events', 'traffic-lifecycle', 'http-origins', 'agent-traffic', 'control-traffic', 'busy-state', 'desktop-shell', 'navigation', 'extension-details', 'ipv6-tunnel', 'system-proxy'):

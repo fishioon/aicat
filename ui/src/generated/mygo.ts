@@ -192,6 +192,7 @@ export interface Input {
 }
 
 export interface Message {
+  schedule?: Occurrence;
   historical?: boolean;
   summary?: string;
   reply_id?: string;
@@ -268,6 +269,13 @@ export interface ModelList {
    */
   error?: string;
   errorKind?: string;
+}
+
+export interface Occurrence {
+  schedule_id: string;
+  name: string;
+  prompt: string;
+  scheduled_for: string;
 }
 
 export interface Operation {

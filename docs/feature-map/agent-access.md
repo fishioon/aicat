@@ -15,7 +15,7 @@ Agent 从同一代理监听地址读取真实流量记录，通过 HTTP 获取�
 - 从设置 → 代理读取监听地址；默认 HTTP 基地址为 `http://127.0.0.1:9981`。
 - HTTP：`GET /api/traffic`、`GET /api/traffic/{id}`、`GET /api/bodies/{id}`。
 - Agent 的 MCP 客户端配置 Streamable HTTP 地址 `<基地址>/mcp`，Authorization 为当前 Home 的 `mcp-token` 对应的 Bearer。
-- MCP 查询工具为 `traffic_list`、`traffic_get`、`traffic_body`；`rooms_reply` 保存正式Room回复，`messages_send` 经已启用且Room授权的渠道外发。
+- MCP 查询工具为 `traffic_list`、`traffic_get`、`traffic_body`；`rooms_reply` 保存正式Room回复，`messages_send` 经已启用且Room授权的渠道外发；[定时消息](schedules.md)通过 schedules_set、schedules_list、schedules_delete 管理。
 
 ## Driving it with HTTP and MCP
 
@@ -27,7 +27,7 @@ Preconditions:
 - **完整查询与生命周期。** `node e2e/agent-traffic.cjs bin/aicat-e2e build/agent-traffic-<run>` 使用后台应用、headless 界面与真实本地上游，核对 HTTP/MCP 分页、组合筛选、参数错误、四个观测位置、二进制正文、两级正文上限、流式与错误状态、淘汰/清空/停用采集及重启；报告、查询记录和正文完整性证明保存在输出目录。`python3 e2e/mcp.py --binary bin/aicat-cli-e2e --output build/mcp-<run>` 补充 CLI、认证边界、较小采集前缀和历史配置拒绝场景。
 - **HTTP 列表。** `GET /api/traffic?limit=2` 返回摘要列表；发出超过两条请求后，使用结果的 `nextPage` 作为下一次 `before`，核对无重复和遗漏。组合 `host`、`method`、`state`、`q` 检查本次 fixture；主机名匹配其全部端口，带端口则限定该目标，IPv6 支持裸地址、方括号地址和带端口形式。清楚区分零结果与访问失败。
 - **HTTP 详情/body。** 从返回记录取实际 ID 请求 `/api/traffic/{id}`，检查四个位置 `requestReceived`、`requestSent`、`responseReceived`、`responseSent`。从消息 body 引用取真实 body ID 请求 `/api/bodies/{id}`，核对原始字节及 `X-Aicat-Body-State`，同时保留请求和响应证明。
-- **MCP 连接。** 调用 `rpc('initialize', {'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'feature-map','version':'1'}})`，再调用 `rpc('tools/list')`；工具列表包含 traffic_list、traffic_get、traffic_body、rooms_reply、messages_send；脚本工具和 SDK 资源不可用。
+- **MCP 连接。** 调用 `rpc('initialize', {'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'feature-map','version':'1'}})`，再调用 `rpc('tools/list')`；工具列表包含 traffic_list、traffic_get、traffic_body、rooms_reply、messages_send、schedules_set、schedules_list、schedules_delete；脚本工具和 SDK 资源不可用。
 - **MCP 流量。** `tool('traffic_list', {'limit': 2})`，将返回的 `nextPage` 直接作为 `before` 续页。可组合 `host`、`method`、`state`、`query`，状态包括 `request`、`response`、`completed`、`failed`、`canceled`；省略状态或空字符串匹配全部。取实际 ID 再 `tool('traffic_get', {'id': id})`；以实际 body ID 调用 `tool('traffic_body', {'id': body_id})`，base64 解码后与 HTTP body 比较，并检查 `info.state` 和 `returnedTruncated`。
 - **控制流量隔离。** `node e2e/control-traffic.cjs bin/aicat-e2e build/control-traffic-<run>` 通过实际界面配置本地供应商，验证完整 URL 的 MCP 认证/Origin、控制流量排除、模型 SSE 首段及时到达与单条脱敏记录、外部同名路径正常转发采集；保存报告和截图，不覆盖原生窗口。
 - **入口限制。** 同一 MCP 请求不带 token 应为 401；正确 token 加浏览器 Origin 应为 403。用真实代理请求访问本地上游的同名 `/api/traffic` 或 `/mcp` 路径，应到达上游，不应被 aicat 控制服务截获。完整参数错误与访问边界可通过 `--only mcp` 重复验证。

@@ -43,7 +43,7 @@ func PublishReply(ctx context.Context, home, channel, source string, event Event
 		return Receipt{}, err
 	}
 	m := event.Data
-	if event.SpecVersion != "1.0" || event.Type != ReplyPublished || event.Source != "aicat-agent://mcp" || event.ContentType != "application/json" || event.ID == "" || len(event.ID) > 256 || m.Action != "publish" || m.Type != "text" || strings.TrimSpace(m.Text.Content) == "" || len(m.Text.Content) > 64<<10 || !utf8.ValidString(m.Text.Content) || m.ID != "" || m.From != "" || m.Time != nil || m.ContextKey != "" || m.AgentSnapshot != nil || m.Outgoing || m.RoomID == "" || len(m.RoomID) > 256 || len(m.ReplyTo) > 256 || m.SearchName != "" || m.ReplyID != "" || m.Delivery != nil {
+	if event.SpecVersion != "1.0" || event.Type != ReplyPublished || event.Source != "aicat-agent://mcp" || event.ContentType != "application/json" || event.ID == "" || len(event.ID) > 256 || m.Action != "publish" || m.Type != "text" || strings.TrimSpace(m.Text.Content) == "" || len(m.Text.Content) > 64<<10 || !utf8.ValidString(m.Text.Content) || m.ID != "" || m.From != "" || m.Time != nil || m.ContextKey != "" || m.AgentSnapshot != nil || m.Schedule != nil || m.Outgoing || m.RoomID == "" || len(m.RoomID) > 256 || len(m.ReplyTo) > 256 || m.SearchName != "" || m.ReplyID != "" || m.Delivery != nil {
 		return Receipt{}, errors.New("无效 Room 回复")
 	}
 	publishMu.Lock()
