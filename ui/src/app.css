@@ -1198,6 +1198,15 @@ select.field {
   color: var(--ink-3);
   font-size: var(--t12);
 }
+.extension-install-entry {
+  position: sticky;
+  bottom: 0;
+  background: var(--chrome);
+  flex: none;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
 .side .search {
   flex: none;
   margin-bottom: 4px;
@@ -2626,6 +2635,14 @@ pre.body {
 }
 .extension-panel .form .form {
   margin: 0;
+}
+.extension-panel .custom-install-form {
+  max-width: 680px;
+  row-gap: 16px;
+}
+.custom-source-hint {
+  font-size: var(--t12);
+  color: var(--ink-3);
 }
 .extension-information {
   margin-top: 24px;

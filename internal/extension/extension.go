@@ -24,6 +24,7 @@ type Extension struct {
 	SendTargetLabel string                       `json:"sendTargetLabel,omitempty"`
 	CanSend         bool                         `json:"canSend"`
 	PackageSource   string                       `json:"packageSource,omitempty"`
+	PackageOrigin   string                       `json:"packageOrigin,omitempty"`
 	PackageFormat   string                       `json:"packageFormat,omitempty"`
 	ConfigFields    []channelplugin.Field        `json:"configFields"`
 	// ID names its section in aicat.yaml (extensions.<ID>). A built-in's ID

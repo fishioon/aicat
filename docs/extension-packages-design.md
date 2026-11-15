@@ -1,12 +1,24 @@
 # NPM 消息渠道包
 
-流量与 Codex 模型路由是内置扩展；消息渠道通过 NPM 安装。推荐目录包括企业微信官方 OpenClaw BOT、`@aicat/wecom-local` 与 `@aicat/wpk`。后两个包分别在独立的 [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local) 与 [aicat-wpk](https://github.com/fishioon/aicat-wpk) 仓库维护，尚未发布到公网 registry；目录元数据不代表包已可下载。主仓库及应用资源只提供通用宿主，不包含 NPM 扩展源码或归档。企业微信官方包走专用 OpenClaw 兼容适配，平台 SDK 不作为通用原生宿主的顶层依赖。
+流量与 Codex 模型路由是内置扩展；消息渠道以 NPM 包声明交付，可从 registry、公开 GitHub 仓库或安装包地址安装。推荐目录包括企业微信官方 OpenClaw BOT、`@aicat/wecom-local` 与 `@aicat/wpk`。后两个包分别在独立的 [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local) 与 [aicat-wpk](https://github.com/fishioon/aicat-wpk) 仓库维护，尚未发布到公网 registry；目录元数据不代表包已可下载。主仓库及应用资源只提供通用宿主，不包含 NPM 扩展源码或归档。企业微信官方包走专用 OpenClaw 兼容适配，平台 SDK 不作为通用原生宿主的顶层依赖。
 
 ## 安装与生命周期
 
 `internal/channelplugin` 使用应用内置 Bun 安装固定版本，禁用生命周期脚本，校验包身份、入口、API 与锁文件摘要，在暂存目录完成后原子切换 current.json。失败或取消保留原版本；停用后可更新、卸载，卸载保留配置、凭据、Room 和包业务数据。安装进度与取消复用扩展宿主服务。
 
-扩展列表的「安装 NPM 渠道」允许登记声明 aicat API 的第三方包，无需修改或重编宿主。包名、固定版本、registry 与派生渠道 ID 校验后持久登记于 channel-catalog.json。不能覆盖推荐来源或改已有包身份。所有 NPM 渠道均从声明的 registry 安装，不在应用构建时打包或安装。旧配置和 Room 保留在用户 Home，安装相同渠道包后由通用兼容迁移接续；启动不自动补装已卸载的扩展。
+扩展侧边栏底部的整行「自定义安装」进入统一来源表单。一个输入框自动识别 NPM 包名、公开 GitHub 仓库和安装包 URL，「更多选项」仅提供版本。安装使用包内 `aicat.id`，不从包名猜测 ID；完整校验后登记到权限为 0600 的 channel-catalog.json。安装完成后保持停用，用户配置并验证后另行启用。不能覆盖内置扩展或改变已有渠道的包名、格式；为推荐的 aicat 渠道指定来源时必须保持同一包身份，不生成重复条目。
+
+| 来源 | 示例 | 版本选择 |
+| --- | --- | --- |
+| NPM | `@publisher/channel`、`@publisher/channel@1.0.0` | 固定版本或 dist-tag，留空解析 `latest`，按 registry 提供的摘要校验安装包 |
+| GitHub | `github:owner/repo`、`https://github.com/owner/repo.git#v1.0.0` | 分支、标签或 commit，留空使用默认分支；公开 API 解析 commit 后下载归档 |
+| 安装包 | `https://example.com/extension.tgz` | 使用 URL 对应版本，包内读取版本，不接受独立版本参数，也不要求 URL 有文件后缀 |
+
+自定义来源仅接受声明 aicat API 的渠道包。GitHub 仓库根目录须包含 package.json、渠道声明和可直接加载的入口，不执行 prepare、build 或其他生命周期脚本。安装包地址支持 HTTP/HTTPS；内网地址与临时授权下载链接按相同规则处理，不带 Authorization、Cookie，也不读取本机 npm/Git 登录凭据。401/403 明确提示暂不支持安装凭据，不提供账号、Token、登录或会员入口。URL 查询参数仅保存在私有目录记录中，扩展详情只显示去除查询参数的来源。
+
+归档为单一根目录的 gzip tar，压缩体积最多 64 MiB、文件总大小最多 256 MiB、最多 10,000 个条目；拒绝越界路径、符号链接及特殊文件。所有源码、入口和 manifest 校验完成后才切换当前版本。自定义来源的安装记录保存归档 SHA-256、GitHub commit（适用时）和独立版本目录，支持包版本号相同但内容不同的手动更新。更新从原来源重新解析，失败保留旧安装。旧的 registry 固定版本记录继续可读。
+
+安装与下载不发生在应用构建时。旧配置和 Room 保留在用户 Home，安装相同渠道包后由通用兼容迁移接续；启动不自动下载、更新或补装已卸载的扩展。
 
 ## 原生声明
 

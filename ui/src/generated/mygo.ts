@@ -58,6 +58,8 @@ export interface Delivery {
 }
 
 export interface Descriptor {
+  source?: string;
+  reference?: string;
   format?: string;
   id: string;
   name: string;
@@ -70,6 +72,7 @@ export interface Descriptor {
 
 /** DesktopState is a coherent snapshot of settings and live desktop state. */
 export interface DesktopState {
+  extensionInstallation: Operation;
   mcpTokenPath: string;
   preferences: Preferences;
   language: string;
@@ -109,6 +112,7 @@ export interface ExtensionState {
   sendTargetLabel?: string;
   canSend: boolean;
   packageSource?: string;
+  packageOrigin?: string;
   packageFormat?: string;
   configFields: Field[];
   /**
@@ -427,6 +431,17 @@ export interface RoomView {
   tasks: Task[];
 }
 
+export interface Source {
+  kind: string;
+  address: string;
+  version: string;
+}
+
+export interface SourceRequest {
+  source: string;
+  version: string;
+}
+
 export type State = "request" | "response" | "completed" | "failed" | "canceled";
 
 /** StateChange invalidates the page's snapshot after a committed mutation. */
@@ -528,6 +543,9 @@ export const Desktop = {
   cancelExtensionInstallation(id: string): Promise<void> {
     return call("Desktop.CancelExtensionInstallation", id);
   },
+  cancelExtensionSourceInstallation(): Promise<void> {
+    return call("Desktop.CancelExtensionSourceInstallation");
+  },
   clearTraffic(): Promise<void> {
     return call("Desktop.ClearTraffic");
   },
@@ -558,6 +576,9 @@ export const Desktop = {
   installExtension(id: string): Promise<void> {
     return call("Desktop.InstallExtension", id);
   },
+  installExtensionSource(request: SourceRequest): Promise<string> {
+    return call("Desktop.InstallExtensionSource", request);
+  },
   listRoomModels(): Promise<Model[]> {
     return call("Desktop.ListRoomModels");
   },
@@ -576,6 +597,9 @@ export const Desktop = {
   },
   openMessageLogs(id: string): Promise<void> {
     return call("Desktop.OpenMessageLogs", id);
+  },
+  parseExtensionSource(request: SourceRequest): Promise<Source> {
+    return call("Desktop.ParseExtensionSource", request);
   },
   readExtensionConfig(id: string): Promise<Record<string, unknown>> {
     return call("Desktop.ReadExtensionConfig", id);

@@ -54,7 +54,7 @@ flowchart TB
 | `internal/scheduler` | 定时规则管理，周期使用 robfig/cron，单次使用 time.AfterFunc，触发时投递 Room 消息 | 不依赖渠道、Agent 或 UI，由 app 注入 Room 校验与消息投递 |
 | `internal/agent` | Codex app-server 子进程、JSONL 协议、Room thread 与受限动态工具调用 | 不依赖消息渠道或 UI，发送通过调用方提供的回调 |
 | `internal/channelconfig` | 渠道配置类型与字段校验 | 调用 config 的通用扩展存储，不承载宿主生命周期 |
-| `internal/channelplugin` | 通用 NPM manifest、推荐与动态目录、安装暂存、包声明校验、当前版本记录、手动更新与卸载 | 不依赖 UI、消息处理或具体平台通信 |
+| `internal/channelplugin` | 通用 NPM manifest、匿名安装来源解析、推荐与动态目录、安装暂存、包声明校验、当前版本记录、手动更新与卸载 | 不依赖 UI、消息处理或具体平台通信 |
 | `internal/certificate` | 根证书身份、当前用户信任的检测与管理 | 不属于 gateway |
 | `internal/systemproxy` | 系统代理的接管、恢复日志与恢复 | 不属于 gateway |
 | `internal/config` | 串行、原子地读写唯一的 `aicat.yaml` | 保留未知字段与注释 |
@@ -179,7 +179,7 @@ Dispatcher 始终叠加固定Agent prompt和Room prompt，业务context作为数
 | `rooms/*/context/messages.log` | 按账号和会话隔离的唯一消息日志，每行一条消息正文，供 Agent 读取 |
 | `logs/aicat.log` | 独立的 info、warn、error 运行日志，不记录聊天正文 |
 | `extensions/<ID>/current.json` | 当前使用的实际安装版本和依赖锁摘要 |
-| `extensions/<ID>/<版本>/` | NPM 渠道包、依赖锁与版本安装记录 |
+| `extensions/<ID>/<版本或内容目录>/` | NPM 渠道包、依赖锁与版本安装记录；自定义来源按归档和锁摘要区分目录 |
 | `channel-catalog.json` | 动态登记的渠道来源 |
 | `rooms/*/room.json` | 渠道、来源及平台会话绑定 |
 | `rooms/*/outbound/`、`deliveries/` | 持久外发请求和正文关联 |

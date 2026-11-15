@@ -16,6 +16,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/transfer"
 	"github.com/fishioon/aicat/internal/certificate"
+	"github.com/fishioon/aicat/internal/channelplugin"
 	"github.com/fishioon/aicat/internal/config"
 	"github.com/fishioon/aicat/internal/extension"
 	"github.com/fishioon/aicat/internal/gateway"
@@ -33,25 +34,26 @@ type Desktop struct{ app *application }
 
 // DesktopState is a coherent snapshot of settings and live desktop state.
 type DesktopState struct {
-	MCPTokenPath     string                    `json:"mcpTokenPath"`
-	Preferences      config.Preferences        `json:"preferences"`
-	Language         string                    `json:"language"`
-	TrafficEnabled   bool                      `json:"trafficEnabled"`
-	Extensions       []extension.State         `json:"extensions"`
-	MessageChannels  map[string]messages.State `json:"messageChannels"`
-	Recording        bool                      `json:"recording"`
-	CaptureStarted   bool                      `json:"captureStarted"`
-	NavigationPins   []string                  `json:"navigationPins"`
-	PinnedDomains    []string                  `json:"pinnedDomains"`
-	Gateway          gateway.Status            `json:"gateway"`
-	Addresses        []string                  `json:"addresses"`
-	Certificate      certificate.Status        `json:"certificate"`
-	CertificateError string                    `json:"certificateError"`
-	Proxy            systemproxy.Status        `json:"proxy"`
-	Domains          []string                  `json:"domains"`
-	Providers        []provider.Provider       `json:"providers"`
-	Production       bool                      `json:"production"`
-	Revision         uint64                    `json:"revision"`
+	ExtensionInstallation channelplugin.Operation   `json:"extensionInstallation"`
+	MCPTokenPath          string                    `json:"mcpTokenPath"`
+	Preferences           config.Preferences        `json:"preferences"`
+	Language              string                    `json:"language"`
+	TrafficEnabled        bool                      `json:"trafficEnabled"`
+	Extensions            []extension.State         `json:"extensions"`
+	MessageChannels       map[string]messages.State `json:"messageChannels"`
+	Recording             bool                      `json:"recording"`
+	CaptureStarted        bool                      `json:"captureStarted"`
+	NavigationPins        []string                  `json:"navigationPins"`
+	PinnedDomains         []string                  `json:"pinnedDomains"`
+	Gateway               gateway.Status            `json:"gateway"`
+	Addresses             []string                  `json:"addresses"`
+	Certificate           certificate.Status        `json:"certificate"`
+	CertificateError      string                    `json:"certificateError"`
+	Proxy                 systemproxy.Status        `json:"proxy"`
+	Domains               []string                  `json:"domains"`
+	Providers             []provider.Provider       `json:"providers"`
+	Production            bool                      `json:"production"`
+	Revision              uint64                    `json:"revision"`
 }
 
 // StateChange invalidates the page's snapshot after a committed mutation.
@@ -78,7 +80,7 @@ func (d *Desktop) State(ctx context.Context) (DesktopState, error) {
 		a.checkedAt = time.Now()
 	}
 	addresses, _ := listenaddr.Addresses()
-	return DesktopState{MCPTokenPath: filepath.Join(a.r.home, "mcp-token"), Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, Extensions: a.r.extensions.List(), MessageChannels: a.r.extensions.MessageStates(), Recording: a.recording, CaptureStarted: a.captureStarted, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Providers: a.r.providers.List(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
+	return DesktopState{ExtensionInstallation: a.r.extensions.SourceInstallation(), MCPTokenPath: filepath.Join(a.r.home, "mcp-token"), Preferences: cfg.UI, Language: mygo.App.Locale(), TrafficEnabled: a.enabled, Extensions: a.r.extensions.List(), MessageChannels: a.r.extensions.MessageStates(), Recording: a.recording, CaptureStarted: a.captureStarted, NavigationPins: cfg.Navigation.Pinned, PinnedDomains: cfg.Traffic.PinnedDomains, Gateway: a.r.gateway.Status(), Addresses: addresses, Certificate: a.certificate, CertificateError: errorText(a.certificateError), Proxy: a.r.connection.status(), Domains: a.r.interception.list(), Providers: a.r.providers.List(), Production: !mygo.IsDev(), Revision: a.revision.Load()}, nil
 }
 func (d *Desktop) mutate(ctx context.Context, operation func() error) error {
 	a := d.app

@@ -26,9 +26,6 @@ func (s *Store) Descriptors() ([]Descriptor, error) {
 		return nil, errors.New("已登记渠道包目录损坏")
 	}
 	seen := map[string]bool{}
-	for _, d := range result {
-		seen[d.ID] = true
-	}
 	for _, d := range added {
 		if err = validateDescriptor(d); err != nil {
 			return nil, err
@@ -37,7 +34,19 @@ func (s *Store) Descriptors() ([]Descriptor, error) {
 			return nil, errors.New("渠道包标识重复")
 		}
 		seen[d.ID] = true
-		result = append(result, d)
+		merged := false
+		for i, builtin := range Catalog {
+			if builtin.ID != d.ID {
+				continue
+			}
+			if d.Source == "" || d.Package != builtin.Package || d.Format != builtin.Format {
+				return nil, errors.New("不能改变推荐渠道的包身份或格式")
+			}
+			result[i], merged = d, true
+		}
+		if !merged {
+			result = append(result, d)
+		}
 	}
 	return result, nil
 }
@@ -71,6 +80,11 @@ func validateDescriptor(d Descriptor) error {
 			return errors.New("NPM 包名无效")
 		}
 	}
+	if d.Source != "" {
+		if _, err := ParseSource(d.Source, d.Reference); err != nil {
+			return err
+		}
+	}
 	u, err := url.Parse(d.Registry)
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "https" && !(u.Scheme == "http" && (u.Hostname() == "127.0.0.1" || u.Hostname() == "localhost"))) {
 		return errors.New("NPM registry 必须使用 HTTPS，本机测试服务除外")
@@ -79,30 +93,43 @@ func validateDescriptor(d Descriptor) error {
 }
 
 func (s *Store) Register(d Descriptor) error {
+	return s.register(d, false)
+}
+
+func (s *Store) register(d Descriptor, source bool) error {
 	if err := validateDescriptor(d); err != nil {
 		return err
 	}
 	catalogMu.Lock()
 	defer catalogMu.Unlock()
-	descriptors, err := s.Descriptors()
+	_, err := s.Descriptors()
 	if err != nil {
 		return err
 	}
 	for _, builtin := range Catalog {
 		if builtin.ID == d.ID {
-			return errors.New("不能覆盖推荐渠道的包声明")
+			if !source || builtin.Package != d.Package || builtin.Format != d.Format {
+				return errors.New("不能覆盖推荐渠道的包身份或格式")
+			}
+			d.Name, d.Summary, d.Publisher = builtin.Name, builtin.Summary, builtin.Publisher
 		}
 	}
 	added := []Descriptor{}
+	raw, err := os.ReadFile(filepath.Join(s.home, "channel-catalog.json"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if len(raw) > 0 && json.Unmarshal(raw, &added) != nil {
+		return errors.New("已登记渠道包目录损坏")
+	}
 	found := false
-	for _, current := range descriptors[len(Catalog):] {
+	for i, current := range added {
 		if current.ID == d.ID {
-			if current.Package != d.Package || current.Format != d.Format || current.Registry != d.Registry {
+			if current.Package != d.Package || current.Format != d.Format || (!source && (current.Registry != d.Registry || current.Source != d.Source)) {
 				return errors.New("不能改变已登记渠道的包身份、格式或来源")
 			}
-			current, found = d, true
+			added[i], found = d, true
 		}
-		added = append(added, current)
 	}
 	if !found {
 		added = append(added, d)

@@ -113,6 +113,14 @@ func (h *Host) List() []State {
 		descriptor := it.Extension
 		if d, ok := h.plugins.Descriptor(it.ID); ok {
 			descriptor.Version = d.Version
+			descriptor.Name, descriptor.Summary, descriptor.Lede = d.Name, d.Summary, d.Summary
+			descriptor.PackageOrigin = d.Registry
+			if d.Source != "" {
+				descriptor.PackageOrigin = channelplugin.DisplaySource(d.Source)
+				if source, err := channelplugin.ParseSource(d.Source, d.Reference); err == nil {
+					descriptor.PackageSource = source.Kind
+				}
+			}
 		}
 		if sender, ok := it.parts.Messages.(interface{ CanSend() bool }); ok {
 			descriptor.CanSend = sender.CanSend()
@@ -133,7 +141,7 @@ func (h *Host) List() []State {
 		if current, err := h.plugins.Current(it.ID); err == nil {
 			installedVersion = current.Version
 		}
-		out = append(out, State{CanPrepare: it.parts.Prepare != nil, Operation: h.plugins.Operation(it.ID), Extension: descriptor, Enabled: it.on.Load(), Installed: installed, Builtin: builtin, Ready: ready, InstalledVersion: installedVersion, UpdateAvailable: installed && !builtin && installedVersion != descriptor.Version, PackagePresent: !builtin && h.plugins.Present(it.ID)})
+		out = append(out, State{CanPrepare: it.parts.Prepare != nil, Operation: h.plugins.Operation(it.ID), Extension: descriptor, Enabled: it.on.Load(), Installed: installed, Builtin: builtin, Ready: ready, InstalledVersion: installedVersion, UpdateAvailable: installed && !builtin && (installedVersion != descriptor.Version || descriptor.PackageSource != "registry"), PackagePresent: !builtin && h.plugins.Present(it.ID)})
 	}
 	return out
 }

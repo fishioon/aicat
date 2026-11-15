@@ -73,6 +73,8 @@ Playwright 使用锁定版本和已安装的 Chrome，不下载浏览器。macOS
 make e2e-build
 # 扩展包安装、配置合并、手动更新、卸载与中断恢复（后台）
 node e2e/extension-lifecycle.cjs bin/aicat-e2e build/extension-lifecycle-e2e
+# 统一来源安装、版本、取消、认证拒绝与原子更新（后台）
+node e2e/extension-source.cjs bin/aicat-e2e build/extension-source-e2e
 python3 e2e/prototype.py --only desktop
 python3 e2e/prototype.py --only transport
 python3 e2e/prototype.py --only mcp

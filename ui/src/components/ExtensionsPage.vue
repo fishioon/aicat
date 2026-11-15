@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, reactive, ref } from "vue";
+import { computed, onUnmounted, reactive, ref, watch } from "vue";
 import {
   state,
   shell,
@@ -19,37 +19,134 @@ import { copy } from "../state/traffic";
 import { host } from "../host";
 import { t } from "../i18n";
 import { extensionList, uiOf } from "../extensions";
-import type { ExtensionState } from "../generated/mygo";
+import type { ExtensionState, Source } from "../generated/mygo";
 import Icon from "./Icon.vue";
 import ExtensionIcon from "./ExtensionIcon.vue";
 
-const packageForm = ref(false);
-const packageName = ref("");
-const packageVersion = ref("");
-const installingPackage = ref(false);
-async function addPackage() {
-  if (installingPackage.value) return;
-  const name = packageName.value.trim();
-  const id = name.replace(/^@/, "").replace("/", ".");
-  installingPackage.value = true;
+const packageForm = computed({
+  get: () => shell.customInstallOpen,
+  set: (value: boolean) => {
+    shell.customInstallOpen = value;
+  },
+});
+const sourceInfo = ref<Source | null>(null);
+const sourceHint = computed(() =>
+  sourceInfo.value
+    ? t(
+        (
+          {
+            npm: "NPM 包",
+            github: "GitHub 仓库",
+            archive: "安装包地址",
+          } as Record<string, string>
+        )[sourceInfo.value.kind] || "",
+      )
+    : t(
+        "例如 @publisher/channel、github:owner/repo 或 https://example.com/extension.tgz",
+      ),
+);
+const sourceParseError = ref("");
+const sourceError = ref("");
+const ignoredSourceOperation = ref("");
+const submittingSource = ref(false);
+let sourceGeneration = 0;
+let active = true;
+watch(
+  () => shell.customInstallSource,
+  async (source, previous) => {
+    const previousKind = sourceInfo.value?.kind;
+    if (previous !== undefined)
+      ignoredSourceOperation.value =
+        state.value?.extensionInstallation.startedAt ?? "";
+    const generation = ++sourceGeneration;
+    sourceInfo.value = null;
+    sourceParseError.value = "";
+    sourceError.value = "";
+    if (!source.trim()) return;
+    try {
+      const parsed = await host.parseExtensionSource({ source, version: "" });
+      if (generation === sourceGeneration) {
+        if (previousKind && previousKind !== parsed.kind)
+          shell.customInstallVersion = "";
+        sourceInfo.value = parsed;
+      }
+    } catch (error) {
+      if (generation === sourceGeneration)
+        sourceParseError.value = String(
+          error instanceof Error ? error.message : error,
+        );
+    }
+  },
+  { immediate: true },
+);
+watch(
+  () => shell.customInstallVersion,
+  () => {
+    sourceError.value = "";
+  },
+);
+const sourceOperation = computed(() => state.value?.extensionInstallation);
+const installingSource = computed(
+  () => submittingSource.value || sourceOperation.value?.status === "running",
+);
+const sourceFailure = computed(() =>
+  installingSource.value
+    ? ""
+    : sourceError.value ||
+      (sourceOperation.value?.status === "failed" &&
+      sourceOperation.value.startedAt !== ignoredSourceOperation.value
+        ? sourceOperation.value.error
+        : ""),
+);
+const sourceFailureText = computed(() => {
+  const match = sourceFailure.value.match(/^(.*)（HTTP (\d{3})）$/);
+  return match
+    ? t("{message}（HTTP {status}）", {
+        message: t(match[1]),
+        status: match[2],
+      })
+    : t(sourceFailure.value);
+});
+const sourceElapsed = computed(() => {
+  const started = Date.parse(sourceOperation.value?.startedAt ?? "");
+  const end =
+    sourceOperation.value?.status === "running"
+      ? now.value
+      : Date.parse(sourceOperation.value?.finishedAt ?? "");
+  return Number.isFinite(started) && Number.isFinite(end)
+    ? Math.max(0, Math.floor((end - started) / 1000))
+    : 0;
+});
+async function addSource() {
+  if (installingSource.value || !sourceInfo.value) return;
+  sourceError.value = "";
+  submittingSource.value = true;
   try {
-    await host.installChannelPackage({
-      format: "aicat",
-      id,
-      name,
-      package: name,
-      version: packageVersion.value.trim(),
-      publisher: name.startsWith("@") ? name.split("/")[0].slice(1) : "",
-      summary: t("通过 NPM 安装的消息渠道"),
-      registry: "https://registry.npmjs.org",
+    const id = await host.installExtensionSource({
+      source: shell.customInstallSource.trim(),
+      version:
+        sourceInfo.value.kind === "archive"
+          ? ""
+          : shell.customInstallVersion.trim(),
     });
-    packageForm.value = false;
-    choose(id);
-  } catch (e) {
-    problem(e);
-  } finally {
-    installingPackage.value = false;
     await refresh();
+    if (active && shell.route === "extensions" && packageForm.value) choose(id);
+    say(t("插件已安装，请配置并验证账号"));
+  } catch (e) {
+    await refresh();
+    if (sourceOperation.value?.status !== "cancelled")
+      sourceError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    submittingSource.value = false;
+    await refresh();
+  }
+}
+async function cancelSource() {
+  try {
+    await host.cancelExtensionSourceInstallation();
+    await refresh();
+  } catch (error) {
+    problem(error);
   }
 }
 const sections = reactive({ enabled: true, recommended: true });
@@ -69,7 +166,10 @@ const now = ref(Date.now());
 const timer = setInterval(() => {
   now.value = Date.now();
 }, 1000);
-onUnmounted(() => clearInterval(timer));
+onUnmounted(() => {
+  active = false;
+  clearInterval(timer);
+});
 const operation = computed(() => current.value?.operation);
 const installing = computed(
   () =>
@@ -86,7 +186,7 @@ const elapsed = computed(() => {
     ? Math.max(0, Math.floor((end - started) / 1000))
     : 0;
 });
-const phase = computed(() =>
+const installationPhase = (stage?: string) =>
   t(
     (
       {
@@ -97,9 +197,9 @@ const phase = computed(() =>
         removing: "正在卸载扩展…",
         cancelling: "正在取消安装…",
       } as Record<string, string>
-    )[operation.value?.stage ?? ""] ?? "正在准备安装…",
-  ),
-);
+    )[stage ?? ""] ?? "正在准备安装…",
+  );
+const phase = computed(() => installationPhase(operation.value?.stage));
 const result = computed(() => {
   const op = operation.value;
   if (op?.status === "failed")
@@ -304,9 +404,6 @@ function gear(event: MouseEvent) {
           autocomplete="off"
           spellcheck="false"
       /></label>
-      <button class="btn" id="channel-package-add" @click="packageForm = true">
-        {{ t("从 NPM 安装渠道") }}
-      </button>
       <section>
         <button
           class="xsec"
@@ -323,7 +420,9 @@ function gear(event: MouseEvent) {
               <button
                 :id="'extension-' + x.id"
                 class="xitem"
-                :aria-current="current?.id === x.id ? 'true' : undefined"
+                :aria-current="
+                  !packageForm && current?.id === x.id ? 'true' : undefined
+                "
                 @click="choose(x.id)"
               >
                 <ExtensionIcon :name="x.id" /><span class="top"
@@ -350,7 +449,9 @@ function gear(event: MouseEvent) {
             <button
               :id="'extension-' + x.id"
               class="xitem"
-              :aria-current="current?.id === x.id ? 'true' : undefined"
+              :aria-current="
+                !packageForm && current?.id === x.id ? 'true' : undefined
+              "
               @click="choose(x.id)"
             >
               <ExtensionIcon :name="x.id" /><span class="top"
@@ -360,52 +461,125 @@ function gear(event: MouseEvent) {
           </li>
         </ul>
       </section>
+      <footer class="extension-install-entry">
+        <button
+          class="side-item"
+          id="channel-package-add"
+          :aria-current="packageForm ? 'true' : undefined"
+          @click="packageForm = true"
+        >
+          <Icon name="plus" /><span class="label">{{ t("自定义安装") }}</span>
+        </button>
+      </footer>
     </aside>
     <section class="main">
       <div v-if="packageForm" class="xd">
-        <h1>{{ t("从 NPM 安装渠道") }}</h1>
-        <p>
-          {{
-            t(
-              "安装提供 aicat 渠道 API 的 NPM 包。安装完成后配置并启用渠道，消息处理在 Room 中设置。",
-            )
-          }}
-        </p>
-        <form
-          class="form"
-          id="channel-package-form"
-          @submit.prevent="addPackage"
-        >
-          <label for="channel-package-name">{{ t("NPM 包名") }}</label>
-          <input
-            id="channel-package-name"
-            class="field"
-            v-model="packageName"
-            placeholder="@publisher/channel"
-            required
-            :disabled="installingPackage"
-          />
-          <label for="channel-package-version">{{ t("版本") }}</label>
-          <input
-            id="channel-package-version"
-            class="field"
-            v-model="packageVersion"
-            placeholder="1.0.0"
-            required
-            :disabled="installingPackage"
-          />
-          <p class="wide">
-            https://registry.npmjs.org · {{ t("安装时不执行包脚本。") }}
-          </p>
-          <div class="acts wide">
-            <button class="btn primary" :disabled="installingPackage">
-              {{ t(installingPackage ? "正在安装…" : "安装") }}
-            </button>
-            <button class="btn" type="button" @click="packageForm = false">
-              {{ t("返回扩展") }}
-            </button>
-          </div>
-        </form>
+        <h1>{{ t("自定义安装") }}</h1>
+        <p>{{ t("填写 NPM 包名、公开 GitHub 仓库或安装包地址。") }}</p>
+        <section class="extension-panel">
+          <form
+            class="form custom-install-form"
+            id="channel-package-form"
+            @submit.prevent="addSource"
+          >
+            <label for="custom-source">{{ t("安装来源") }}</label>
+            <div class="acts">
+              <input
+                id="custom-source"
+                class="field grow"
+                v-model="shell.customInstallSource"
+                :placeholder="t('NPM 包名、GitHub 仓库或安装包地址')"
+                :disabled="installingSource"
+                autocomplete="off"
+                spellcheck="false"
+                :aria-invalid="!!sourceParseError"
+                aria-describedby="custom-source-hint"
+              />
+              <button
+                class="btn primary"
+                id="custom-install"
+                :disabled="!sourceInfo || installingSource"
+              >
+                {{ t(installingSource ? "安装中…" : "安装") }}
+              </button>
+            </div>
+            <p
+              class="wide custom-source-hint"
+              id="custom-source-hint"
+              aria-live="polite"
+            >
+              {{ sourceParseError ? t(sourceParseError) : sourceHint }}
+            </p>
+            <details
+              v-if="sourceInfo?.kind !== 'archive'"
+              class="wide"
+              id="custom-more-options"
+            >
+              <summary>{{ t("更多选项") }}</summary>
+              <div class="form">
+                <label for="custom-version">{{ t("版本") }}</label>
+                <input
+                  id="custom-version"
+                  class="field"
+                  v-model="shell.customInstallVersion"
+                  :disabled="installingSource"
+                  :placeholder="
+                    t(
+                      sourceInfo?.kind === 'github'
+                        ? '分支、标签或 commit；留空使用默认分支'
+                        : '固定版本或标签；留空使用 latest',
+                    )
+                  "
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </div>
+            </details>
+            <section
+              v-if="
+                installingSource ||
+                sourceOperation?.status === 'cancelled' ||
+                sourceFailure
+              "
+              class="wide extension-install-status"
+              id="custom-install-status"
+              :aria-busy="installingSource"
+              aria-live="polite"
+            >
+              <template v-if="installingSource">
+                <p>{{ installationPhase(sourceOperation?.stage) }}</p>
+                <progress
+                  :aria-label="installationPhase(sourceOperation?.stage)"
+                ></progress>
+                <p>{{ t("已用 {seconds} 秒", { seconds: sourceElapsed }) }}</p>
+                <button
+                  v-if="sourceOperation?.cancellable"
+                  class="btn"
+                  id="custom-install-cancel"
+                  type="button"
+                  @click="cancelSource"
+                >
+                  {{ t("取消安装") }}
+                </button>
+              </template>
+              <p
+                v-else-if="
+                  sourceOperation?.status === 'cancelled' && !sourceFailure
+                "
+              >
+                {{ t("安装已取消。") }}
+              </p>
+              <p v-if="sourceFailure" role="alert" id="custom-install-error">
+                {{ sourceFailureText }}
+              </p>
+            </section>
+            <div class="acts wide">
+              <button class="btn" type="button" @click="packageForm = false">
+                {{ t("返回扩展") }}
+              </button>
+            </div>
+          </form>
+        </section>
       </div>
       <div
         v-else-if="current"
@@ -465,7 +639,9 @@ function gear(event: MouseEvent) {
               {{
                 installing
                   ? t("更新中…")
-                  : t("更新至 {version}", { version: current.version })
+                  : current.packageSource !== "registry"
+                    ? t("检查更新")
+                    : t("更新至 {version}", { version: current.version })
               }}
             </button>
             <button
@@ -598,7 +774,11 @@ function gear(event: MouseEvent) {
             id="extension-package-source"
             class="xd-meta"
           >
-            <span>{{ t("下载来源") }}：{{ current.registry }}</span>
+            <span
+              >{{ t("下载来源") }}：{{
+                current.packageOrigin || current.registry
+              }}</span
+            >
             <span
               ><code>{{ current.package }}@{{ current.version }}</code></span
             >

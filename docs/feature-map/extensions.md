@@ -9,6 +9,7 @@
 - `extensions-codex`：启用或停用 Codex 扩展，见 [Codex 扩展](codex.md)。
 - `extensions-wecom-local`：安装、配置与启停NPM企业微信客户端，增量消息保存到 Room，见[企业微信客户端](wecom-local.md)。
 - `extensions-wecom`：配置、启停企业微信 BOT 并收发私聊文本，见[企业微信 BOT](wecom.md)。
+- `extensions-custom-install`：扩展侧边栏底部整行「自定义安装」；统一输入框自动识别公开 NPM 包、公开 GitHub 仓库和 HTTP/HTTPS 安装包地址。「更多选项」只提供版本，安装包隐藏独立版本字段。支持真实阶段、取消和失败重试，完成后选择已安装扩展并保持停用；不提供安装凭据，401/403 明确提示暂不支持。来源与真实包身份经校验后登记，重启恢复，详情不显示下载 URL 的查询参数。
 - `extensions-packages`：可安装渠道按推荐版本安装，显示真实阶段、不定进度、已用时间及取消入口，失败可查看详情并重试，安装期间仍可浏览其他页面；停用后手动更新；更多菜单卸载并保留配置、凭据和业务数据。
 - `extensions-settings`：已安装扩展的详情直接挂载自己的配置表单；“诊断”查看任务、消息及发送测试，保留扩展列表和当前选中项。全局设置只提供通用与代理。
 - `extensions-open`：从详情打开流量或代理设置。
@@ -56,3 +57,7 @@ Preconditions:
 运行 `node e2e/settings-navigation.cjs bin/aicat-e2e build/settings-navigation-<run>`。使用隔离 Home、headless Chromium 与隐藏的验收应用，验证通用与代理设置、未安装扩展无配置表单、已安装扩展直接配置并写入 aicat.yaml、诊断按钮与菜单、返回配置、跨扩展和全局设置的前进/后退。浅深色及 1180/860 宽度截图、命令、二进制摘要、报告与应用日志保存在输出目录；不覆盖原生窗口与系统授权。
 
 包生命周期使用 `node e2e/extension-lifecycle.cjs bin/aicat-e2e build/extension-lifecycle-<run>` 定向验收，覆盖慢下载反馈、取消与重试、导航及跨页面状态恢复、中英文与浅深色、失败与中断恢复、版本切换和卸载保留数据，详见[包管理](../extension-packages-design.md)。
+
+## 自定义来源安装定向验收
+
+运行 `node e2e/extension-source.cjs bin/aicat-e2e build/extension-source-<run>`。使用 headless Chromium、隐藏验收应用与实际 Bun 安装器，公开 NPM、GitHub API 和安装包下载由本地合成服务代替。覆盖底部整行入口、统一来源识别、版本及默认分支、临时授权 URL、401/403、无效声明和包身份、完整性与越界链接拒绝、取消及重试、同版本不同 commit 的原子切换、失败保留旧版、重启及卸载重装、禁用包脚本、无凭据请求和浅深色截图。工件包括报告、请求轨迹、实际安装记录及应用日志；不覆盖真实账号或公网 GitHub 安装。

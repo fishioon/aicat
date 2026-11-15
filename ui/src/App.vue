@@ -61,6 +61,8 @@ function appName(key: string) {
   return key ? key.replace(/^\w+:/, "") : t("未知应用");
 }
 const crumbs = computed(() => {
+  if (shell.route === "extensions" && shell.customInstallOpen)
+    return [t("扩展"), t("自定义安装")];
   if (shell.route === "messages") return [t("消息")];
   if (overview.value)
     return shell.route === "connect"

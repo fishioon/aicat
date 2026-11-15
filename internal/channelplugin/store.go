@@ -17,6 +17,8 @@ import (
 )
 
 type Descriptor struct {
+	Source    string `json:"source,omitempty"`
+	Reference string `json:"reference,omitempty"`
 	Format    string `json:"format,omitempty"`
 	ID        string `json:"id"`
 	Name      string `json:"name"`
@@ -34,10 +36,13 @@ var Catalog = []Descriptor{
 }
 
 type Installation struct {
-	Package     string `json:"package"`
-	Version     string `json:"version"`
-	InstalledAt string `json:"installedAt"`
-	LockSHA256  string `json:"lockSHA256"`
+	Directory    string `json:"directory,omitempty"`
+	SourceSHA256 string `json:"sourceSHA256,omitempty"`
+	Revision     string `json:"revision,omitempty"`
+	Package      string `json:"package"`
+	Version      string `json:"version"`
+	InstalledAt  string `json:"installedAt"`
+	LockSHA256   string `json:"lockSHA256"`
 }
 
 type Store struct {
@@ -87,7 +92,7 @@ func (s *Store) Current(id string) (Installation, error) {
 	if err != nil {
 		return installed, errors.New("请先安装渠道插件")
 	}
-	if err = json.Unmarshal(raw, &installed); err != nil || installed.Package != d.Package || !validVersion(installed.Version) {
+	if err = json.Unmarshal(raw, &installed); err != nil || installed.Package != d.Package || !validVersion(installed.Version) || (installed.Directory != "" && (!strings.HasPrefix(installed.Directory, installed.Version+"-") || len(installed.Directory) > 200 || strings.Trim(installed.Directory, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.+_-") != "")) {
 		return Installation{}, errors.New("渠道安装记录无效，请重新安装")
 	}
 	return installed, nil
@@ -104,7 +109,14 @@ func (s *Store) Directory(id string) string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(s.root(id), installed.Version)
+	return filepath.Join(s.root(id), installationDirectory(installed))
+}
+
+func installationDirectory(installed Installation) string {
+	if installed.Directory != "" {
+		return installed.Directory
+	}
+	return installed.Version
 }
 
 func (s *Store) Present(id string) bool {
@@ -124,7 +136,7 @@ func (s *Store) installationEntry(id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(s.root(id), installed.Version)
+	dir := filepath.Join(s.root(id), installationDirectory(installed))
 	var stamp Installation
 	raw, err := os.ReadFile(filepath.Join(dir, "installation.json"))
 	if err != nil || json.Unmarshal(raw, &stamp) != nil || stamp != installed {
@@ -322,6 +334,9 @@ func (s *Store) Install(ctx context.Context, id string) error {
 			}
 			return bindRuntime(s.Directory(id), runtime)
 		}
+		if d.Source != "" {
+			return s.updateSource(ctx, id, d)
+		}
 		return s.prepare(ctx, d)
 	})
 }
@@ -331,6 +346,9 @@ func (s *Store) Update(ctx context.Context, id string) error {
 		d, ok := s.find(id)
 		if !ok {
 			return errors.New("未知渠道插件")
+		}
+		if d.Source != "" {
+			return s.updateSource(ctx, id, d)
 		}
 		if _, err := s.installationEntry(id); err != nil {
 			return err
@@ -363,12 +381,8 @@ func (s *Store) prepare(ctx context.Context, d Descriptor) error {
 	if !validVersion(d.Version) {
 		return errors.New("渠道版本无效")
 	}
-	runtime, err := RuntimeDir()
-	if err != nil {
-		return err
-	}
 	parent := s.root(d.ID)
-	if err = os.MkdirAll(parent, 0700); err != nil {
+	if err := os.MkdirAll(parent, 0700); err != nil {
 		return err
 	}
 	stage, err := os.MkdirTemp(parent, ".install-")
@@ -376,14 +390,26 @@ func (s *Store) prepare(ctx context.Context, d Descriptor) error {
 		return err
 	}
 	defer os.RemoveAll(stage)
-	deps := map[string]string{d.Package: d.Version}
+	installed, err := s.installInto(ctx, d, stage, d.Version, d.ID)
+	if err != nil {
+		return err
+	}
+	return s.commitInstallation(ctx, d.ID, d.ID, stage, installed)
+}
+
+func (s *Store) installInto(ctx context.Context, d Descriptor, stage, dependency, operation string) (Installation, error) {
+	runtime, err := RuntimeDir()
+	if err != nil {
+		return Installation{}, err
+	}
+	deps := map[string]string{d.Package: dependency}
 	if d.Format != "aicat" {
 		deps["openclaw"] = "file:" + filepath.Join(runtime, "shim")
 	}
 	pkg := map[string]any{"name": "aicat-channel-package", "private": true, "type": "module", "dependencies": deps}
 	raw, _ := json.Marshal(pkg)
 	if err = os.WriteFile(filepath.Join(stage, "package.json"), raw, 0600); err != nil {
-		return err
+		return Installation{}, err
 	}
 	installCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
@@ -391,50 +417,61 @@ func (s *Store) prepare(ctx context.Context, d Descriptor) error {
 	cmd := exec.CommandContext(installCtx, filepath.Join(runtime, "bun"), args...)
 	cmd.Dir = stage
 	cmd.Env = []string{"HOME=" + stage, "PATH=" + runtime, "TMPDIR=" + os.TempDir(), "BUN_INSTALL_CACHE_DIR=" + filepath.Join(s.home, "cache", "channel-packages")}
-	s.stage(d.ID, "downloading")
+	s.stage(operation, "downloading")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		if errors.Is(installCtx.Err(), context.DeadlineExceeded) {
-			return errors.New("下载插件超时，请检查网络后重试（最长等待 3 分钟）")
+			return Installation{}, errors.New("下载插件超时，请检查网络后重试（最长等待 3 分钟）")
 		}
 		if installCtx.Err() != nil {
-			return fmt.Errorf("插件安装中断：%w", installCtx.Err())
+			return Installation{}, fmt.Errorf("插件安装中断：%w", installCtx.Err())
 		}
 		detail := strings.TrimSpace(string(output))
+		if strings.Contains(detail, "401") || strings.Contains(detail, "403") {
+			return Installation{}, errors.New("插件安装失败：此来源或依赖需要认证或访问被拒绝，当前不支持安装凭据")
+		}
 		if len(detail) > 1500 {
 			detail = detail[len(detail)-1500:]
 		}
-		return fmt.Errorf("插件安装失败（%v）：%s", err, detail)
+		return Installation{}, fmt.Errorf("插件安装失败（%v）：%s", err, detail)
 	}
 	if err = installCtx.Err(); err != nil {
-		return err
+		return Installation{}, err
 	}
-	s.stage(d.ID, "verifying")
+	s.stage(operation, "verifying")
 	if _, err = inspect(stage, d); err != nil {
-		return err
+		return Installation{}, err
 	}
 	if d.Format != "aicat" {
 		if err = bindRuntime(stage, runtime); err != nil {
-			return err
+			return Installation{}, err
 		}
 	}
 	lock, err := os.ReadFile(filepath.Join(stage, "bun.lock"))
 	if err != nil {
-		return err
+		return Installation{}, err
 	}
 	sum := sha256.Sum256(lock)
-	installed := Installation{Package: d.Package, Version: d.Version, InstalledAt: time.Now().UTC().Format(time.RFC3339Nano), LockSHA256: hex.EncodeToString(sum[:])}
-	raw, _ = json.Marshal(installed)
+	return Installation{Package: d.Package, Version: d.Version, InstalledAt: time.Now().UTC().Format(time.RFC3339Nano), LockSHA256: hex.EncodeToString(sum[:])}, nil
+}
+
+func (s *Store) commitInstallation(ctx context.Context, id, operation, stage string, installed Installation) error {
+	parent := s.root(id)
+	if err := os.MkdirAll(parent, 0700); err != nil {
+		return err
+	}
+	raw, _ := json.Marshal(installed)
+	var err error
 	if err = os.WriteFile(filepath.Join(stage, "installation.json"), raw, 0600); err != nil {
 		return err
 	}
-	if err = installCtx.Err(); err != nil {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if err = s.activate(installCtx, d.ID); err != nil {
+	if err = s.activate(ctx, operation); err != nil {
 		return err
 	}
-	if err = replacePath(filepath.Join(parent, d.Version), stage); err != nil {
+	if err = replacePath(filepath.Join(parent, installationDirectory(installed)), stage); err != nil {
 		return err
 	}
 	f, err := os.CreateTemp(parent, ".current-")

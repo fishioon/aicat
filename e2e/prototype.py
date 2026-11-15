@@ -44,6 +44,7 @@ def main():
             ('branding', 'branding'), ('titlebar-navigation', 'titlebar-navigation'),
             ('extension-icons', 'extension-icons'), ('extension-categories', 'extension-categories'),
             ('extension-lifecycle', 'extension-lifecycle'), ('settings-navigation', 'settings-navigation'),
+            ('extension-source', 'extension-source'),
             ('wecom', 'wecom'), ('wecom-agent', 'wecom'),
             ('rooms', 'rooms'), ('messages', 'messages'), ('schedules', 'schedules'),
         ):
