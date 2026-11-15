@@ -1,0 +1,313 @@
+--- a/proxy/flow.go
++++ b/proxy/flow.go
+@@ -155,7 +155,7 @@
+ func (m *WebSocketMessage) MarshalJSON() ([]byte, error) {
+ 	typeAlias := struct {
+ 		Type       int    `json:"type"`
+-		Content    string `json:"content"`    // base64 encoded
++		Content    string `json:"content"` // base64 encoded
+ 		FromClient bool   `json:"fromClient"`
+ 		Timestamp  string `json:"timestamp"`
+ 	}{
+@@ -177,32 +177,79 @@
+ }
+ 
+ type WebSocketData struct {
+-	Messages []*WebSocketMessage
+-
+-	mu sync.Mutex
+-}
+-
+-func newWebSocketData() *WebSocketData {
+-	return &WebSocketData{
+-		Messages: make([]*WebSocketMessage, 0),
+-	}
+-}
+-
+-func (wsData *WebSocketData) addMessage(msgType int, content []byte, fromClient bool) {
+-	msg := newWebSocketMessage(msgType, content, fromClient)
+-	wsData.mu.Lock()
+-	defer wsData.mu.Unlock()
++	Messages    []*WebSocketMessage
++	mu          sync.Mutex
++	dispatchMu  sync.Mutex
++	maxMessages int
++	maxBytes    int
++	total       uint64
++}
++
++func newWebSocketData(opts *Options) *WebSocketData {
++	count, size := opts.WebSocketMaxMessages, opts.WebSocketMaxBytes
++	if count == 0 {
++		count = 256
++	}
++	if size == 0 {
++		size = 1 << 20
++	}
++	return &WebSocketData{maxMessages: count, maxBytes: size}
++}
++
++func (wsData *WebSocketData) addMessage(msg *WebSocketMessage) {
++	wsData.mu.Lock()
++	defer wsData.mu.Unlock()
++	wsData.total++
+ 	wsData.Messages = append(wsData.Messages, msg)
++}
++
++func (wsData *WebSocketData) trim() {
++	wsData.mu.Lock()
++	defer wsData.mu.Unlock()
++	count, size := 0, 0
++	for i := len(wsData.Messages) - 1; i >= 0; i-- {
++		msg := wsData.Messages[i]
++		if wsData.maxMessages < 0 || wsData.maxBytes < 0 || count >= wsData.maxMessages || len(msg.Content) > wsData.maxBytes-size {
++			for j := 0; j <= i; j++ {
++				wsData.Messages[j] = nil
++			}
++			wsData.Messages = wsData.Messages[i+1:]
++			break
++		}
++		count++
++		size += len(msg.Content)
++	}
++	retained := make([]*WebSocketMessage, len(wsData.Messages))
++	copy(retained, wsData.Messages)
++	wsData.Messages = retained
++}
++
++func (wsData *WebSocketData) Snapshot() []*WebSocketMessage {
++	wsData.mu.Lock()
++	defer wsData.mu.Unlock()
++	out := make([]*WebSocketMessage, len(wsData.Messages))
++	for i, msg := range wsData.Messages {
++		value := *msg
++		value.Content = append([]byte(nil), msg.Content...)
++		out[i] = &value
++	}
++	return out
++}
++
++func (wsData *WebSocketData) MessageCount() uint64 {
++	wsData.mu.Lock()
++	defer wsData.mu.Unlock()
++	return wsData.total
+ }
+ 
+ // SSEEvent represents a single Server-Sent Event
+ type SSEEvent struct {
+-	ID      string    `json:"id,omitempty"`      // event id
+-	Event   string    `json:"event,omitempty"`   // event type (default: "message")
+-	Data    string    `json:"data"`              // event data
+-	Retry   int       `json:"retry,omitempty"`   // retry interval in milliseconds
+-	Raw     string    `json:"raw"`               // raw event text
+-	Time    time.Time `json:"timestamp"`         // when this event was received
++	ID    string    `json:"id,omitempty"`    // event id
++	Event string    `json:"event,omitempty"` // event type (default: "message")
++	Data  string    `json:"data"`            // event data
++	Retry int       `json:"retry,omitempty"` // retry interval in milliseconds
++	Raw   string    `json:"raw"`             // raw event text
++	Time  time.Time `json:"timestamp"`       // when this event was received
+ }
+ 
+ // SSEData holds all SSE events for a flow
+@@ -223,4 +270,3 @@
+ 	defer sseData.mu.Unlock()
+ 	sseData.Events = append(sseData.Events, event)
+ }
+-
+--- a/proxy/websocket.go
++++ b/proxy/websocket.go
+@@ -7,6 +7,7 @@
+ 	"net/http"
+ 	"net/url"
+ 	"strings"
++	"sync"
+ 
+ 	"github.com/gorilla/websocket"
+ 	log "github.com/sirupsen/logrus"
+@@ -141,7 +142,7 @@
+ 
+ 	log.Debugf("Client WebSocket upgraded successfully")
+ 
+-	wsData := newWebSocketData()
++	wsData := newWebSocketData(h.proxy.Opts)
+ 	f.WebSocket = wsData
+ 
+ 	for _, addon := range h.proxy.Addons {
+@@ -161,9 +162,12 @@
+ 	}()
+ 
+ 	errChan := make(chan error, 2)
++	var forwarding sync.WaitGroup
++	forwarding.Add(2)
+ 
+ 	// 客户端 -> 服务器
+ 	go func() {
++		defer forwarding.Done()
+ 		defer func() {
+ 			// 优雅关闭服务器连接
+ 			serverWS.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+@@ -182,10 +186,7 @@
+ 				return
+ 			}
+ 
+-			f.WebSocket.addMessage(msgType, msg, true)
+-			for _, addon := range h.proxy.Addons {
+-				addon.WebSocketMessage(f)
+-			}
++			h.notifyMessage(f, newWebSocketMessage(msgType, msg, true))
+ 
+ 			if err := serverWS.WriteMessage(msgType, msg); err != nil {
+ 				log.Errorf("Client -> Server: Write error: %v", err)
+@@ -197,6 +198,7 @@
+ 
+ 	// 服务器 -> 客户端
+ 	go func() {
++		defer forwarding.Done()
+ 		defer func() {
+ 			// 优雅关闭客户端连接
+ 			clientWS.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+@@ -215,10 +217,7 @@
+ 				return
+ 			}
+ 
+-			f.WebSocket.addMessage(msgType, msg, false)
+-			for _, addon := range h.proxy.Addons {
+-				addon.WebSocketMessage(f)
+-			}
++			h.notifyMessage(f, newWebSocketMessage(msgType, msg, false))
+ 
+ 			if err := clientWS.WriteMessage(msgType, msg); err != nil {
+ 				log.Errorf("Server -> Client: Write error: %v", err)
+@@ -230,8 +229,30 @@
+ 
+ 	// 等待任一方向出错或关闭
+ 	err := <-errChan
++	clientWS.Close()
++	serverWS.Close()
++	forwarding.Wait()
+ 	// 如果是正常关闭（nil），返回 nil
+ 	return err
++}
++
++type WebSocketMessageObserver interface {
++	WebSocketMessageReceived(*Flow, *WebSocketMessage)
++}
++
++func (h *webSocketHandler) notifyMessage(f *Flow, msg *WebSocketMessage) {
++	data := f.WebSocket
++	data.dispatchMu.Lock()
++	defer data.dispatchMu.Unlock()
++	data.addMessage(msg)
++	defer data.trim()
++	for _, addon := range h.proxy.Addons {
++		if observer, ok := addon.(WebSocketMessageObserver); ok {
++			observer.WebSocketMessageReceived(f, msg)
++		} else {
++			addon.WebSocketMessage(f)
++		}
++	}
+ }
+ 
+ func (h *webSocketHandler) handleWSS(res http.ResponseWriter, req *http.Request) error {
+@@ -301,7 +322,7 @@
+ 
+ 	log.Debugf("Client WSS upgraded successfully")
+ 
+-	wsData := newWebSocketData()
++	wsData := newWebSocketData(h.proxy.Opts)
+ 	f := newFlow()
+ 	f.Request = newRequest(req)
+ 	f.ConnContext = connCtx
+--- a/proxy/proxy.go
++++ b/proxy/proxy.go
+@@ -14,14 +14,16 @@
+ )
+ 
+ type Options struct {
+-	Debug             int
+-	Addr              string
+-	StreamLargeBodies int64 // 当请求或响应体大于此字节时，转为 stream 模式
+-	SslInsecure       bool
+-	CaRootPath        string
+-	NewCaFunc         func() (cert.CA, error) //创建 Ca 的函数
+-	Upstream          string
+-	LogFilePath       string // Path to write logs to file
++	WebSocketMaxMessages int
++	WebSocketMaxBytes    int
++	Debug                int
++	Addr                 string
++	StreamLargeBodies    int64 // 当请求或响应体大于此字节时，转为 stream 模式
++	SslInsecure          bool
++	CaRootPath           string
++	NewCaFunc            func() (cert.CA, error) //创建 Ca 的函数
++	Upstream             string
++	LogFilePath          string // Path to write logs to file
+ }
+ 
+ type Proxy struct {
+--- a/web/message.go
++++ b/web/message.go
+@@ -6,8 +6,8 @@
+ 	"encoding/json"
+ 	"errors"
+ 
++	uuid "github.com/google/uuid"
+ 	"github.com/lqqyt2423/go-mitmproxy/proxy"
+-	uuid "github.com/google/uuid"
+ 	log "github.com/sirupsen/logrus"
+ )
+ 
+@@ -30,15 +30,15 @@
+ type messageType byte
+ 
+ const (
+-	messageTypeConn            messageType = 0
+-	messageTypeConnClose       messageType = 5
+-	messageTypeRequest         messageType = 1
+-	messageTypeRequestBody     messageType = 2
+-	messageTypeResponse        messageType = 3
+-	messageTypeResponseBody    messageType = 4
+-	messageTypeWebSocketStart  messageType = 6
++	messageTypeConn             messageType = 0
++	messageTypeConnClose        messageType = 5
++	messageTypeRequest          messageType = 1
++	messageTypeRequestBody      messageType = 2
++	messageTypeResponse         messageType = 3
++	messageTypeResponseBody     messageType = 4
++	messageTypeWebSocketStart   messageType = 6
+ 	messageTypeWebSocketMessage messageType = 7
+-	messageTypeWebSocketEnd    messageType = 8
++	messageTypeWebSocketEnd     messageType = 8
+ 
+ 	messageTypeChangeRequest  messageType = 11
+ 	messageTypeChangeResponse messageType = 12
+@@ -47,9 +47,9 @@
+ 
+ 	messageTypeChangeBreakPointRules messageType = 21
+ 
+-	messageTypeSSEStart        messageType = 30
+-	messageTypeSSEMessage      messageType = 31
+-	messageTypeSSEEnd          messageType = 32
++	messageTypeSSEStart   messageType = 30
++	messageTypeSSEMessage messageType = 31
++	messageTypeSSEEnd     messageType = 32
+ )
+ 
+ var allMessageTypes = []messageType{
+@@ -136,13 +136,13 @@
+ 		m := make(map[string]interface{})
+ 		m["connId"] = f.ConnContext.Id().String()
+ 		m["message"] = lastMsg
+-		m["msgIndex"] = len(f.WebSocket.Messages) - 1
++		m["msgIndex"] = f.WebSocket.MessageCount() - 1
+ 		content, err = json.Marshal(m)
+ 	case messageTypeWebSocketEnd:
+ 		m := make(map[string]interface{})
+ 		m["connId"] = f.ConnContext.Id().String()
+ 		if f.WebSocket != nil {
+-			m["messageCount"] = len(f.WebSocket.Messages)
++			m["messageCount"] = f.WebSocket.MessageCount()
+ 		}
+ 		content, err = json.Marshal(m)
+ 	case messageTypeSSEStart:

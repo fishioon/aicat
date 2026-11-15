@@ -1,4 +1,4 @@
-GO ?= go
+GO ?= python3 scripts/proxy-go.py
 VERSION ?= dev
 LDFLAGS := -s -w -X main.version=$(VERSION)
 DESKTOP_LDFLAGS := $(LDFLAGS) -X github.com/egoist/mygo.production=1
