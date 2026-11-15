@@ -15,6 +15,7 @@ import { host } from "../host";
 import { t } from "../i18n";
 import Icon from "./Icon.vue";
 import Seg from "./Seg.vue";
+import BrandIntro from "./BrandIntro.vue";
 const listener = ref("127.0.0.1");
 const port = ref("");
 watch(
@@ -131,6 +132,9 @@ async function removeDomain(domain: string) {
       <div class="doc" v-if="shell.route === 'general'">
         <h1>{{ t("通用") }}</h1>
         <div class="rows">
+          <div class="row">
+            <BrandIntro />
+          </div>
           <div class="row">
             <div>
               <h2>{{ t("界面语言") }}</h2>

@@ -15,6 +15,7 @@ import Icon from "./Icon.vue";
 import ProviderIcon from "./ProviderIcon.vue";
 import Seg from "./Seg.vue";
 import UsageChart from "./UsageChart.vue";
+import BrandIntro from "./BrandIntro.vue";
 
 const gateway = computed(() => state.value!.gateway);
 
@@ -123,6 +124,7 @@ watch(period, () => void loadUsage().catch(() => {}));
 <template>
   <div class="main" id="overview">
     <div class="ov">
+      <BrandIntro />
       <div class="ov-head">
         <h1 id="gateway-state" :class="'ov-state ' + gateway.state">
           {{

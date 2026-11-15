@@ -1,70 +1,79 @@
 # aicat
 
-aicat 是装在你自己机器上的常驻 Agent Gateway：为接入的 Agent 提供模型、工具与流量检查入口。你在自己选用的 Agent 里工作，aicat 在后台运行；桌面窗口只用于接入、配置、授权和排查问题。
+[简体中文](README_CN.md)
 
-当前支持 macOS，Go 主进程承载网关，消息扩展按需启动应用内 Bun 宿主；共用一个入口（默认 `127.0.0.1:9981`）。
+**Your General-Purpose AI Connector**
 
-## 能做什么
+Modular by design. Extensible and composable.
 
-| 能力 | 说明 |
+Inspired by netcat.
+
+aicat connects agents, models, tools, and messaging channels on your own machine, with traffic inspection built in. Work in the agent of your choice while aicat runs in the background. Use the desktop window for setup, configuration, authorization, and troubleshooting.
+
+Currently available for macOS. The Go process runs the gateway, and messaging extensions start the bundled Bun host as needed. All services share one endpoint, defaulting to `127.0.0.1:9981`.
+
+## Features
+
+| Capability | Description |
 | --- | --- |
-| HTTP/HTTPS 代理 | 显式代理或接管系统代理；HTTPS 默认直通，按域名选择解密 |
-| 流量检查 | 实时列表、按域名/路径/应用筛选、请求与响应详情、复制 cURL、导出 JSON |
-| 供应商接入 | 填写名称、地址和 Key 接入供应商；保留模型列表，按请求接口透明转发，上游错误直接返回 |
-| Codex 扩展 | 在 Codex 的模型列表里使用供应商的模型，同时保留 ChatGPT 登录 |
-| 企业微信客户端 | 独立客户端扩展，手动配置 Base64 原始密钥，使用原版 SQLite3MC 读取本地数据库与 WAL，增量保存到 Room，重启续读，按会话触发 Agent 并通过 MCP 请求客户端发送文本 |
-| 企业微信 BOT | 从推荐列表安装官方插件，配置并通过 Bot 鉴权验证后启用；接收私聊、持久保存 Room 历史并由 Codex 自动处理、主动回复 |
-| Agent 接口 | HTTP API 与 MCP 查询实际经过网关的请求 |
+| HTTP/HTTPS proxy | Use an explicit proxy or take over the system proxy. HTTPS passes through by default, with decryption enabled per domain. |
+| Traffic inspection | Browse live requests, filter by domain, path, or app, inspect requests and responses, copy cURL commands, and export JSON. |
+| Model providers | Add a provider with a name, endpoint, and API key. Keep its model list and transparently forward requests, returning upstream errors directly. |
+| Codex extension | Use provider models in Codex's model list while keeping ChatGPT sign-in. |
+| WeCom desktop client | An NPM channel that checks sign-in and prepares database access and keys when enabled. Reads the local database and WAL with stock SQLite3MC, saves incremental messages to Rooms, resumes after restart, triggers agents per conversation, and requests text sends through MCP. |
+| WeCom BOT | Install the official plugin from the recommended extensions, configure it, verify Bot authentication, and enable it. Receive direct messages, persist Room history, configure each Room's model and automatic processing in Messages, and explicitly publish replies or authorize outbound sends through MCP. |
+| Agent interfaces | Query requests that actually passed through the gateway using HTTP API and MCP. |
+| Unified messaging | Route WeCom and poker channel conversations into Rooms. Use Codex app-server with two prompt layers, configure models and triggers per Room, and manage local publishing separately from authorized outbound sends. |
 
-每项能力的入口、操作步骤与验证方式见 [Feature map](docs/feature-map/README.md)，其中也列出了尚未交付的能力。
+See the [Feature map](docs/feature-map/README.md) for entry points, usage, verification steps, and capabilities that have not yet shipped. Linked project documentation is currently in Chinese.
 
-## 构建与运行
+## Build and run
 
-构建需要 Go 1.27.3+、Node.js 22.12+、npm 和 Bun 1.4.4。构建流程将 Bun、渠道宿主和锁定依赖一起打包，用户运行 app 不需要自行准备 Bun。构建时可用 AICAT_BUILD_BUN 指定 Bun 二进制。
+Building requires Go 1.27.3+, Node.js 22.12+, npm, and Bun 1.4.4. The build bundles Bun, the channel host, and locked dependencies, so users do not need to install Bun. Set `AICAT_BUILD_BUN` to choose a Bun binary during the build.
 
 ```sh
 make build
 bin/aicat --home "$PWD/build/preview/.aicat"
 ```
 
-`--home` 指定数据目录，用于隔离体验；省略时使用 `~/.aicat/`。其他入口：
+Use `--home` to isolate application data. The default is `~/.aicat/`. Other entry points:
 
-| 命令 | 产物 |
+| Command | Output |
 | --- | --- |
-| `make app` | 未签名的 `build/desktop/aicat.app` |
-| `make cli` | 无界面入口 `bin/aicat-cli`，用 `bin/aicat-cli serve` 运行同一组服务 |
-| `make run` | 构建前端后直接运行桌面入口 |
+| `make app` | Unsigned `build/desktop/aicat.app` |
+| `make cli` | Headless entry point `bin/aicat-cli`; run the same services with `bin/aicat-cli serve` |
+| `make run` | Build the frontend and run the desktop entry point |
 
-关闭主窗口后 aicat 留在系统托盘继续运行，从托盘或 Dock 重新打开，从托盘菜单退出。
+Closing the main window leaves aicat running in the system tray. Reopen it from the tray or Dock, and quit from the tray menu.
 
-## 接入
+## Connect
 
-让客户端使用 aicat 作为 HTTP 代理：
+Configure a client to use aicat as its HTTP proxy:
 
 ```sh
 curl --proxy http://127.0.0.1:9981 http://example.com
 ```
 
-- **系统代理**：在「设置 → 代理」开启，默认关闭；退出时恢复原设置。
-- **HTTPS 解密**：在「设置 → 代理」安装证书，再添加要解密的域名（支持 `*.example.com`）；也可在流量详情里对某个 CONNECT 记录直接启用。未列入的域名保持直通。
-- **模型供应商**：在「主页 → 接入供应商」选择供应商并保存密钥，然后让 Agent 指向 aicat（`ANTHROPIC_BASE_URL=http://127.0.0.1:9981` 或 `OPENAI_BASE_URL=http://127.0.0.1:9981/v1`），模型名写作 `供应商 ID/模型`。
-- **MCP**：地址为 `http://127.0.0.1:9981/mcp`（Streamable HTTP），`Authorization: Bearer <token>`，token 在数据目录的 `mcp-token`。各客户端的配置片段见「主页 → 接入 Agent」。
+- **System proxy:** Enable it in Settings → Proxy. It is off by default, and the original settings are restored when aicat quits.
+- **HTTPS decryption:** Install the certificate in Settings → Proxy, then add domains to decrypt, including patterns such as `*.example.com`. You can also enable decryption for a domain from its CONNECT details. Other domains remain in passthrough mode.
+- **Model providers:** Add a provider and save its key in Home → Connect provider, then point your agent at aicat with `ANTHROPIC_BASE_URL=http://127.0.0.1:9981` or `OPENAI_BASE_URL=http://127.0.0.1:9981/v1`. Use model names in the form `provider-id/model`.
+- **MCP:** Use `http://127.0.0.1:9981/mcp` with Streamable HTTP and `Authorization: Bearer <token>`. The token is stored in `mcp-token` under the data directory. Client configuration snippets are available in Home → Connect Agent.
 
-API、MCP 与模型转发只接受本机访问。查询流量：
+The API, MCP, and model forwarding endpoints accept local requests only. Query traffic with:
 
 ```sh
 curl http://127.0.0.1:9981/api/traffic
 ```
 
-| 路径 | 内容 |
+| Path | Content |
 | --- | --- |
-| `GET /api/traffic` | 请求摘要；支持 `limit`、`before`、`host`、`method`、`state`、`q` |
-| `GET /api/traffic/{id}` | 单个请求在四个观测位置的 headers 与 body 引用 |
-| `GET /api/bodies/{id}` | 已保留的 body 字节；`X-Aicat-Body-State` 表示采集状态 |
+| `GET /api/traffic` | Request summaries; supports `limit`, `before`, `host`, `method`, `state`, and `q` |
+| `GET /api/traffic/{id}` | Headers and body references at all four observation points |
+| `GET /api/bodies/{id}` | Retained body bytes; `X-Aicat-Body-State` indicates capture state |
 
-## 配置
+## Configuration
 
-行为配置只有数据目录中的 `aicat.yaml`，首次运行生成。界面中的设置都写入这一个文件：
+Behavior is configured in `aicat.yaml` under the data directory, created on first run. Settings changed in the UI are saved to this file:
 
 ```yaml
 ui:
@@ -87,15 +96,15 @@ traffic:
   maxTotalBodyBytes: 67108864
 ```
 
-流量记录保存在有界内存中，超出上限会淘汰或截断，退出即清空；这些上限不影响实际转发。供应商密钥单独存放在数据目录的 `providers.json`（权限 0600），不写入 `aicat.yaml`。
+Traffic records are held in bounded memory. Records may be evicted or truncated when limits are reached and are cleared on exit. These limits do not affect forwarding. Provider keys are stored separately in `providers.json` under the data directory with permissions `0600`, rather than in `aicat.yaml`.
 
-## 文档
+## Documentation
 
-| 文档 | 内容 |
+| Document | Content |
 | --- | --- |
-| [CONTEXT.md](CONTEXT.md) | 产品定位与领域术语 |
-| [Feature map](docs/feature-map/README.md) | 功能、入口与验证路径 |
-| [架构](docs/architecture.md) | 模块边界、数据流与约束 |
-| [开发约定](docs/development.md) | 构建、验证与本地安装约束 |
+| [CONTEXT.md](CONTEXT.md) | Product positioning and domain terminology |
+| [Feature map](docs/feature-map/README.md) | Features, entry points, and verification paths |
+| [Architecture](docs/architecture.md) | Module boundaries, data flow, and constraints |
+| [Development](docs/development.md) | Build, verification, and local installation requirements |
 
-本仓库只包含桌面端。
+This repository contains the desktop application, built-in extensions, and the shared extension host. NPM extension source and acceptance tests live in separate repositories: [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local) and [aicat-wpk](https://github.com/fishioon/aicat-wpk). Their packages are not bundled with the app and have not yet been published to the public NPM registry.

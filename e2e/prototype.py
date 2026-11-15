@@ -38,7 +38,7 @@ def main():
         for name, script in (
             ('tray', 'tray'), ('traffic-default', 'traffic-default'), ('tunnel', 'tunnel'),
             ('shell', 'redesign'), ('provider', 'provider'), ('codex', 'codex'),
-            ('titlebar-navigation', 'titlebar-navigation'),
+            ('branding', 'branding'), ('titlebar-navigation', 'titlebar-navigation'),
             ('extension-icons', 'extension-icons'), ('extension-categories', 'extension-categories'),
             ('extension-lifecycle', 'extension-lifecycle'), ('settings-navigation', 'settings-navigation'),
             ('wecom', 'wecom'), ('wecom-agent', 'wecom'),

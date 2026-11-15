@@ -76,6 +76,7 @@ frontend-check: ui/node_modules/.aicat-install bindings channel-check
 	node --check e2e/tunnel.cjs
 	node --check e2e/codex.cjs
 	node --check e2e/design-shots.cjs
+	node --check e2e/branding.cjs
 	node --check e2e/titlebar-navigation.cjs
 	node --check e2e/rooms.cjs
 	node --check e2e/messages.cjs
