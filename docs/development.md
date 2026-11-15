@@ -92,7 +92,7 @@ node e2e/desktop.cjs bin/aicat-e2e build/sidebar-e2e sidebar
 node e2e/desktop.cjs bin/aicat-e2e build/app-tree-e2e app-tree
 # 仅验证滚动后首次选中、右键、历史及筛选重置滚动
 node e2e/desktop.cjs bin/aicat-e2e build/list-selection-e2e list-selection
-# 仅验证外壳：主页、流量列表状态/类型、详情视图、键盘、隧道、更多、扩展启停、解密域名通配符、历史，截图在 build/redesign-e2e/
+# 仅验证外壳：主页、流量列表状态/类型、详情视图、键盘、隧道、默认导航、扩展启停、解密域名通配符、历史，截图在 build/redesign-e2e/
 node e2e/redesign.cjs bin/aicat-e2e build/redesign-e2e
 # 仅验证接入供应商：密钥只进 0600 的 providers.json、带密钥转发与流式、流量记录不含凭据、移除后失效
 node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
@@ -111,6 +111,14 @@ node e2e/desktop.cjs bin/aicat-e2e build/icons-e2e icons
 
 只经浏览器预览驱动的场景（`tray.cjs`、`traffic-default.cjs`、`tunnel.cjs`、`redesign.cjs`、`provider.cjs`、`codex.cjs`）以 `AICAT_E2E_BACKGROUND=1` 启动验收二进制：原生窗口保持隐藏、不抢焦点、不出现 Dock 图标，可在后台反复运行。该开关只存在于 `e2e` tag 构建。采集按钮的 `traffic-default.cjs` 不连接原生自动化，保留浏览器截图、日志与报告；原 `desktop.cjs ... traffic-default` 命令也转交此后台入口。`desktop.cjs` 的其他场景及 `prototype.py --only desktop` 要驱动并断言真实 WKWebView 窗口的显示/隐藏，仍会弹出窗口。
 
+统一后台验收包含首页用量、供应商保存与模型状态、证书恢复、跨目标 HTTP、API/MCP 控制流量隔离、正文/事件流、详情重试、等待状态、快捷键和默认导航。只运行指定场景时使用：
+
+```sh
+python3 e2e/prototype.py --background --scenarios http-origins control-traffic agent-traffic --output build/query-<run>
+```
+
+场景之间恢复运行前的剪贴板内容；报告保留实际命令与覆盖范围。原生窗口、macOS 授权及真实消息送达仍需单独验收。
+
 NPM 扩展的专属验收在各自仓库执行：企业微信客户端见 [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local)，微扑克见 [aicat-wpk](https://github.com/fishioon/aicat-wpk)。在对应仓库运行 `npm run e2e -- --aicat ../aicat`，以实际外部 NPM 包和本机 registry 验证完整接入链路，不需要发布包或复制源码到主仓库。
 
 `make e2e` 使用 `e2e/prototype.py --background` 汇总后台场景，包含品牌语言、标题栏导航、托盘资源及 WebSocket 补丁验证，保留每组报告、日志、截图、运行命令、源码和二进制 hash；源码摘要包含依赖补丁与构建入口，失败仍执行其余组并以非零状态退出。原生窗口、WKWebView 交互、真实授权和真实消息送达不在后台覆盖内。
@@ -119,7 +127,7 @@ NPM 扩展的专属验收在各自仓库执行：企业微信客户端见 [aicat
 
 | 组 | 实际验证 |
 | --- | --- |
-| desktop | 真实 MyGo WKWebView/Channel 与原生生命周期；同一前端在 Chromium 中的键盘/点击/滚轮；有界列表、搜索、Header/Raw/复制、cURL、域名树、历史、扩展/更多/固定、偏好、监听与配置失败、证书与系统代理、隐藏/恢复/退出/重启 |
+| desktop | 真实 MyGo WKWebView/Channel 与原生生命周期；同一前端在 Chromium 中的键盘/点击/滚轮；有界列表、搜索、Header/Raw/复制、cURL、域名树、历史、扩展/默认导航、偏好、监听与配置失败、证书与系统代理、隐藏/恢复/退出/重启 |
 | design（desktop 内） | 与 `aicat-redesign.html` 比较标题栏、导航栏、侧栏、表格行、详情摘要、窗格标题、复制按钮和状态栏尺寸；比较浅深色色板变量与导航当前项颜色，保存稿件和实际截图 |
 | transport | loopback、通配、IPv6 HTTP/TLS MITM 与 CA 跨进程重启保留 |
 | mcp | MCP 认证与 schema、已停用脚本工具不可用、正文透明转发与有界采集、SSE、旧改写配置显式报错 |

@@ -4,7 +4,7 @@
 
 ## Sub-features
 
-- `codex-toggle`：在扩展里启用或停用，持久化为 `extensions.codex.enabled`；根证书未被信任时先提示安装证书，安装后自动启用。
+- `codex-toggle`：在扩展里启用或停用，持久化为 `extensions.codex.enabled`；有效根证书未被信任时先提示安装，安装后自动启用。根证书过期或删除未完成时先引导到代理设置恢复，返回后再次启用。
 - `codex-models`：`GET /backend-api/codex/models` 合并 ChatGPT 的列表与供应商模型，ETag 带上 aicat 的标记，供应商模型变化后 Codex 会重新拉取。
 - `codex-turn`：`POST /backend-api/codex/responses` 按模型分流；供应商模型只带供应商密钥，去掉 OpenAI 专用字段，SSE 边到边发。
 - `codex-entries`：两个入口共用同一个处理器。经系统代理时解密 `chatgpt.com`（不写入用户的解密域名名单）；也可在 `~/.codex/config.toml` 设置 `openai_base_url = "http://<监听地址>/backend-api/codex"` 直连 aicat。
@@ -15,7 +15,8 @@
 
 - 导航栏“扩展” → 已安装 → Codex → 启用/停用；齿轮菜单里是接入供应商、代理设置、复制扩展标识符。
 - 主页 → 接入供应商 → 保存后在“模型列表”里查看同步结果，`#provider-sync` 重新同步。
-- Codex 侧：开启系统代理并重启 Codex；或按扩展详情里的那一行设置 `openai_base_url`。
+- 详情的“开始使用”直接提供供应商和代理设置入口；手动接入配置默认折叠，展开后可复制当前实例的 `openai_base_url`。
+- Codex 侧：启用扩展并开启系统代理后重启 Codex；或展开“手动接入”配置 `openai_base_url`。停用后重启 Codex；如果手动配置过该项，先删除它，直连停用入口会返回 503。
 
 ## Driving it with Playwright and fixtures
 
@@ -31,7 +32,7 @@
 - **本地拒绝。** 未知供应商、不在列表或没有启用的模型返回 400，`/responses/compact` 和带 `compaction_trigger` 的供应商回合返回 400，供应商和后端都收不到。WebSocket 握手在两个入口都得到 426。
 - **上游拒绝。** 只声明 Chat 的模型仍被转发；fixture 返回 422，Codex 收到相同错误，ChatGPT 后端收不到这次请求。
 - **流量。** 供应商回合按供应商 URL 记录，密钥不出现在任何记录里；经网关的 ChatGPT 回合由普通采集记录。
-- **停用。** 再点 `#feature-codex`；`extensions.codex.enabled: false`，直连入口 503，新建的 CONNECT 不再解密。
+- **停用。** 详情状态说明停用后需重启，手动接入需先删除 `openai_base_url`；再点 `#feature-codex`；`extensions.codex.enabled: false`，直连入口 503，新建的 CONNECT 不再解密。
 
 ## Gotchas
 

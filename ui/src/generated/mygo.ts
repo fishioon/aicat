@@ -70,6 +70,7 @@ export interface Descriptor {
 
 /** DesktopState is a coherent snapshot of settings and live desktop state. */
 export interface DesktopState {
+  mcpTokenPath: string;
   preferences: Preferences;
   language: string;
   trafficEnabled: boolean;
@@ -103,6 +104,7 @@ export interface Event {
 
 /** State is a registered extension and whether it is on. */
 export interface ExtensionState {
+  statusMessages?: Record<string, Record<string, string>>;
   automaticSetup: boolean;
   sendTargetLabel?: string;
   canSend: boolean;

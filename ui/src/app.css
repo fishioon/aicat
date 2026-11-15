@@ -99,7 +99,8 @@ body {
 }
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
@@ -143,11 +144,6 @@ code,
 }
 .grow {
   flex: 1;
-}
-.busy button:not(.icon-btn),
-.busy input,
-.busy select {
-  pointer-events: none;
 }
 
 /* Controls */
@@ -247,7 +243,7 @@ code,
   outline-color: var(--surface);
 }
 .field {
-  height: 28px;
+  min-height: 28px;
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: var(--r2);
@@ -544,8 +540,7 @@ select.field {
   background: var(--hover);
   color: var(--ink);
 }
-.rail button[aria-current="page"],
-.rail button[aria-expanded="true"] {
+.rail button[aria-current="page"] {
   background: var(--mark-soft);
   color: var(--mark-line);
 }
@@ -1996,7 +1991,7 @@ button.ov-row:hover {
 }
 .cols {
   display: grid;
-  grid-template-columns: 32px 56px minmax(0, 1fr) 112px 84px 64px 64px 72px 80px;
+  grid-template-columns: 32px 56px minmax(0, 1fr) 112px 84px 84px 64px 72px 80px;
   align-items: center;
   font-size: var(--t12);
 }
@@ -2762,18 +2757,15 @@ pre.body {
   color: var(--bad);
   border-color: var(--bad);
 }
-.menu,
-.pop {
+.menu {
   position: fixed;
   z-index: 30;
+  min-width: 168px;
   padding: 4px;
   border: 1px solid var(--line-strong);
   border-radius: var(--r2);
   background: var(--surface);
   box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.4);
-}
-.menu {
-  min-width: 168px;
 }
 .menu > button {
   display: block;
@@ -2795,51 +2787,6 @@ pre.body {
   color: var(--ink-3);
   cursor: not-allowed;
   background: none;
-}
-.pop {
-  width: 220px;
-  padding: 8px;
-}
-.pop h2 {
-  font-size: var(--t12);
-  font-weight: 400;
-  color: var(--ink-3);
-  padding: 0 8px 4px;
-}
-.pop p {
-  font-size: var(--t12);
-  color: var(--ink-2);
-  padding: 4px 8px;
-}
-.pop-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.pop-row .open {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  height: 32px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--r1);
-  background: none;
-  text-align: left;
-}
-.pop-row .open:hover {
-  background: var(--sunken);
-}
-.pop-row .open .icon {
-  color: var(--ink-2);
-}
-.pop-row .icon-btn[aria-pressed="true"] {
-  color: var(--mark-line);
-}
-.pop-row .icon-btn[aria-pressed="true"] svg {
-  fill: currentColor;
 }
 dialog {
   width: min(440px, 90vw);
@@ -2874,7 +2821,7 @@ dialog footer {
 
 @media (max-width: 1000px) {
   .cols {
-    grid-template-columns: 32px 56px minmax(0, 1fr) 84px 64px;
+    grid-template-columns: 32px 56px minmax(0, 1fr) 84px 84px;
   }
   .cols .opt {
     display: none;

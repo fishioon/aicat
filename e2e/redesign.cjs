@@ -147,7 +147,6 @@ function tunnel(port, authority) {
       "nav-overview",
       "nav-traffic",
       "nav-extensions",
-      "nav-more",
       "nav-settings",
     ])
       assert(await page.locator("#" + id).isVisible(), id);
@@ -291,20 +290,13 @@ function tunnel(port, authority) {
       () => document.documentElement.dataset.theme === "light",
     );
 
-    // More popover: unpin traffic, then it lives under 更多.
-    await page.locator("#nav-more").click();
-    await page.locator("#more-pop [data-action=pin-navigation]").click();
-    await wait(async () => !(await page.locator("#nav-traffic").count()));
-    await page.locator("#more-traffic").click();
+    assert.equal(await page.locator("#nav-more, #more-pop").count(), 0);
+    await page.locator("#nav-traffic").click();
     assert.equal(
-      await page.locator("#nav-more").getAttribute("aria-current"),
+      await page.locator("#nav-traffic").getAttribute("aria-current"),
       "page",
     );
-    await page.locator("#nav-more").click();
-    await page.locator("#more-pop [data-action=pin-navigation]").click();
-    await page.keyboard.press("Escape");
-    await page.locator("#nav-traffic").waitFor();
-    check("more popover");
+    check("default traffic navigation without More");
 
     // Extensions: disable hides the rail entry; re-enable restores it.
     await page.locator("#nav-extensions").click();

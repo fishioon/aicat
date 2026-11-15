@@ -19,12 +19,13 @@ import (
 // Extension is a built-in extension as it is registered: what the extensions
 // page shows of it, what it needs, and how it is built.
 type Extension struct {
-	AutomaticSetup  bool                  `json:"automaticSetup"`
-	SendTargetLabel string                `json:"sendTargetLabel,omitempty"`
-	CanSend         bool                  `json:"canSend"`
-	PackageSource   string                `json:"packageSource,omitempty"`
-	PackageFormat   string                `json:"packageFormat,omitempty"`
-	ConfigFields    []channelplugin.Field `json:"configFields"`
+	StatusMessages  map[string]map[string]string `json:"statusMessages,omitempty"`
+	AutomaticSetup  bool                         `json:"automaticSetup"`
+	SendTargetLabel string                       `json:"sendTargetLabel,omitempty"`
+	CanSend         bool                         `json:"canSend"`
+	PackageSource   string                       `json:"packageSource,omitempty"`
+	PackageFormat   string                       `json:"packageFormat,omitempty"`
+	ConfigFields    []channelplugin.Field        `json:"configFields"`
 	// ID names its section in aicat.yaml (extensions.<ID>). A built-in's ID
 	// has no dot; a community package's is publisher.name.
 	ID        string `json:"id"`

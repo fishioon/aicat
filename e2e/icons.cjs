@@ -10,7 +10,7 @@ function measureIcons() {
   return (
     [
       ...document.querySelectorAll(
-        "#titlebar svg, #navigation svg, #domains svg, [data-side-copy] svg, .xicon svg, #more-pop svg, #extension-menu svg",
+        "#titlebar svg, #navigation svg, #domains svg, [data-side-copy] svg, .xicon svg, #extension-menu svg",
       ),
     ]
       // Only icon-only containers must center the glyph; icons next to a label
@@ -117,12 +117,6 @@ module.exports = async function verifyIcons({
         await settled();
       }
       await sample("traffic-" + theme);
-      await click("nav-more");
-      await sample("more-menu-" + theme);
-      await page.screenshot({
-        path: path.join(root, "icons-menu-" + theme + ".png"),
-      });
-      await page.keyboard.press("Escape");
       await navigate("extensions");
       await sample("extensions-" + theme);
       await navigate("proxy");
@@ -136,14 +130,7 @@ module.exports = async function verifyIcons({
         path: path.join(root, "icons-traffic-" + theme + ".png"),
       });
     }
-    // Pinning keeps the popover open, so the unpinned state is sampled in place.
-    await click("nav-more");
-    await page.locator('[data-action="pin-navigation"]').click();
-    await settled();
-    await sample("unpinned-menu");
-    await page.locator('[data-action="pin-navigation"]').click();
-    await settled();
-    await page.keyboard.press("Escape");
+    assert.equal(await page.locator("#nav-more, #more-pop").count(), 0);
     for (const width of [900, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await sample("traffic-width-" + width);
@@ -175,8 +162,6 @@ module.exports = async function verifyIcons({
       "native window controls must share the titlebar center",
     );
     await sample("native-traffic", true);
-    await evaluate("(document.querySelector('#nav-more').click(),true)");
-    await sample("native-menu", true);
     await auto
       .call("capture")
       .then((result) =>
@@ -185,9 +170,6 @@ module.exports = async function verifyIcons({
           Buffer.from(result.png, "base64"),
         ),
       );
-    await evaluate(
-      "(document.querySelector('#more-pop button.open').click(),true)",
-    );
     await evaluate("(window.desktop.navigate('extensions'),true)");
     await wait(
       async () =>

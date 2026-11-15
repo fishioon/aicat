@@ -4,6 +4,7 @@ go 1.27.3
 
 require (
 	github.com/egoist/mygo v0.8.4-0.20261107140116-94f22c384d0e
+	github.com/google/jsonschema-go v0.4.3
 	github.com/klauspost/compress v1.18.6
 	github.com/lqqyt2423/go-mitmproxy v1.9.4
 	github.com/modelcontextprotocol/go-sdk v1.8.0
@@ -16,7 +17,6 @@ require (
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect

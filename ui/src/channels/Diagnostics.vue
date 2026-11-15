@@ -41,8 +41,36 @@ const enabled = computed(
 );
 const recipient = ref("");
 const text = ref("");
-const request = ref<{ id: string; room: string; text: string }>();
+const request = ref<{
+  id: string;
+  room: string;
+  text: string;
+  channel: string;
+}>();
 const result = ref("");
+const uncertain = ref(false);
+const blocked = computed(
+  () =>
+    uncertain.value &&
+    request.value?.channel === id.value &&
+    request.value?.room === recipient.value.trim() &&
+    request.value?.text === text.value,
+);
+watch([recipient, text], () => (result.value = ""), { flush: "sync" });
+function deliveryStatus(status: string, outgoing = false) {
+  const labels: Record<string, string> = {
+    pending: "开始发送",
+    sent: "已发送",
+    unknown: "结果不明",
+    failed: "执行失败",
+    saved: "本地保存",
+  };
+  return status ? t(labels[status] ?? status) : t(outgoing ? "发出" : "收到");
+}
+function preview(value: string) {
+  const text = value.replace(/\s+/g, " ").trim();
+  return text.length > 80 ? text.slice(0, 80) + "…" : text;
+}
 function taskStatus(status: string) {
   const labels: Record<string, string> = {
     pending: "待处理",
@@ -56,17 +84,25 @@ function taskStatus(status: string) {
   return t(labels[status] ?? status);
 }
 async function send() {
+  if (busy.value || blocked.value) return;
   const room = recipient.value.trim();
   if (
     !request.value ||
+    request.value.channel !== id.value ||
     request.value.room !== room ||
     request.value.text !== text.value
   ) {
-    request.value = { id: crypto.randomUUID(), room, text: text.value };
+    request.value = {
+      id: crypto.randomUUID(),
+      room,
+      text: text.value,
+      channel: id.value,
+    };
+    uncertain.value = false;
   }
   const pending = request.value;
   await run(async () => {
-    const receipt = await host.sendMessage(id.value, {
+    const receipt = await host.sendMessage(pending.channel, {
       specversion: "1.0",
       id: pending.id,
       source: "aicat-ui://desktop",
@@ -79,14 +115,22 @@ async function send() {
         text: { content: pending.text },
       },
     });
-    result.value =
-      receipt.status === "sent"
-        ? t("渠道确认发送")
-        : t("发送结果不明，请勿重新发送");
+    if (id.value !== pending.channel) return;
+    uncertain.value = receipt.status !== "sent";
     if (receipt.status === "sent") {
-      text.value = "";
+      if (
+        recipient.value.trim() === pending.room &&
+        text.value === pending.text
+      )
+        text.value = "";
       request.value = undefined;
     }
+    result.value =
+      receipt.status === "sent"
+        ? t("已发送给 {recipient}", { recipient: pending.room })
+        : t("{recipient} 发送结果不明，请勿重新发送", {
+            recipient: pending.room,
+          });
   });
 }
 </script>
@@ -138,7 +182,6 @@ async function send() {
           class="field"
           v-model="text"
           rows="3"
-          maxlength="1000"
           required
         />
         <div class="acts">
@@ -147,6 +190,7 @@ async function send() {
             class="btn"
             :disabled="
               busy ||
+              blocked ||
               !enabled ||
               channel?.phase !== 'connected' ||
               !recipient.trim() ||
@@ -170,6 +214,7 @@ async function send() {
     <p>
       <button
         id="wecom-open-logs"
+        :disabled="busy"
         class="btn"
         @click="run(() => host.openMessageLogs(id))"
       >
@@ -181,10 +226,16 @@ async function send() {
         <tr v-for="record in [...channel.records].reverse()" :key="record.id">
           <th scope="row">{{ record.event.data.roomid }}</th>
           <td>
-            {{ record.event.data.text.content }}
             <span class="tag">{{
-              record.status ? record.status : t("收到")
+              deliveryStatus(record.status ?? "", record.event.data.outgoing)
             }}</span>
+            <span v-if="record.event.data.media_status === 'metadata_only'">{{
+              t("{type}（仅元数据）", { type: record.event.data.msgtype })
+            }}</span>
+            <details v-if="record.event.data.text.content">
+              <summary>{{ preview(record.event.data.text.content) }}</summary>
+              <pre class="body">{{ record.event.data.text.content }}</pre>
+            </details>
           </td>
         </tr>
       </tbody>

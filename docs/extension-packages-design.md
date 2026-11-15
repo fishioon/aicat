@@ -41,6 +41,8 @@ publish 先进入宿主持久待确认队列，实际 Room fsync 确认后 Promi
 - Hosts/Intercepts 精确声明代理观测与解密域名，Page/Routes 将采集入口限制在 /.aicat/<id>/，WebSocket 声明帧观测。统一 gateway addon 转交包入口，按大小/时间/队列上限交接；停用或无效采集路径本地拒绝，不转发给平台。
 - prepare 需要明确 native 声明。当前原生能力 wecom-local 提供实际用户 Home、应用共享的原版 SQLite3MC 库，以及用户启用时的一次性准备。平台 Profile、查询、数据库解析、发送脚本均随 NPM 包维护；宿主仅提供能力与进程生命周期。
 
+`statusMessages` 可按界面语言声明状态码提示，例如 `{"zh-Hans":{"READ_FAILED":"读取失败，请检查来源。"},"en":{"READ_FAILED":"Cannot read the source."}}`。文案随扩展包维护；宿主只校验声明并按当前界面语言显示，缺少翻译时保留原始状态码。最多 8 种语言、每种 128 条提示，单条文本最多 1024 字节。
+
 NPM 扩展是受信任的本机可执行代码，并非沙箱。能力声明用于接缝和资源边界，不宣称隔离包自身的本机权限。
 
 统一消息页面读取 Room 服务；扩展页只负责安装、连接、平台字段与诊断。完整数据和工具契约见[消息接入规范](message-ingress-standard.md)。

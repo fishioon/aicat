@@ -9,6 +9,7 @@ import {
   say,
   modal,
   closeDialog,
+  showCertificateRecovery,
   busy,
   ask,
   refresh,
@@ -240,7 +241,9 @@ function toggle() {
   const x = current.value;
   if (!x) return;
   if (x.enabled) return set(x, false);
-  if (!x.needsTrust || state.value?.certificate.trusted) return set(x, true);
+  if (!x.needsTrust) return set(x, true);
+  if (showCertificateRecovery()) return;
+  if (state.value?.certificate.trusted) return set(x, true);
   modal.value = {
     title: "需要先安装证书",
     message: t(
@@ -283,7 +286,7 @@ function gear(event: MouseEvent) {
     ...(ui.value.menu?.() ?? []),
     {
       label: "复制扩展标识符",
-      run: () => copy("extension-id", id, t("扩展标识符")),
+      run: () => copy("extension-id", id),
     },
   ]);
 }

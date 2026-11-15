@@ -4,12 +4,12 @@ aicat 保管供应商的 API Key。Agent 请求按模型选择供应商，协议
 
 ## 能力
 
-- `provider-save`：直接填写名称、接口地址和 API Key，标签在输入框左侧，三个输入框等宽对齐。没有预置、协议选择、ID 编辑或 Agent 对接步骤。内部 ID 优先取英文名称，纯中文名称改取域名，冲突追加数字；保存后固定。保存前验证模型列表，失败时不保存并提示原因。编辑时 Key 留空保持不变。
+- `provider-save`：直接填写名称、接口地址和 API Key，标签在输入框左侧，三个输入框等宽对齐。没有预置、协议选择、ID 编辑或 Agent 对接步骤。内部 ID 优先取英文名称，纯中文名称改取域名，冲突追加数字；保存后固定。保存前验证模型列表，失败时不保存并提示原因。编辑时 Key 留空保持不变。保存期间输入锁定，失败后保留表单供重试；离开页面不取消已提交保存，完成时反馈结果，不影响后来打开的表单。
 - `provider-icon`：只在模型同步时从接口地址对应站点读取 favicon，或站点 HTML 的图标链接；API 子域名没有时尝试去掉 `api.`。图标只在已保存供应商的详情页标题和主页供应商列表展示，添加表单不展示；不可编辑，缺省使用立方体图标。请求不带保管密钥，结果转为位图/ICO 的 data URL 后交给页面，失败保留上次图标或显示默认图标，随供应商信息持久化。页面展示、输入地址、筛选、改名和启动只读本地数据，不获取图标或模型；旧配置缺少列表时由用户手动重新同步。
 - `provider-forward`：共用 `/v1/messages`、`/v1/chat/completions` 和 `/v1/responses`。按正文的 `model` 选择供应商，接口路径追加到保存的 API 基址；Messages 换用 `x-api-key`，Chat/Responses 换用 Bearer。模型前缀在转发前去掉，不做协议能力判断。上游错误的状态码、响应头和正文直接返回，不重试或回落。流式响应边到边发，流式 Chat 仍按用量统计约定补 `include_usage`。
-- `provider-models`：添加成功后在表单下方显示模型列表。支持筛选、逐项勾选启用、全选、全不选和重新同步；全选与全不选仅作用于筛选出的模型。没勾选过时全部启用，勾选过后新模型不自动启用。改地址重置勾选，只改密钥保留。
+- `provider-models`：添加成功后在表单下方显示模型列表。支持筛选、逐项勾选启用、全选、全不选和重新同步；全选与全不选仅作用于筛选出的模型，无结果或无实际作用时禁用；筛选无结果时显示明确提示。保存选择期间禁用冲突操作，失败后恢复真实勾选，并保留键盘焦点。没勾选过时全部启用，勾选过后新模型不自动启用。改地址重置勾选，只改密钥保留。
 - `provider-model-sync`：新增或地址、密钥变化时自动同步模型列表，也可手动重新同步。只请求配置 API 基址后的 `/models`，不猜测其他路径、不自动改写基址；失败提示错误。只提供模型列表的供应商才能保存；同步失败保留之前的列表。模型列表不作为协议支持的证明。
-- `provider-status`：最近一次同步决定连通状态：已连通、密钥被拒、连不上或没有模型列表。异常也出现在主页待办中。
+- `provider-status`：最近一次同步决定连通状态：模型列表可用、密钥被拒、连不上或没有模型列表。列表可用不等于已验证推理密钥；异常也出现在主页待办中。
 - `provider-pick`：`GET /v1/models` 与 Codex 列表提供所有供应商启用的模型，不根据请求头、旧协议设置或模型的 `supported_endpoints` 过滤。不带前缀的模型只有一家启用时命中，否则返回 400；写明供应商前缀不受启用勾选限制（Codex 扩展只接受其列表里启用的模型）。
 - `provider-records`、`provider-usage`：转发记录与用量统计保持可用，流量与用量工件不包含保管密钥或 Agent 凭据。
 
@@ -23,6 +23,8 @@ aicat 保管供应商的 API Key。Agent 请求按模型选择供应商，协议
 
 ```sh
 make e2e-build
+node e2e/provider-lifecycle.cjs bin/aicat-e2e build/provider-lifecycle-e2e
+node e2e/provider-model-state.cjs bin/aicat-e2e build/provider-model-state-e2e
 node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
 # 仅检查首页统计中未关联、已移除与现有供应商的跳转
 node e2e/provider.cjs bin/aicat-e2e build/provider-overview-e2e --overview-provider
@@ -33,8 +35,10 @@ node e2e/provider.cjs bin/aicat-e2e build/provider-appearance-e2e --appearance
 node e2e/codex.cjs bin/aicat-e2e build/codex-e2e
 ```
 
-两组使用独立 Home、本机上游 fixture、headless Chromium 和隐藏原生窗口；报告、日志和浅深色截图保存在指定输出目录。验证内容：
+这些场景使用独立 Home、本机上游 fixture、headless Chromium 和隐藏原生窗口；报告、日志和浅深色截图保存在指定输出目录。验证内容：
 
+- 模型选择失败时界面与真实列表一致，冲突操作在保存期间禁用；改密钥保留选择、改地址重置选择，重新同步不自动启用新模型，并通过实际列表与本地推理请求核对。移除的迟到响应不离开用户经历史导航到达的其他页面。
+- 保存时离开后新草稿保持独立，离开后的错误仍可见；保存时输入锁定，失败恢复编辑、保留草稿并可重试，成功后清除密钥输入。
 - 三项表单、左右边缘对齐，无预置、协议、ID 或对接步骤；添加成功后模型列表出现，未调用过也能在主页管理。
 - 中文名称生成 ASCII ID、重名追加编号，改名不影响 ID；同模型多供应商时无前缀请求被拒。
 - 模型同步、筛选、启用勾选、重新同步及失败保留列表；不提供模型列表、拒绝密钥和非本机明文 HTTP 地址不保存。

@@ -156,7 +156,7 @@ def main():
         record = wait(lambda: (value if (value := tool('traffic_get', {'id': echo['id']}))['state'] == 'completed' else None))
         check('traffic snapshots contain no removed script metadata', all(key not in record for key in ['ruleRevision', 'executions', 'synthetic']))
         captured = tool('traffic_body', {'id': record['requestReceived']['body']['id']})
-        check('MCP reads bounded body prefix without changing transit bytes', base64.b64decode(captured['data']) == body[:64] and captured['info']['captured'] == 64 and captured['info']['observed'] == len(body))
+        check('MCP reads bounded body prefix without changing transit bytes', base64.b64decode(captured['data']) == body[:64] and captured['info']['captured'] == 64 and captured['info']['observed'] == len(body) and captured['info']['state'] == 'truncated' and not captured['returnedTruncated'])
         _, invalid = rpc('tools/call', {'name': 'traffic_list', 'arguments': {'limit': 201}})
         check('traffic tool rejects invalid limit', 'error' in invalid or invalid.get('result', {}).get('isError'))
         for target in ['/mcp', '/api/traffic']:

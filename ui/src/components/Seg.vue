@@ -5,9 +5,11 @@ const props = defineProps<{
   options: readonly (readonly [T, string])[];
   label: string;
   idPrefix?: string;
+  disabled?: boolean;
 }>();
 const emit = defineEmits<{ "update:modelValue": [value: T] }>();
 function key(event: KeyboardEvent, index: number) {
+  if (props.disabled) return;
   if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
   event.preventDefault();
   const count = props.options.length;
@@ -24,6 +26,7 @@ function key(event: KeyboardEvent, index: number) {
       :key="value"
       :id="idPrefix ? idPrefix + value : undefined"
       type="button"
+      :disabled="disabled"
       role="radio"
       :aria-checked="value === modelValue"
       :tabindex="value === modelValue ? 0 : -1"

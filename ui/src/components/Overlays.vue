@@ -2,6 +2,7 @@
 import { ref, watch, nextTick, onMounted, onUnmounted } from "vue";
 import {
   menu,
+  busy,
   modal,
   closeDialog,
   notice,
@@ -70,7 +71,7 @@ onUnmounted(() => document.removeEventListener("pointerdown", outside, true));
       v-for="item in menu.entries"
       :key="item.label"
       role="menuitem"
-      :disabled="item.disabled"
+      :disabled="item.disabled || (item.requiresIdle && busy)"
       :data-action="item.id ?? ''"
       @click="
         menu = null;
@@ -80,9 +81,14 @@ onUnmounted(() => document.removeEventListener("pointerdown", outside, true));
       {{ t(item.label) }}
     </button>
   </div>
-  <dialog id="dialog" ref="dialog" @cancel="closeDialog">
+  <dialog
+    id="dialog"
+    ref="dialog"
+    aria-labelledby="dialog-title"
+    @cancel="closeDialog"
+  >
     <template v-if="modal">
-      <h2>{{ t(modal.title) }}</h2>
+      <h2 id="dialog-title">{{ t(modal.title) }}</h2>
       <p v-if="modal.message">{{ modal.message }}</p>
       <input
         v-if="modal.input !== undefined"
@@ -97,6 +103,7 @@ onUnmounted(() => document.removeEventListener("pointerdown", outside, true));
         <button
           v-for="(action, index) in modal.actions"
           :key="action.label"
+          :disabled="busy && action.run !== closeDialog"
           class="btn"
           :class="{ primary: index === modal.actions.length - 1 }"
           @click="invoke(action.run)"

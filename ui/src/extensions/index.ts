@@ -4,7 +4,7 @@ import NativeBody from "../channels/NativeBody.vue";
 import NativeSettings from "../channels/NativeSettings.vue";
 import ChannelSettings from "../channels/Settings.vue";
 import ChannelDiagnostics from "../channels/Diagnostics.vue";
-import { t } from "../i18n";
+import { t, locale } from "../i18n";
 import type { ExtensionUI } from "./types";
 
 // Each folder here named after an extension's ID adds to its detail; none
@@ -39,7 +39,10 @@ const channelUI = (id: string): ExtensionUI => ({
     return {
       id: id + "-status",
       text:
-        channel?.error ||
+        (channel?.error
+          ? (x?.statusMessages?.[locale.value]?.[channel.error] ??
+            channel.error)
+          : "") ||
         t(
           !x?.installed
             ? "请先安装插件"

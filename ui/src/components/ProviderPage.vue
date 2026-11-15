@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import {
   state,
   shell,
@@ -9,6 +9,7 @@ import {
   say,
   problem,
   refresh,
+  busy,
 } from "../state/desktop";
 import { host } from "../host";
 import { t, locale } from "../i18n";
@@ -39,11 +40,17 @@ const incomplete = computed(
 );
 // Saving a new endpoint or key first asks the vendor for its model list; a
 // provider that gives none is not saved, and why is shown under the form.
+let active = true;
+onBeforeUnmount(() => {
+  active = false;
+});
 const saving = ref(false);
 const saveError = ref("");
 watch([name, baseUrl, key], () => (saveError.value = ""));
 async function save() {
-  if (saving.value) return;
+  if (modelBusy.value) return;
+  const label = name.value.trim();
+  const provider = shell.provider;
   saving.value = true;
   saveError.value = "";
   try {
@@ -54,12 +61,16 @@ async function save() {
       key: key.value,
     });
     await refresh();
-    shell.provider = id;
-    key.value = "";
-    say(t("已保存 {name} 的密钥", { name: name.value.trim() }));
+    if (active && shell.provider === provider) {
+      shell.provider = id;
+      key.value = "";
+    }
+    say(t("已保存供应商 {name}", { name: label }));
   } catch (error) {
     await refresh().catch(() => {});
-    saveError.value = error instanceof Error ? error.message : String(error);
+    if (active && shell.provider === provider)
+      saveError.value = error instanceof Error ? error.message : String(error);
+    else problem(error);
   } finally {
     saving.value = false;
   }
@@ -73,7 +84,8 @@ function remove() {
     async () => {
       if (await run(() => host.deleteProvider(id))) {
         say(t("已移除 {name}", { name: label }));
-        navigate("overview");
+        if (active && shell.route === "provider" && shell.provider === id)
+          navigate("overview");
       }
     },
   );
@@ -82,6 +94,7 @@ function remove() {
 // key; a sync can also be asked for again here.
 const syncing = ref(false);
 async function sync() {
+  if (modelBusy.value) return;
   const id = shell.provider;
   syncing.value = true;
   try {
@@ -123,10 +136,7 @@ const status = computed(() => {
     case "auth":
       return {
         kind: "bad",
-        text: t(
-          "{host} 拒绝了这把密钥。请确认密钥是这家供应商签发的，而不是别家的。",
-          where,
-        ),
+        text: t("{host} 拒绝了密钥，请检查 API Key。", where),
       };
     case "network":
       return {
@@ -136,11 +146,11 @@ const status = computed(() => {
     case "endpoint":
       return {
         kind: "warn",
-        text: t("这次没有在这个地址找到模型列表，接口地址可能不对。"),
+        text: t("未找到模型列表，请检查接口地址。"),
       };
   }
   if (!p.models.syncedAt) return undefined;
-  return { kind: "ok", text: t("已连通，密钥有效。") };
+  return { kind: "ok", text: t("模型列表可用") };
 });
 // Ticked models are the ones agents are offered; a filter narrows a long list.
 const modelQuery = ref("");
@@ -155,20 +165,38 @@ const shownModels = computed(() => {
     ? all.filter((m) => (m.id + " " + (m.name ?? "")).toLowerCase().includes(q))
     : all;
 });
+const modelBusy = computed(
+  () => busy.value || saving.value || syncing.value || !!saved.value?.syncing,
+);
+const shownEnabled = computed(
+  () =>
+    shownModels.value.filter((model) => saved.value?.enabled.includes(model.id))
+      .length,
+);
 async function setModels(next: string[]) {
+  if (modelBusy.value) return false;
   const id = shell.provider;
   // the vendor's order, whatever order they were ticked in
   const order = saved.value?.models.models.map((m) => m.id) ?? [];
-  await run(() =>
+  return run(() =>
     host.setProviderModels(
       id,
       order.filter((m) => next.includes(m)),
     ),
   );
 }
-function toggleModel(model: string, on: boolean) {
+async function toggleModel(model: string, event: Event) {
+  const input = event.target as HTMLInputElement;
+  const focused = document.activeElement === input;
   const enabled = saved.value?.enabled ?? [];
-  setModels(on ? [...enabled, model] : enabled.filter((m) => m !== model));
+  await setModels(
+    input.checked ? [...enabled, model] : enabled.filter((m) => m !== model),
+  );
+  if (input.isConnected) {
+    input.checked = !!saved.value?.enabled.includes(model);
+    if (focused && document.activeElement === document.body)
+      input.focus({ preventScroll: true });
+  }
 }
 // All and None act on the models the filter shows.
 function tickShown(on: boolean) {
@@ -194,10 +222,11 @@ function tickShown(on: boolean) {
       <div class="provider-content">
         <form @submit.prevent="!incomplete && save()">
           <div class="form provider-form">
-            <label for="provider-name">{{ t("名称") }}</label>
+            <label for="provider-name">{{ t("名称", {}, "provider") }}</label>
             <input
               id="provider-name"
               v-model="name"
+              :disabled="saving"
               class="field"
               maxlength="40"
               autocomplete="off"
@@ -208,6 +237,7 @@ function tickShown(on: boolean) {
             <input
               id="provider-url"
               v-model="baseUrl"
+              :disabled="saving"
               class="field code"
               placeholder="https://"
               autocomplete="off"
@@ -218,6 +248,7 @@ function tickShown(on: boolean) {
             <input
               id="provider-key"
               v-model="key"
+              :disabled="saving"
               class="field code"
               type="password"
               :placeholder="
@@ -238,13 +269,14 @@ function tickShown(on: boolean) {
               type="submit"
               class="btn"
               :class="{ primary: !saved }"
-              :disabled="incomplete || saving"
+              :disabled="incomplete || modelBusy"
             >
-              {{ t(saved ? "重新保存" : "添加") }}
+              {{ t(saving ? "正在保存…" : saved ? "保存" : "添加") }}
             </button>
             <button
               v-if="saved"
               id="provider-delete"
+              :disabled="modelBusy"
               type="button"
               class="btn danger"
               @click="remove"
@@ -256,14 +288,19 @@ function tickShown(on: boolean) {
         <p v-if="status" id="provider-status" class="note" :class="status.kind">
           {{ status.text }}
         </p>
-        <section v-if="saved" class="model-list" id="provider-models">
+        <section
+          v-if="saved"
+          class="model-list"
+          id="provider-models"
+          :aria-busy="modelBusy"
+        >
           <header>
             <strong>{{ t("模型列表") }}</strong>
             <span id="provider-models-status">{{ modelStatus }}</span>
             <button
               id="provider-sync"
               class="btn"
-              :disabled="saved.syncing || syncing"
+              :disabled="modelBusy"
               @click="sync"
             >
               {{ t("重新同步") }}
@@ -292,6 +329,7 @@ function tickShown(on: boolean) {
               <button
                 id="provider-models-all"
                 class="btn"
+                :disabled="modelBusy || shownEnabled === shownModels.length"
                 @click="tickShown(true)"
               >
                 {{ t("全选") }}
@@ -299,6 +337,7 @@ function tickShown(on: boolean) {
               <button
                 id="provider-models-none"
                 class="btn"
+                :disabled="modelBusy || !shownEnabled"
                 @click="tickShown(false)"
               >
                 {{ t("全不选") }}
@@ -311,16 +350,15 @@ function tickShown(on: boolean) {
                     type="checkbox"
                     :value="m.id"
                     :checked="saved.enabled.includes(m.id)"
-                    @change="
-                      toggleModel(
-                        m.id,
-                        ($event.target as HTMLInputElement).checked,
-                      )
-                    "
+                    :disabled="modelBusy"
+                    @change="toggleModel(m.id, $event)"
                   />{{ m.id }}
                 </label>
               </li>
             </ul>
+            <p v-if="!shownModels.length" class="dim">
+              {{ t("没有匹配的模型") }}
+            </p>
             <p v-if="saved.picked">
               {{ t("供应商新增的模型不会自动启用。") }}
             </p>

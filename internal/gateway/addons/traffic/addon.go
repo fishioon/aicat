@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/fishioon/aicat/internal/gateway/requestmeta"
 	store "github.com/fishioon/aicat/internal/traffic"
 	"github.com/lqqyt2423/go-mitmproxy/proxy"
 )
@@ -68,6 +69,9 @@ func response(f *proxy.Flow) *store.Response {
 	return &store.Response{StatusCode: f.Response.StatusCode, Header: f.Response.Header.Clone()}
 }
 func (a *Addon) Requestheaders(f *proxy.Flow) {
+	if requestmeta.IsControl(f.Request.Raw()) {
+		return
+	}
 	if f.Request.Method == http.MethodConnect && f.ConnContext.Intercept {
 		return
 	}

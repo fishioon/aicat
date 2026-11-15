@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { navigate, proxyAddress } from "../state/desktop";
+import { state, navigate, proxyAddress } from "../state/desktop";
 import { copy } from "../state/traffic";
 import { t } from "../i18n";
 import Icon from "./Icon.vue";
@@ -8,16 +8,26 @@ import Seg from "./Seg.vue";
 
 type Client = "claude" | "codex" | "cursor" | "other";
 const client = ref<Client>("claude");
+const tokenPath = computed(() => state.value!.mcpTokenPath);
+const readToken = computed(
+  () => "cat '" + tokenPath.value.replace(/'/g, "'\\''") + "'",
+);
+const tokenPlaceholder = computed(() => t("<令牌文件的内容>"));
+const tokenCommand = computed(() =>
+  client.value === "codex"
+    ? `export AICAT_MCP_TOKEN="$(${readToken.value})"`
+    : readToken.value,
+);
 const mcp = computed(() => `http://${proxyAddress()}/mcp`);
 const clients = computed(() => ({
   claude: {
     name: "Claude Code",
     where: t("在终端运行"),
-    code: `claude mcp add --transport http aicat ${mcp.value} \\\n  --header "Authorization: Bearer $(cat ~/.aicat/mcp-token)"`,
+    code: `claude mcp add --transport http aicat ${mcp.value} \\\n  --header "Authorization: Bearer $(${readToken.value})"`,
   },
   codex: {
     name: "Codex",
-    where: t("加入 ~/.codex/config.toml，并把令牌放进环境变量 AICAT_MCP_TOKEN"),
+    where: t("加入 ~/.codex/config.toml"),
     code: `[mcp_servers.aicat]\nurl = "${mcp.value}"\nbearer_token_env_var = "AICAT_MCP_TOKEN"`,
   },
   cursor: {
@@ -29,7 +39,7 @@ const clients = computed(() => ({
           aicat: {
             url: mcp.value,
             headers: {
-              Authorization: "Bearer " + t("<~/.aicat/mcp-token 的内容>"),
+              Authorization: "Bearer " + tokenPlaceholder.value,
             },
           },
         },
@@ -41,7 +51,7 @@ const clients = computed(() => ({
   other: {
     name: t("其他"),
     where: "Streamable HTTP",
-    code: `${t("地址")}  ${mcp.value}\n${t("请求头")}  Authorization: Bearer ${t("<~/.aicat/mcp-token 的内容>")}`,
+    code: `${t("地址")}  ${mcp.value}\n${t("请求头")}  Authorization: Bearer ${tokenPlaceholder.value}`,
   },
 }));
 const options = computed(() =>
@@ -68,7 +78,7 @@ const endpoints = computed(() => [
         <div>
           <h1>{{ t("接入 Agent") }}</h1>
           <p>
-            {{ t("aicat 的 MCP 和网关共用同一个监听地址，只接受本机请求。") }}
+            {{ t("通过 MCP 让 Agent 查询流量和发送消息。") }}
           </p>
         </div>
       </div>
@@ -89,20 +99,32 @@ const endpoints = computed(() => [
                 ><button
                   id="copy-snippet"
                   class="btn"
-                  @click="copy('snippet', current.code, t('配置'))"
+                  @click="copy('snippet', current.code)"
                 >
                   <Icon name="copy" />{{ t("复制配置") }}
                 </button>
               </header>
               <pre id="snippet">{{ current.code }}</pre>
             </div>
-            <p>
-              {{
-                t(
-                  "令牌保存在 ~/.aicat/mcp-token，只用于本机访问，不要提交到代码仓库。",
-                )
-              }}
-            </p>
+            <div v-if="client !== 'claude'" class="snippet">
+              <header>
+                <span>{{
+                  t(
+                    client === "codex"
+                      ? "启动 Codex 前，在同一终端运行"
+                      : "在终端读取令牌，替换配置中的占位内容",
+                  )
+                }}</span>
+                <button
+                  id="copy-token-command"
+                  class="btn"
+                  @click="copy('token-command', tokenCommand)"
+                >
+                  <Icon name="copy" />{{ t("复制命令") }}
+                </button>
+              </header>
+              <pre id="token-command">{{ tokenCommand }}</pre>
+            </div>
           </div>
         </li>
         <li class="step">
@@ -122,11 +144,7 @@ const endpoints = computed(() => [
       <section class="connect-endpoints">
         <h2>{{ t("接入地址") }}</h2>
         <p class="sub">
-          {{
-            t(
-              "都在同一个监听地址上，只接受本机请求。HTTP API 提供 /api/traffic 与 /api/usage。",
-            )
-          }}
+          {{ t("MCP、模型入口和 HTTP API 仅供本机访问。") }}
         </p>
         <dl class="ov-endpoints" id="connect-endpoints">
           <template v-for="[label, value, what] in endpoints" :key="value">
@@ -135,9 +153,9 @@ const endpoints = computed(() => [
               <code>{{ value }}</code
               ><button
                 class="icon-btn"
-                :aria-label="t('复制') + what"
-                :title="t('复制') + what"
-                @click="copy('endpoint:' + value, value, ' ' + what)"
+                :aria-label="t('复制{name}', { name: what })"
+                :title="t('复制{name}', { name: what })"
+                @click="copy('endpoint:' + value, value)"
               >
                 <Icon name="copy" />
               </button>

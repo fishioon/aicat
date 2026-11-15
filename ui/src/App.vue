@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, watch } from "vue";
 import {
   state,
+  busy,
   shell,
   navigate,
   travel,
@@ -12,7 +13,6 @@ import {
   proxyAddress,
   toggleSystemProxy,
   theme,
-  type Route,
 } from "./state/desktop";
 import { host } from "./host";
 import { t } from "./i18n";
@@ -54,11 +54,6 @@ const overview = computed(
     shell.route === "overview" ||
     shell.route === "connect" ||
     shell.route === "provider",
-);
-const trafficPinned = computed(
-  () =>
-    !!state.value?.trafficEnabled &&
-    state.value.navigationPins.includes("traffic"),
 );
 function appName(key: string) {
   for (const row of records.value.values())
@@ -108,58 +103,19 @@ const addressLabel = computed(() =>
 );
 function copyProxy() {
   const proxy = "http://" + proxyAddress();
-  void copy("proxy", proxy, t("代理地址") + " " + proxy);
+  void copy("proxy", proxy);
 }
 
-// "更多" collects modules that are enabled but not necessarily pinned.
-const more = ref<{ x: number; y: number } | null>(null);
-const moreButton = ref<HTMLButtonElement>();
-const popRef = ref<HTMLElement>();
-async function openMore() {
-  if (more.value) {
-    more.value = null;
-    return;
-  }
-  menu.value = null;
-  const box = moreButton.value!.getBoundingClientRect();
-  more.value = { x: box.right + 8, y: box.top };
-  await nextTick();
-  popRef.value?.querySelector<HTMLButtonElement>("button")?.focus();
-}
-function closeMore(restore = false) {
-  more.value = null;
-  if (restore) moreButton.value?.focus();
-}
-function go(route: Route) {
-  closeMore();
-  navigate(route);
-}
-function pinTraffic() {
-  const pinned = state.value!.navigationPins.includes("traffic");
-  void run(() =>
-    host.setNavigationPins(
-      pinned
-        ? state.value!.navigationPins.filter((id) => id !== "traffic")
-        : [...state.value!.navigationPins, "traffic"],
-    ),
-  );
-}
-function outside(event: PointerEvent) {
-  if (
-    more.value &&
-    event.target instanceof Element &&
-    !event.target.closest("#more-pop, #nav-more")
-  )
-    closeMore();
-}
+watch(
+  () => shell.route,
+  () => {
+    menu.value = null;
+  },
+);
 
 function keydown(event: KeyboardEvent) {
+  if (event.defaultPrevented || document.querySelector("dialog[open]")) return;
   if (event.key === "Escape") {
-    if (more.value) {
-      event.preventDefault();
-      closeMore(true);
-      return;
-    }
     if (menu.value) {
       menu.value = null;
       return;
@@ -212,12 +168,10 @@ function focused() {
 }
 onMounted(() => {
   document.addEventListener("keydown", keydown);
-  document.addEventListener("pointerdown", outside, true);
   window.addEventListener("focus", focused);
 });
 onUnmounted(() => {
   document.removeEventListener("keydown", keydown);
-  document.removeEventListener("pointerdown", outside, true);
   window.removeEventListener("focus", focused);
 });
 window.desktop = {
@@ -294,6 +248,7 @@ window.desktop = {
     </button>
     <button
       id="theme"
+      :disabled="busy"
       class="icon-btn"
       :aria-label="t(dark ? '切换到浅色' : '切换到深色')"
       :title="t(dark ? '切换到浅色' : '切换到深色')"
@@ -323,7 +278,7 @@ window.desktop = {
         <Icon name="messages" />
       </button>
       <button
-        v-if="trafficPinned"
+        v-if="state?.trafficEnabled"
         id="nav-traffic"
         :title="t('流量')"
         :aria-label="t('流量')"
@@ -345,20 +300,6 @@ window.desktop = {
         @click="navigate('extensions')"
       >
         <Icon name="extensions" />
-      </button>
-      <button
-        id="nav-more"
-        ref="moreButton"
-        :title="t('更多')"
-        :aria-label="t('更多')"
-        aria-haspopup="dialog"
-        :aria-expanded="!!more"
-        :aria-current="
-          shell.route === 'traffic' && !trafficPinned ? 'page' : undefined
-        "
-        @click="openMore"
-      >
-        <Icon name="more" />
       </button>
       <span class="grow"></span>
       <button
@@ -390,36 +331,6 @@ window.desktop = {
         "
       />
     </main>
-  </div>
-  <div
-    v-if="more"
-    id="more-pop"
-    ref="popRef"
-    class="pop"
-    role="dialog"
-    :aria-label="t('更多模块')"
-    :style="{ left: more.x + 'px', top: more.y + 'px' }"
-  >
-    <h2>{{ t("模块") }}</h2>
-    <template v-if="state?.trafficEnabled">
-      <div class="pop-row">
-        <button class="open" id="more-traffic" @click="go('traffic')">
-          <Icon name="traffic" />{{ t("流量") }}
-        </button>
-        <button
-          class="icon-btn"
-          data-action="pin-navigation"
-          :aria-pressed="trafficPinned"
-          :aria-label="t(trafficPinned ? '取消固定' : '固定到导航栏')"
-          :title="t(trafficPinned ? '取消固定' : '固定到导航栏')"
-          @click="pinTraffic"
-        >
-          <Icon name="pin" />
-        </button>
-      </div>
-      <p>{{ t("固定的显示在导航栏，不常用的取消固定后收在这里。") }}</p>
-    </template>
-    <p v-else>{{ t("还没有可以收在这里的模块，可以在扩展里启用。") }}</p>
   </div>
   <Overlays />
 </template>

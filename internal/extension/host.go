@@ -122,6 +122,7 @@ func (h *Host) List() []State {
 				descriptor.AutomaticSetup = manifest.Prepare != ""
 				descriptor.SendTargetLabel = manifest.SendTargetLabel
 				descriptor.ConfigFields = manifest.Fields
+				descriptor.StatusMessages = manifest.StatusMessages
 				descriptor.NeedsTrust = len(manifest.Capabilities.Intercepts) > 0
 			}
 		}

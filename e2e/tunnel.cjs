@@ -65,11 +65,12 @@ async function verifyTunnel({
   await page.locator("#nav-settings").click();
   await page.locator("#settings-general").click();
   await page.locator("#preference-language-en").click();
+  await page.waitForFunction(() => document.documentElement.lang === "en");
   await page.locator("#nav-traffic").click();
   await page.locator("#enable-decryption").waitFor();
   assert.match(
     await response.innerText(),
-    /HTTPS Response\s+This HTTPS response is encrypted\.\s+Enable SSL Proxying to see the content\./,
+    /HTTPS Response\s+This connection is encrypted; response content is unavailable\./,
   );
   assert.equal(
     await page.locator("#enable-decryption").innerText(),
@@ -85,7 +86,7 @@ async function verifyTunnel({
   assert.equal(await page.locator("#enable-decryption").count(), 0);
   assert((await api()).find((r) => r.id === record.id).tunnel);
   checks.push(
-    "Proxyman English copy; enabling domain keeps old tunnel encrypted and replaces button with new-connection notice",
+    "Concise English copy; enabling domain keeps old tunnel encrypted and replaces button with new-connection notice",
   );
 
   await send("/tunnel-http-regression");

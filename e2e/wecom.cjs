@@ -873,14 +873,30 @@ async function runRecovery() {
         "diagnostics opens the server-selected Room directory through an isolated native boundary",
       );
       for(const room of await rpc("ListRooms")) await rpc("UpdateRoomSettings",[room.id,{...room.settings,allowOutbound:true}]);
+      let releaseSend;
+      const holdSend = async (route) => {
+        if (route.request().postDataJSON()?.method !== "Desktop.SendMessage") return route.continue();
+        await new Promise((resolve) => { releaseSend = resolve; });
+        await route.continue();
+      };
+      await page.route("**/rpc", holdSend);
       await page.locator("#wecom-recipient").fill("alice");
       await page.locator("#wecom-text").fill("explicit UI outgoing");
       await page.locator("#wecom-send").click();
+      await wait(() => releaseSend);
+      await page.locator("#wecom-recipient").fill("next-room");
+      await page.locator("#wecom-text").fill("draft after submission");
+      assert(await page.locator("#wecom-send").isDisabled());
+      releaseSend();
       await wait(() => deliveries.length === 1);
+      await page.unroute("**/rpc", holdSend);
       await page
         .locator("#wecom-send-result")
-        .filter({ hasText: "渠道确认发送" })
+        .filter({ hasText: "已发送给 alice" })
         .waitFor();
+      assert.equal(await page.locator("#wecom-recipient").inputValue(), "next-room");
+      assert.equal(await page.locator("#wecom-text").inputValue(), "draft after submission");
+      assert.equal(await page.locator("#wecom-text").getAttribute("maxlength"), null);
       assert.equal(deliveries[0].body.chatid, "alice");
       assert(JSON.stringify(deliveries[0]).includes("explicit UI outgoing"));
       await page.screenshot({

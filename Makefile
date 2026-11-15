@@ -75,6 +75,7 @@ frontend-check: ui/node_modules/.aicat-install bindings channel-check
 	node --check e2e/tray-assets.cjs
 	node --check e2e/tunnel.cjs
 	node --check e2e/codex.cjs
+	@for script in e2e/*.cjs e2e/fixtures/*.cjs; do node --check "$$script" || exit 1; done
 	node --check e2e/design-shots.cjs
 	node --check e2e/branding.cjs
 	node --check e2e/titlebar-navigation.cjs

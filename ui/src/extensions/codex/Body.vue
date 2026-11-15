@@ -22,7 +22,7 @@ const baseURL = computed(
       ><button
         id="codex-copy"
         class="btn"
-        @click="copy('codex-snippet', baseURL, t('配置'))"
+        @click="copy('codex-snippet', baseURL)"
       >
         <Icon name="copy" />{{ t("复制") }}
       </button>

@@ -11,6 +11,11 @@ const enabled = computed(
 );
 const accountId = ref("");
 const secret = ref("");
+const requiresSecret = computed(
+  () =>
+    !channel.value?.configured ||
+    accountId.value.trim() !== channel.value?.accountId,
+);
 watch(
   () => channel.value?.accountId,
   (id) => {
@@ -60,13 +65,19 @@ async function save() {
         :disabled="enabled || busy"
         type="password"
         autocomplete="new-password"
-        :placeholder="channel?.configured ? t('留空保留已保存的 Secret') : ''"
+        :placeholder="!requiresSecret ? t('留空保留已保存的 Secret') : ''"
+        :required="requiresSecret"
       />
       <div class="acts wide">
         <button
           id="wecom-save"
           class="btn"
-          :disabled="enabled || busy || !accountId.trim()"
+          :disabled="
+            enabled ||
+            busy ||
+            !accountId.trim() ||
+            (requiresSecret && !secret.trim())
+          "
         >
           {{ t("保存并验证账号") }}
         </button>

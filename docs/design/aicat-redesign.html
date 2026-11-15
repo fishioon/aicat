@@ -120,7 +120,7 @@ svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .rail button{position:relative;display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:var(--r2);background:none;color:var(--ink-3)}
 .rail button svg{width:20px;height:20px}
 .rail button:hover{background:var(--hover);color:var(--ink)}
-.rail button[aria-current="page"],.rail button[aria-expanded="true"]{background:var(--mark-soft);color:var(--mark-line)}
+.rail button[aria-current="page"]{background:var(--mark-soft);color:var(--mark-line)}
 .rail .grow{flex:1}
 .addr{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 8px 0 10px;border:1px solid var(--line);border-radius:var(--r2);background:var(--surface);font-size:var(--t13);flex:none}
 .addr:hover{border-color:var(--line-strong)}
@@ -391,15 +391,6 @@ pre.body{margin:0;font:var(--t12)/1.6 var(--code);white-space:pre-wrap;overflow-
 .menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:4px 8px;border-radius:var(--r1);font-size:var(--t12)}
 .menu button:hover,.menu button:focus-visible{background:var(--sunken)}
 .menu button:disabled{color:var(--ink-3);cursor:not-allowed}
-.pop{position:fixed;z-index:9;width:220px;padding:8px;border:1px solid var(--line-strong);border-radius:var(--r2);background:var(--surface);box-shadow:0 12px 32px -12px rgba(0,0,0,.4)}
-.pop h2{font-size:var(--t12);font-weight:400;color:var(--ink-3);padding:0 8px 4px}
-.pop p{font-size:var(--t12);color:var(--ink-2);padding:4px 8px}
-.pop-row{display:flex;align-items:center;gap:4px}
-.pop-row .open{flex:1;display:flex;align-items:center;gap:8px;min-width:0;height:32px;padding:0 8px;border:0;border-radius:var(--r1);background:none;text-align:left}
-.pop-row .open:hover{background:var(--sunken)}
-.pop-row .open svg{color:var(--ink-2)}
-.pop-row .icon-btn[aria-pressed="true"]{color:var(--mark-line)}
-.pop-row .icon-btn[aria-pressed="true"] svg{fill:currentColor}
 
 @media (max-width:760px){
   body{padding:0}
@@ -496,7 +487,7 @@ const dark=matchMedia('(prefers-color-scheme: dark)');
 const S={page:'overview',connect:false,connected:true,range:'today',metric:'token',dim:'model',prov:'anthropic',provSaved:new Set(),waiting:false,client:'claude',restart:true,drawn:false,
   themePref:'system',lang:'system',host:'127.0.0.1',port:'9981',
   trafficOn:true,paused:true,captureStarted:false,q:'',quick:'all',filter:null,sel:2231,reqTab:'header',resTab:'header',
-  open:new Set(),pinned:['api.anthropic.com'],navPins:['traffic'],
+  open:new Set(),pinned:['api.anthropic.com'],
   ext:'traffic',xq:'',xtab:'detail',xopen:{installed:true,rec:true},set:'general',sysProxy:false,cert:'trusted',hosts:['api.anthropic.com','api.openai.com','api.github.com','*.githubusercontent.com']};
 // 解密域名的匹配：精确相等，或 *.example.com 匹配任意层级的子域名（不含 example.com 本身）。
 const hostRule=h=>S.hosts.find(p=>p===h||(p.startsWith('*.')&&h.endsWith(p.slice(1))));
@@ -594,10 +585,8 @@ function crumbs(){
   return c;
 }
 function drawBar(){
-  const pinned=S.trafficOn&&S.navPins.includes('traffic');
   const item=p=>`<button type="button" data-act="go" data-v="${p}" title="${MODS[p][0]}" aria-label="${MODS[p][0]}" ${S.page===p?'aria-current="page"':''}>${icon(MODS[p][1])}</button>`;
-  $('#rail').innerHTML=item('overview')+(pinned?item('traffic'):'')+item('ext')
-    +`<button type="button" data-act="more" title="更多" aria-label="更多" aria-haspopup="dialog" aria-expanded="${!!$('#menu .pop')}" ${S.page==='traffic'&&!pinned?'aria-current="page"':''}>${icon('more')}</button>`
+  $('#rail').innerHTML=item('overview')+(S.trafficOn?item('traffic'):'')+item('ext')
     +'<span class="grow"></span>'+item('settings');
   $('#crumb').innerHTML=crumbs().map(t=>`<span>${esc(t)}</span>`).join(icon('chev'));
   $('#hist-back').innerHTML=icon('back');$('#hist-back').disabled=H.at<=0;
@@ -1031,25 +1020,12 @@ function settingsPage(){
 
 /* ---------- 交互 ---------- */
 const go=(p)=>{S.page=p;S.connect=false;draw();};
-function openMore(){
-  const b=$('#rail [data-act="more"]'),r=b.getBoundingClientRect(),mods=[S.trafficOn&&'traffic'].filter(Boolean);
-  $('#menu').innerHTML=`<div class="pop" role="dialog" aria-label="更多模块" style="left:${r.right+8}px;top:${r.top}px"><h2>模块</h2>${mods.length?mods.map(p=>{
-    const on=S.navPins.includes(p),tip=on?'取消固定':'固定到导航栏';
-    return `<div class="pop-row"><button type="button" class="open" data-act="go" data-v="${p}">${icon(MODS[p][1])}${MODS[p][0]}</button><button type="button" class="icon-btn" data-act="pin-nav" data-v="${p}" aria-pressed="${on}" aria-label="${tip}" title="${tip}">${icon('pin')}</button></div>`;
-  }).join('')+'<p>固定的显示在导航栏，不常用的取消固定后收在这里。</p>':'<p>还没有可以收在这里的模块，可以在扩展里启用。</p>'}</div>`;
-  b.setAttribute('aria-expanded','true');
-  const f=$('#menu .pop button');f&&f.focus();
-}
 const ACT={
   go:t=>go(t.dataset.v),
   hist:t=>{const d=+t.dataset.v;let to=H.at+d;
     while(H.list[to]&&!S.trafficOn&&JSON.parse(H.list[to]).page==='traffic')to+=d;
     if(!H.list[to])return;
     H.at=to;Object.assign(S,JSON.parse(H.list[to]));draw();},
-  more:(t,wasOpen)=>{if(!wasOpen)openMore();},
-  'pin-nav':t=>{const p=t.dataset.v,i=S.navPins.indexOf(p);
-    if(i<0)S.navPins.push(p);else S.navPins.splice(i,1);
-    drawBar();openMore();const el=$('#menu .pop [data-act="pin-nav"]');el&&el.focus();},
   'go-ext':()=>{S.ext='traffic';go('ext');},
   'go-proxy':()=>{S.set='proxy';go('settings');},
   demo:t=>{S.connected=t.dataset.v==='connected';S.waiting=false;S.drawn=false;go('overview');},
@@ -1104,7 +1080,7 @@ const ACT={
   'host-del':t=>{const h=t.dataset.v,i=S.hosts.indexOf(h);S.hosts.splice(i,1);draw();toast('已移除 '+h,'撤销',()=>{S.hosts.splice(i,0,h);draw();});}
 };
 function select(id,focus){S.sel=id;drawList(focus);drawInsp();}
-function closeMenu(){$('#menu').innerHTML='';const b=$('#rail [data-act="more"]');b&&b.setAttribute('aria-expanded','false');}
+function closeMenu(){$('#menu').innerHTML='';}
 function openMenu(x,y,items){
   $('#menu').innerHTML=`<div class="menu" role="menu" style="left:${Math.min(x,innerWidth-190)}px;top:${Math.min(y,innerHeight-items.length*30-16)}px">${items.map((it,i)=>`<button type="button" role="menuitem" data-i="${i}" ${it[2]?'disabled':''}>${it[0]}</button>`).join('')}</div>`;
   const m=$('#menu .menu');m.items=items;
@@ -1113,10 +1089,9 @@ function openMenu(x,y,items){
 document.addEventListener('click',e=>{
   const mi=e.target.closest('.menu button');
   if(mi){const f=$('#menu .menu').items[+mi.dataset.i][1];closeMenu();f();return;}
-  const wasPop=!!$('#menu .pop');
   closeMenu();
   const t=e.target.closest('[data-act]');
-  if(t){if(!t.disabled)ACT[t.dataset.act](t,wasPop);return;}
+  if(t){if(!t.disabled)ACT[t.dataset.act](t);return;}
   const row=e.target.closest('#list tr[data-id]');
   if(row)select(+row.dataset.id,true);
 });
@@ -1159,7 +1134,6 @@ document.addEventListener('input',e=>{
   if(k==='xq'){S.xq=e.target.value;const pos=e.target.selectionStart;drawExtSide();const el=$('#xside input');el.focus();el.setSelectionRange(pos,pos);}
 });
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'&&$('#menu .pop')){e.preventDefault();closeMenu();const b=$('#rail [data-act="more"]');b&&b.focus();return;}
   const menu=$('#menu .menu');
   if(menu){
     const bs=[...menu.querySelectorAll('button:not(:disabled)')],i=bs.indexOf(document.activeElement);

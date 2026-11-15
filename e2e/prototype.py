@@ -20,7 +20,10 @@ def main():
     parser.add_argument('--output')
     parser.add_argument('--only', choices=('desktop', 'transport', 'mcp'))
     parser.add_argument('--background', action='store_true')
+    parser.add_argument('--scenarios', nargs='+')
     args = parser.parse_args()
+    if args.scenarios and not args.background:
+        parser.error('--scenarios requires --background')
     if args.background and args.only:
         parser.error('--background runs the complete background suite; do not combine with --only')
     root = Path(args.output).resolve() if args.output else Path(tempfile.mkdtemp(prefix='full-e2e-', dir=Path('build').resolve()))
@@ -45,18 +48,34 @@ def main():
             ('rooms', 'rooms'), ('messages', 'messages'),
         ):
             stages[name] = ['node', f'e2e/{script}.cjs', args.binary, str(root / name)]
+        for name in ('overview', 'connect', 'provider-lifecycle', 'provider-model-state', 'inspector-copy', 'proxy-settings', 'certificate', 'certificate-entries', 'traffic-browse', 'traffic-content', 'traffic-events', 'traffic-lifecycle', 'http-origins', 'agent-traffic', 'control-traffic', 'busy-state', 'desktop-shell', 'navigation', 'extension-details', 'ipv6-tunnel', 'system-proxy'):
+            stages[name] = ['node', f'e2e/{name}.cjs', args.binary, str(root / name)]
+        for name in ('app-tree', 'list-selection'):
+            stages[name] = ['node', f'e2e/{name}-headless.cjs', args.binary, str(root / name)]
+        for name, flag in (('provider-appearance', '--appearance'), ('provider-model-path', '--model-path'), ('overview-provider', '--overview-provider')):
+            stages[name] = ['node', 'e2e/provider.cjs', args.binary, str(root / name), flag]
         stages['wecom-agent'].append('agent')
         stages['tray-assets'] = ['node', 'e2e/tray-assets.cjs', str(root / 'tray-assets')]
         stages['websocket'] = [str(Path(args.binary).resolve().parent / 'websocket-e2e'), str(root / 'websocket')]
-        stages['channel-install-failure'] = ['node', 'e2e/channel-install-failure.cjs', str(root / 'channel-install-failure')]
+        stages['channel-install-failure'] = ['node', 'e2e/channel-install-failure.cjs', args.binary, str(root / 'channel-install-failure')]
+    if args.scenarios:
+        unknown = set(args.scenarios) - stages.keys()
+        if unknown:
+            parser.error('Unknown scenarios: ' + ', '.join(sorted(unknown)))
+        stages = {name: command for name, command in stages.items() if name in args.scenarios}
     try:
         for name, command in stages.items():
             if args.only and name != args.only:
                 continue
             print(f'E2E: {name}', flush=True)
             log = root / f'{name}.log'
-            with log.open('w') as output:
-                completed = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, env={**os.environ, **({'AICAT_E2E_BACKGROUND': '1'} if args.background else {})})
+            clipboard = subprocess.check_output(['/usr/bin/pbpaste']) if args.background else None
+            try:
+                with log.open('w') as output:
+                    completed = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, env={**os.environ, **({'AICAT_E2E_BACKGROUND': '1'} if args.background else {})})
+            finally:
+                if clipboard is not None:
+                    subprocess.run(['/usr/bin/pbcopy'], input=clipboard, check=True)
             sub = root / name / 'report.json'
             result = json.loads(sub.read_text()) if sub.exists() else {'passed': False}
             report['stages'][name] = {'passed': completed.returncode == 0 and result.get('passed', False), 'report': str(sub), 'log': str(log), 'command': command}

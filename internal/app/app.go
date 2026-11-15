@@ -55,7 +55,7 @@ func Run(o Options) error {
 	mygo.App.SetName("aicat")
 	mygo.Bind(a.service)
 	mygo.SetFrontend(ui.Files())
-	mygo.App.SetMenu(mygo.NewMenu(append([]*mygo.MenuItem{{Role: mygo.RoleAppMenu}, {Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu}}, automationMenus(a)...)))
+	mygo.App.SetMenu(mygo.NewMenu(append([]*mygo.MenuItem{{Role: mygo.RoleAppMenu}, {Role: mygo.RoleFileMenu}, {Role: mygo.RoleEditMenu}, {Role: mygo.RoleWindowMenu}}, automationMenus(a)...)))
 	mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
 		if a.quitting.Load() {
 			return

@@ -2,7 +2,9 @@
 import { computed, onMounted, onUnmounted, watch } from "vue";
 import { state, navigate } from "../state/desktop";
 import {
-  usage,
+  usage as latestUsage,
+  usageLoading,
+  usageError,
   period,
   loadUsage,
   tokens,
@@ -17,6 +19,9 @@ import Seg from "./Seg.vue";
 import UsageChart from "./UsageChart.vue";
 import BrandIntro from "./BrandIntro.vue";
 
+const usage = computed(() =>
+  latestUsage.value?.period === period.value ? latestUsage.value : null,
+);
 const gateway = computed(() => state.value!.gateway);
 
 // Only node-level problems the user has to act on; request failures of
@@ -115,11 +120,11 @@ const empty = computed(() => !total.value?.requests);
 // Calls keep arriving while the page is open; it rereads every 5 seconds.
 let timer: ReturnType<typeof setInterval> | undefined;
 onMounted(() => {
-  void loadUsage().catch(() => {});
-  timer = setInterval(() => void loadUsage().catch(() => {}), 5000);
+  void loadUsage();
+  timer = setInterval(() => void loadUsage(), 5000);
 });
 onUnmounted(() => clearInterval(timer));
-watch(period, () => void loadUsage().catch(() => {}));
+watch(period, () => void loadUsage());
 </script>
 <template>
   <div class="main" id="overview">
@@ -207,6 +212,34 @@ watch(period, () => void loadUsage().catch(() => {}));
           t("统计经过 aicat 供应商入口的模型调用")
         }}</span>
       </div>
+      <ul v-if="usageError" class="ov-todos" id="usage-error" role="alert">
+        <li class="warn">
+          <div>
+            <strong>{{ t("无法读取用量") }}</strong>
+            <span v-if="usage">{{ t("当前显示上次成功读取的数据") }}</span>
+            <details>
+              <summary>{{ t("错误详情") }}</summary>
+              {{ usageError }}
+            </details>
+          </div>
+          <button
+            class="btn"
+            id="usage-retry"
+            :disabled="usageLoading"
+            @click="loadUsage"
+          >
+            {{ t("重试") }}
+          </button>
+        </li>
+      </ul>
+      <section
+        v-else-if="!usage"
+        class="ov-card ov-empty"
+        id="usage-loading"
+        role="status"
+      >
+        {{ t("正在读取用量…") }}
+      </section>
       <section
         class="ov-tiles"
         :aria-label="t('用量摘要')"
@@ -296,7 +329,7 @@ watch(period, () => void loadUsage().catch(() => {}));
           </ul>
         </div>
       </section>
-      <section v-else class="ov-card ov-empty">
+      <section v-else-if="usage" class="ov-card ov-empty">
         <strong>{{
           state!.providers.length
             ? t("这段时间还没有模型调用")

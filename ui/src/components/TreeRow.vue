@@ -44,6 +44,7 @@ function context(event: MouseEvent) {
   popup({ x: event.clientX, y: event.clientY }, [
     {
       label: state.value?.pinnedDomains.includes(domain) ? "取消固定" : "固定",
+      requiresIdle: true,
       run: () => pinDomain(domain),
     },
   ]);

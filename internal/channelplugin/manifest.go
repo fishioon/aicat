@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/fishioon/aicat/internal/config"
 )
@@ -13,16 +14,17 @@ import (
 const ChannelAPI = 1
 
 type Manifest struct {
-	Prepare         string              `json:"prepare"`
-	IdentityFields  []string            `json:"identityFields"`
-	SelfField       string              `json:"selfField"`
-	SendTargetLabel string              `json:"sendTargetLabel"`
-	API             int                 `json:"api"`
-	ID              string              `json:"id"`
-	Entry           string              `json:"entry"`
-	Capabilities    Capabilities        `json:"capabilities"`
-	Room            config.RoomSettings `json:"room"`
-	Fields          []Field             `json:"fields"`
+	StatusMessages  map[string]map[string]string `json:"statusMessages,omitempty"`
+	Prepare         string                       `json:"prepare"`
+	IdentityFields  []string                     `json:"identityFields"`
+	SelfField       string                       `json:"selfField"`
+	SendTargetLabel string                       `json:"sendTargetLabel"`
+	API             int                          `json:"api"`
+	ID              string                       `json:"id"`
+	Entry           string                       `json:"entry"`
+	Capabilities    Capabilities                 `json:"capabilities"`
+	Room            config.RoomSettings          `json:"room"`
+	Fields          []Field                      `json:"fields"`
 }
 
 type Capabilities struct {
@@ -64,6 +66,19 @@ func inspectManifest(packageDir string, d Descriptor) (Manifest, string, error) 
 		return Manifest{}, "", errors.New("NPM 包缺少匹配的 aicat 渠道声明")
 	}
 	m := *pkg.Aicat
+	if len(m.StatusMessages) > 8 {
+		return Manifest{}, "", errors.New("渠道状态语言声明过多")
+	}
+	for language, messages := range m.StatusMessages {
+		if language == "" || len(language) > 64 || len(messages) > 128 {
+			return Manifest{}, "", errors.New("渠道状态语言声明无效")
+		}
+		for code, text := range messages {
+			if code == "" || len(code) > 128 || strings.ContainsAny(code, "\x00\r\n") || strings.TrimSpace(text) == "" || len(text) > 1024 || strings.ContainsRune(text, 0) || !utf8.ValidString(code+text) {
+				return Manifest{}, "", errors.New("渠道状态提示无效")
+			}
+		}
+	}
 	if m.API != ChannelAPI || m.ID != d.ID || m.Entry == "" || len(m.Fields) > 64 || len(m.IdentityFields) > 64 || len(m.SendTargetLabel) > 256 || len(m.Capabilities.Intercepts) > 64 || len(m.Capabilities.Native) > 16 {
 		return Manifest{}, "", errors.New("渠道 API 版本、标识或入口无效")
 	}

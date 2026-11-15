@@ -748,21 +748,12 @@ async function verifyListSelection() {
     await click("extension-menu");
     await page.locator("#popup [data-action=extension-open-traffic]").click();
     await page.locator("#traffic-page").waitFor();
-    // Pinning keeps the popover open; unpinned, Traffic lives under More.
-    await page.locator("#nav-more").click();
-    await page.locator("[data-action=pin-navigation]").click();
-    await settled();
-    assert.equal(await page.locator("#nav-traffic").count(), 0);
-    await click("more-traffic");
+    assert.equal(await page.locator("#nav-more, #more-pop").count(), 0);
+    await page.locator("#nav-traffic").waitFor();
     assert.equal(
-      await page.locator("#nav-more").getAttribute("aria-current"),
+      await page.locator("#nav-traffic").getAttribute("aria-current"),
       "page",
     );
-    await click("nav-more");
-    await page.locator("[data-action=pin-navigation]").click();
-    await settled();
-    await page.keyboard.press("Escape");
-    await page.locator("#nav-traffic").waitFor();
     await navigate("extensions");
     await page.locator("#extensions-recommended").waitFor();
     assert.equal(await page.locator("#extension-wecom").count(), 1);
@@ -771,7 +762,7 @@ async function verifyListSelection() {
     await page.locator("#extension-search").fill("no-match");
     assert.equal(await page.locator("#extension-traffic").count(), 0);
     check(
-      "extensions, installable recommendation, uncluttered list, search, traffic feature toggle, More and navigation pin",
+      "extensions, installable recommendation, uncluttered list, search, traffic feature toggle and default navigation",
     );
     const cfgPath = path.join(home, "aicat.yaml");
     fs.renameSync(cfgPath, cfgPath + ".saved");

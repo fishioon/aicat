@@ -70,12 +70,16 @@ export const filtered = computed(() => {
   return result;
 });
 const bodyCache = new Map<string, Promise<BodySnapshot>>();
-export function body(snapshot: {
-  id: string;
-  captured: number;
-  state: string;
-}): Promise<BodySnapshot> {
+export function body(
+  snapshot: {
+    id: string;
+    captured: number;
+    state: string;
+  },
+  reload = false,
+): Promise<BodySnapshot> {
   const key = `${snapshot.id}:${snapshot.captured}:${snapshot.state}`;
+  if (reload) bodyCache.delete(key);
   if (!bodyCache.has(key)) bodyCache.set(key, host.body(snapshot.id));
   return bodyCache.get(key)!;
 }
@@ -87,7 +91,7 @@ export function clearSelection() {
   selectionGeneration++;
   bodyCache.clear();
 }
-async function loadDetail() {
+export async function loadDetail() {
   const id = shell.selected;
   const generation = ++selectionGeneration;
   detail.value = null;
@@ -128,24 +132,40 @@ export function choose(id: number) {
     selected: id,
   });
 }
+export const clearing = shallowRef(false);
 export async function clearTraffic() {
+  if (clearing.value) return;
+  const { host: hostname, path, app, query, selected } = shell;
+  clearing.value = true;
   try {
     await host.clearTraffic();
-    shell.host = "";
-    shell.path = "";
-    shell.app = null;
-    shell.query = "";
-    clearSelection();
+    if (
+      shell.host === hostname &&
+      shell.path === path &&
+      shell.app === app &&
+      shell.query === query
+    ) {
+      shell.host = "";
+      shell.path = "";
+      shell.app = null;
+      shell.query = "";
+    }
+    if (shell.selected === selected) clearSelection();
   } catch (error) {
     problem(error);
+  } finally {
+    clearing.value = false;
   }
 }
 export const copied = reactive(new Set<string>());
-export async function copy(key: string, text: string, what = "") {
-  if (await run(() => host.copyText(text))) {
-    say(t("已复制") + what);
+export async function copy(key: string, text: string) {
+  try {
+    await host.copyText(text);
+    say(t("已复制"));
     copied.add(key);
     setTimeout(() => copied.delete(key), 2200);
+  } catch (error) {
+    problem(error);
   }
 }
 export function pinDomain(domain: string) {
@@ -171,14 +191,14 @@ export async function rowMenu(event: MouseEvent, row: Summary) {
   if (shell.selected !== row.id || shell.route !== "traffic") return;
   const domain = new URL(row.url).host;
   popup({ x: event.clientX, y: event.clientY }, [
-    { label: "复制 URL", run: () => copy("row:" + row.id, row.url, " URL") },
+    { label: "复制 URL", run: () => copy("row:" + row.id, row.url) },
     {
       label: "复制 cURL",
       disabled:
         record.tunnel || record.requestReceived.body.state !== "complete",
       run: async () => {
         try {
-          await copy("row:" + row.id, await host.requestCURL(row.id), " cURL");
+          await copy("row:" + row.id, await host.requestCURL(row.id));
         } catch (error) {
           problem(error);
         }
@@ -188,6 +208,7 @@ export async function rowMenu(event: MouseEvent, row: Summary) {
       label: state.value?.pinnedDomains.includes(domain)
         ? "取消固定域名"
         : "固定域名",
+      requiresIdle: true,
       run: () => pinDomain(domain),
     },
   ]);

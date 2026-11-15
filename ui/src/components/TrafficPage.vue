@@ -9,17 +9,26 @@ import {
   onBeforeUpdate,
   nextTick,
 } from "vue";
-import { shell, state, navigate, run, proxyAddress } from "../state/desktop";
+import {
+  shell,
+  state,
+  busy,
+  navigate,
+  run,
+  proxyAddress,
+} from "../state/desktop";
 import {
   records,
   filtered,
   detail,
   detailError,
+  loadDetail,
   traffic,
   metrics,
   remember,
   choose,
   clearTraffic,
+  clearing,
   rowMenu,
   copied,
   copy,
@@ -155,7 +164,7 @@ async function key(event: KeyboardEvent) {
         <button
           id="recording"
           class="btn"
-          :disabled="!state?.trafficEnabled"
+          :disabled="busy || !state?.trafficEnabled"
           @click="run(() => host.setRecording(!state?.recording))"
         >
           <Icon :name="state?.recording ? 'pause' : 'play'" /><span
@@ -163,11 +172,18 @@ async function key(event: KeyboardEvent) {
             >{{ t(recordingAction) }}</span
           >
         </button>
-        <button id="clear" class="btn" @click="clearTraffic">
+        <button
+          id="clear"
+          class="btn"
+          :disabled="clearing || (!records.size && !filteredOut)"
+          :aria-busy="clearing"
+          @click="clearTraffic"
+        >
           {{ t("清空") }}
         </button>
         <button
           id="export"
+          :disabled="busy || !filtered.length"
           class="icon-btn"
           :aria-label="t('导出为 JSON')"
           :title="t('导出为 JSON')"
@@ -271,6 +287,7 @@ async function key(event: KeyboardEvent) {
                 <p>{{ t("代理仍在转发请求，只是不再记录。") }}</p>
                 <button
                   class="btn primary"
+                  :disabled="busy"
                   @click="run(() => host.setRecording(true))"
                 >
                   <Icon name="play" />{{ t(recordingAction) }}
@@ -290,7 +307,7 @@ async function key(event: KeyboardEvent) {
                   ><button
                     class="icon-btn"
                     :aria-label="t('复制命令')"
-                    @click="copy('curl', curl, t('命令'))"
+                    @click="copy('curl', curl)"
                   >
                     <Icon name="copy" />
                   </button>
@@ -336,9 +353,19 @@ async function key(event: KeyboardEvent) {
                     .filter(Boolean)
                     .join("　")
                 }}</span></template
-              ><span v-else class="meta">{{
-                detailError || `#${shell.selected} · ${t("正在读取…")}`
-              }}</span>
+              ><template v-else>
+                <span class="meta">{{
+                  detailError || `#${shell.selected} · ${t("正在读取…")}`
+                }}</span>
+                <button
+                  v-if="detailError"
+                  id="retry-detail"
+                  class="btn"
+                  @click="loadDetail"
+                >
+                  {{ t("重试") }}
+                </button>
+              </template>
             </div>
             <div class="panes inspectors">
               <Inspector

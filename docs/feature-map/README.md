@@ -9,7 +9,7 @@ aicat 的品牌定位是「你的通用 AI 连接工具」，采用模块化设�
 | 功能 | 用户想完成的事 | 当前入口 |
 | --- | --- | --- |
 | [桌面与偏好](desktop.md) | 打开或隐藏窗口，找到设置，切换语言和主题 | 导航栏（主页、设置）、快捷键、托盘 |
-| [扩展与导航固定](extensions.md) | 启停流量、Codex 与企业微信 BOT 扩展，固定常用入口 | 扩展 → 已安装；更多 |
+| [扩展与导航](extensions.md) | 启停流量、Codex 与企业微信 BOT 扩展，管理功能与配置 | 扩展 → 已启用；流量 |
 | [代理接入](proxy.md) | 让客户端经过 aicat，修改监听，接管或恢复系统代理 | 设置 → 代理；CLI `serve` |
 | [证书与 HTTPS 解密](https.md) | 信任、查看、导出或删除证书，选择需要解密的域名 | 设置 → 代理；CONNECT 详情 |
 | [查找流量](traffic-browse.md) | 实时查看、搜索、按域名/路径/应用筛选，固定域名 | 流量 → 侧边栏与请求列表 |
@@ -55,6 +55,7 @@ npm --prefix e2e ci
 | --- | --- |
 | 托盘菜单模型、采集对号与代理两态（无头） | `node e2e/tray.cjs bin/aicat-e2e build/feature-map-tray-<run>` |
 | 流量入口默认可用、采集默认暂停及手动采集 | `node e2e/traffic-default.cjs bin/aicat-e2e build/feature-map-traffic-default-<run>` |
+| 默认导航、无更多入口、旧固定配置与流量启停 | `node e2e/navigation.cjs bin/aicat-e2e build/navigation-<run>` |
 | 侧边栏顺序、中英文标签和 Domain 计数 | `node e2e/desktop.cjs bin/aicat-e2e build/feature-map-sidebar-<run> sidebar` |
 | 滚动后首次选中、右键、历史与筛选滚动重置 | `node e2e/desktop.cjs bin/aicat-e2e build/feature-map-list-selection-<run> list-selection` |
 | CONNECT 双栏及响应侧解密提示 | `node e2e/tunnel.cjs bin/aicat-e2e build/feature-map-tunnel-<run>` |
@@ -72,6 +73,8 @@ npm --prefix e2e ci
 `<run>` 换成本次运行的唯一名称。日常只验证受影响的流程；整组桌面包含设计稿比较，不应用它代替每个小流程的定向验证。`traffic-default.cjs` 与 `tunnel.cjs` 是无头浏览器与后台应用的独立入口；桌面脚本对 `traffic-default` 保留兼容转发，对旧 `tunnel` 参数在启动应用前退出并提示新命令。`desktop.cjs` 的独立原生场景有 `sidebar`、`app-tree`、`list-selection` 与 `icons`，其余功能文件中的配方用于定向操作，不能给脚本传入不存在的场景名。需要新增自动场景时先提供独立入口。全套 `make e2e` 留到整轮开发结束统一验收，默认仅运行后台场景并汇总报告，不包含原生窗口、真实授权和真实消息送达。
 
 企业微信客户端与微扑克的专属验收分别位于 [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local) 和 [aicat-wpk](https://github.com/fishioon/aicat-wpk)；在对应仓库执行 `npm run e2e -- --aicat ../aicat`。主仓库的完整后台验收只依赖主工程及合成渠道夹具。
+
+整轮后台验收统一使用 `make e2e`；指定组使用 `python3 e2e/prototype.py --background --scenarios <场景名...> --output build/acceptance-<run>`。新增场景包含 overview、connect、provider-lifecycle、provider-model-state、inspector-copy、proxy-settings、certificate、certificate-entries、traffic-browse、traffic-content、traffic-events、traffic-lifecycle、http-origins、agent-traffic、control-traffic、busy-state、desktop-shell、navigation、extension-details、ipv6-tunnel、app-tree 和 list-selection。后台场景不替代真实原生菜单、窗口和授权验收。
 
 ## 驱动约定
 
