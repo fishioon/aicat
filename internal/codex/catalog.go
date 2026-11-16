@@ -61,20 +61,53 @@ type level struct {
 // first `after`, filling what a provider's list leaves out from models.dev.
 func (h *Handler) entries(after int) []entry {
 	models := h.providers.ResponsesModels()
-	out := make([]entry, 0, len(models))
-	for i, m := range models {
-		var info struct {
-			Name    string
-			Context int
-			Efforts []string
-			Images  bool
+	type modelDetails struct {
+		Name    string
+		Context int
+		Efforts []string
+		Images  bool
+	}
+	details := make([]modelDetails, len(models))
+	names := make([]string, len(models))
+	supplemented := make([]bool, len(models))
+	owners := map[string]string{}
+	collisions := map[string]bool{}
+	claim := func(name, id string) {
+		if name == "" {
+			return
 		}
+		if owner, ok := owners[name]; ok && owner != id {
+			collisions[name] = true
+		}
+		owners[name] = id
+	}
+	for i, m := range models {
 		if h.catalog != nil {
 			if found, ok := h.catalog.Lookup(m.ID); ok {
-				info.Name, info.Context, info.Efforts, info.Images = found.Name, found.Context, found.Efforts, found.Images
+				details[i] = modelDetails{Name: found.Name, Context: found.Context, Efforts: found.Efforts, Images: found.Images}
 			}
 		}
-		name := firstOf(m.Name, info.Name, m.ID)
+		name := m.Name
+		if name == "" || name == m.ID {
+			name = firstOf(details[i].Name, m.ID)
+			supplemented[i] = true
+		}
+		names[i] = name
+	}
+	for i, m := range models {
+		id := m.Provider + "/" + m.ID
+		claim(id, id)
+		claim(names[i], id)
+	}
+	for i, m := range models {
+		if supplemented[i] && collisions[names[i]] {
+			names[i] = m.ID
+		}
+	}
+	out := make([]entry, 0, len(models))
+	for i, m := range models {
+		info := details[i]
+		name := names[i]
 		vendor := m.ProviderName
 		e := entry{
 			Slug: m.Provider + "/" + m.ID, DisplayName: name + " · " + vendor, Description: name + " (" + vendor + ") via aicat",
@@ -107,6 +140,19 @@ func (h *Handler) entries(after int) []entry {
 			e.DefaultEffort = &d
 		}
 		out = append(out, e)
+	}
+	counts := make(map[string]int, len(out))
+	for _, e := range out {
+		counts[e.DisplayName]++
+	}
+	for i, e := range out {
+		if counts[e.DisplayName] < 2 {
+			continue
+		}
+		m := models[i]
+		name := strings.TrimSuffix(e.DisplayName, " · "+m.ProviderName)
+		model := m.Provider + "/" + m.ID
+		out[i].DisplayName = name + " (" + model + ") · " + m.ProviderName
 	}
 	return out
 }

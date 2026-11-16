@@ -66,6 +66,11 @@ module.exports = async function verifyListSelection({
     assert(Math.abs(current.scrollTop - expected) <= 1);
   };
 
+  await page.locator("#traffic-follow-latest").uncheck();
+  await page.locator("#rows-viewport").evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await page.waitForFunction(() => window.trafficView.state().scrollTop === 0);
   await page.locator("#rows-viewport").hover();
   await page.mouse.wheel(0, 1500);
   await page.waitForFunction(
@@ -175,6 +180,7 @@ module.exports = async function verifyListSelection({
   await page.locator("#search").fill("/list-selection/099");
   await page.waitForFunction(() => window.trafficView.state().visible === 1);
   await expectPosition(0);
+  assert(!(await page.locator("#traffic-follow-latest").isChecked()));
   await page.locator("#search").fill("");
   const domain = page
     .locator('[data-group="domains"] .tree-item[data-path=""]')

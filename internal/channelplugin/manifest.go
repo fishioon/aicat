@@ -86,8 +86,8 @@ func inspectManifest(packageDir string, d Descriptor) (Manifest, string, error) 
 		m.Room.Mode = "conversation"
 		m.Room.Trigger.All = true
 	}
-	if m.Room.Automatic || m.Room.AllowOutbound {
-		return Manifest{}, "", errors.New("渠道模板不能自行开启自动处理或外发授权")
+	if m.Room.Automatic {
+		return Manifest{}, "", errors.New("渠道模板不能自行开启自动处理")
 	}
 	if err = m.Room.Validate(); err != nil {
 		return Manifest{}, "", err

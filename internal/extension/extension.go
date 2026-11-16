@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/fishioon/aicat/internal/agent"
 	"github.com/fishioon/aicat/internal/channelhost"
 	"github.com/fishioon/aicat/internal/channelplugin"
 	"github.com/fishioon/aicat/internal/messages"
@@ -53,10 +54,8 @@ type Extension struct {
 
 // Env is the core services an extension may use.
 type Env struct {
-	MCPReady    func() bool
-	MCPSend     func(context.Context, string, messages.Event) (messages.Receipt, error)
-	MCPSchedule messages.ScheduleCaller
 	Home        string
+	AgentRunner *agent.Runner
 	ChannelHost *channelhost.Manager
 	Providers   *provider.Store
 	// Forward is the model endpoint: a request sent through it goes to the

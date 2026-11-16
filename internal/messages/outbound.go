@@ -22,8 +22,17 @@ type deliveryLink struct {
 	RequestID string `json:"requestId"`
 }
 
+type MCPSender func(context.Context, string, Event) (Receipt, error)
+
 var outboundMu sync.Mutex
 var activeOutbound = map[string]bool{}
+
+func CheckRoomBinding(channel, source string, event Event) error {
+	if event.Subject != "" && event.Subject != roomID(channel, source, event.Data.RoomID) {
+		return errors.New("发送绑定的 Room 或账号已发生变化")
+	}
+	return nil
+}
 
 func readOutbound(file string) (outboundRecord, error) {
 	var record outboundRecord
@@ -39,11 +48,8 @@ func readOutbound(file string) (outboundRecord, error) {
 
 func Deliver(ctx context.Context, home, channel, source string, event Event, send MCPSender) (Receipt, error) {
 	m := event.Data
-	if event.SpecVersion != "1.0" || event.Type != SendRequested || event.ContentType != "application/json" || (event.Source != "aicat-agent://mcp" && event.Source != "aicat-ui://desktop") || event.ID == "" || len(event.ID) > 256 || m.Action != "send" || m.Type != "text" || strings.TrimSpace(m.Text.Content) == "" || len(m.Text.Content) > 256<<10 || !utf8.ValidString(m.Text.Content) || m.ID != "" || m.From != "" || m.Time != nil || m.AgentSnapshot != nil || m.Schedule != nil || m.ContextKey != "" || m.Outgoing || m.Delivery != nil || len(m.ReplyID) > 256 || len(m.ReplyTo) > 256 || m.RoomID == "" || len(m.RoomID) > 256 {
+	if event.SpecVersion != "1.0" || event.Type != SendRequested || event.ContentType != "application/json" || (event.Source != "aicat-agent://mcp" && event.Source != "aicat-ui://desktop") || event.ID == "" || len(event.ID) > 256 || m.Action != "send" || m.Type != "text" || strings.TrimSpace(m.Text.Content) == "" || len(m.Text.Content) > 256<<10 || !utf8.ValidString(m.Text.Content) || m.ID != "" || m.From != "" || m.Time != nil || m.AgentSnapshot != nil || m.Schedule != nil || m.ContextKey != "" || m.Outgoing || m.Delivery != nil || len(m.ReplyTo) > 256 || m.RoomID == "" || len(m.RoomID) > 256 {
 		return Receipt{}, errors.New("无效外发请求")
-	}
-	if err := CheckOutbound(ctx, home, channel, source, m.RoomID); err != nil {
-		return Receipt{}, err
 	}
 	dir := filepath.Join(home, "rooms", roomID(channel, source, m.RoomID))
 	file := filepath.Join(dir, "outbound", digest([]byte(event.ID))+".json")
@@ -81,39 +87,22 @@ func Deliver(ctx context.Context, home, channel, source string, event Event, sen
 		outboundMu.Unlock()
 		return Receipt{}, err
 	}
-	bodyID := event.ID
-	linked := m.ReplyID == ""
 	foundReference := m.ReplyTo == ""
 	for _, row := range rows {
 		if row.ID == m.ReplyTo && !row.Outgoing {
 			event.Data.ContextKey = row.ContextKey
 			foundReference = true
 		}
-		if m.ReplyID != "" && row.ID == m.ReplyID && row.Outgoing && row.Action == "publish" {
-			if row.Text.Content != m.Text.Content || (m.ReplyTo != "" && row.ReplyTo != m.ReplyTo) {
-				outboundMu.Unlock()
-				return Receipt{}, errors.New("外发正文与关联回复不一致")
-			}
-			event.Data.ReplyTo, event.Data.ContextKey = row.ReplyTo, row.ContextKey
-			bodyID, linked, foundReference = row.ID, true, true
-		}
 	}
-	if !linked || !foundReference {
-		id, outgoing := m.ReplyTo, false
-		if !linked {
-			id, outgoing = m.ReplyID, true
-		}
-		reference, exists, err := inbox.findMessage(ctx, source, m.RoomID, id, outgoing)
-		if err != nil || !exists || (outgoing && (reference.Action != "publish" || reference.Text.Content != m.Text.Content || (m.ReplyTo != "" && m.ReplyTo != reference.ReplyTo))) {
+	if !foundReference {
+		reference, exists, err := inbox.findMessage(ctx, source, m.RoomID, m.ReplyTo, false)
+		if err != nil || !exists {
 			outboundMu.Unlock()
-			return Receipt{}, errors.New("外发关联必须属于当前 Room，且正文和目标一致")
+			return Receipt{}, errors.New("reply_to 必须属于目标 Room")
 		}
 		event.Data.ContextKey = reference.ContextKey
-		if outgoing {
-			bodyID, event.Data.ReplyTo = reference.ID, reference.ReplyTo
-		}
 	}
-	index := filepath.Join(dir, "deliveries", digest([]byte(bodyID))+".json")
+	index := filepath.Join(dir, "deliveries", digest([]byte(event.ID))+".json")
 	if _, err = os.Stat(index); err == nil {
 		outboundMu.Unlock()
 		return Receipt{}, errors.New("该回复已经请求外发，请查看原发送记录")
@@ -121,8 +110,8 @@ func Deliver(ctx context.Context, home, channel, source string, event Event, sen
 		outboundMu.Unlock()
 		return Receipt{}, err
 	}
-	record = outboundRecord{Fingerprint: fingerprint, MessageID: bodyID, Receipt: Receipt{Delivery: Delivery{ID: event.ID, Source: event.Source, Status: "pending"}}}
-	if err = writeJSON(file, record); err == nil && m.ReplyID == "" {
+	record = outboundRecord{Fingerprint: fingerprint, MessageID: event.ID, Receipt: Receipt{Delivery: Delivery{ID: event.ID, Source: event.Source, Status: "pending"}}}
+	if err = writeJSON(file, record); err == nil {
 		_, err = inbox.rooms.append(source, "codex", event, "pending")
 	}
 	if err == nil {
@@ -138,7 +127,7 @@ func Deliver(ctx context.Context, home, channel, source string, event Event, sen
 	outboundMu.Unlock()
 	defer func() { outboundMu.Lock(); delete(activeOutbound, file); outboundMu.Unlock() }()
 	platformEvent := event
-	platformEvent.Data.ContextKey, platformEvent.Data.ReplyID = "", ""
+	platformEvent.Data.ContextKey = ""
 	receipt, sendErr := send(ctx, channel, platformEvent)
 	if sendErr != nil || receipt.Status != "sent" {
 		if receipt.Status != "failed" {

@@ -63,7 +63,7 @@ ul,ol{list-style:none}
 .num{font-family:var(--num);font-variant-numeric:tabular-nums;letter-spacing:.01em}
 code,.code{font-family:var(--code);font-size:var(--t12)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1;stroke-linecap:round;stroke-linejoin:round}
 
 /* 预览条：不属于产品界面 */
 .preview{width:100%;max-width:1240px;display:flex;align-items:center;gap:12px;padding:0 4px 12px;color:var(--ink-2);font-size:var(--t12)}
@@ -105,7 +105,7 @@ svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .copyline code{flex:1;min-width:0;overflow-wrap:anywhere;padding:8px 0;user-select:all}
 
 /* 窗口 */
-.win{width:100%;max-width:1240px;flex:1;min-height:0;max-height:820px;display:grid;grid-template-columns:52px minmax(0,1fr);grid-template-rows:44px minmax(0,1fr);background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r3);overflow:hidden;box-shadow:0 24px 48px -24px rgba(21,25,39,.3);position:relative}
+.win{width:100%;max-width:1240px;flex:1;min-height:0;max-height:820px;display:grid;grid-template-columns:44px minmax(0,1fr);grid-template-rows:44px minmax(0,1fr);background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r3);overflow:hidden;box-shadow:0 24px 48px -24px rgba(21,25,39,.3);position:relative}
 .bar{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:0 12px 0 16px;background:var(--chrome);border-bottom:1px solid var(--line);min-width:0}
 .lights{display:flex;gap:8px;flex:none} .lights i{width:12px;height:12px;border-radius:50%;background:var(--line-strong);opacity:.55}
 .hist{display:flex;gap:2px;flex:none;margin-left:4px}
@@ -116,11 +116,11 @@ svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .crumb span:first-child{flex:none}
 .crumb span:last-child{color:var(--ink);font-weight:600}
 .bar .grow{flex:1}
-.rail{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 0;background:var(--chrome);border-right:1px solid var(--line);min-height:0}
-.rail button{position:relative;display:grid;place-items:center;width:36px;height:36px;border:0;border-radius:var(--r2);background:none;color:var(--ink-3)}
+.rail{display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 0;background:var(--chrome);border-right:1px solid var(--line);min-height:0}
+.rail button{position:relative;display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:var(--r2);background:none;color:var(--ink-2)}
 .rail button svg{width:20px;height:20px}
-.rail button:hover{background:var(--hover);color:var(--ink)}
-.rail button[aria-current="page"]{background:var(--mark-soft);color:var(--mark-line)}
+.rail button:hover{background:var(--sunken);color:var(--ink)}
+.rail button[aria-current="page"]{background:var(--hover);color:var(--ink)}
 .rail .grow{flex:1}
 .addr{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 8px 0 10px;border:1px solid var(--line);border-radius:var(--r2);background:var(--surface);font-size:var(--t13);flex:none}
 .addr:hover{border-color:var(--line-strong)}
@@ -471,16 +471,24 @@ const ICON={
   plus:'<path d="M8 3v10M3 8h10"/>',
   x:'<path d="m4 4 8 8M12 4l-8 8"/>',
   home:'<path d="M2.5 7.5 8 3l5.5 4.5v5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1Z"/><path d="M6.5 13.5v-4h3v4"/>',
-  traffic:'<path d="M2.5 5.5h10M10 3l2.5 2.5L10 8M13.5 10.5h-10M6 8l-2.5 2.5L6 13"/>',
+  traffic:'<circle cx="8" cy="8" r="5.5"/><path d="M4.5 8h1.3l.9-2.2 2.2 4.4.9-2.2h1.5"/>',
   provider:'<path d="m8 1.5 6 3.25v6.5L8 14.5l-6-3.25v-6.5Z"/><path d="m2 4.75 6 3.5 6-3.5M8 8.25v6.25"/>',
   ext:'<rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/><path d="M11.25 2.5V7M9 4.75h4.5"/>',
   more:'<circle cx="3.5" cy="8" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="12.5" cy="8" r=".6"/>',
   settings:'<path d="M2.5 4.5h6M12.5 4.5h1M2.5 11.5h1M7.5 11.5h6"/><circle cx="10.5" cy="4.5" r="1.75"/><circle cx="5.5" cy="11.5" r="1.75"/>',
   pin:'<path d="M6 2.5h4l-.5 4 2 2.5h-7l2-2.5Z"/><path d="M8 9v4.5"/>',
-  gear:'<g transform="scale(.6667)" stroke-width="2.2"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></g>',
+  gear:'<g transform="scale(.6667)" stroke-width="1.5"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></g>',
   info:'<circle cx="8" cy="8" r="5.5"/><path d="M8 7.5v3.5M8 5.2v.1"/>'
 };
 const icon=n=>`<svg class="i" viewBox="0 0 16 16" aria-hidden="true">${ICON[n]}</svg>`;
+const NAV_ICON={
+  home:'<path d="M3 8.2 8.6 3.4a2.2 2.2 0 0 1 2.8 0L17 8.2v6.2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8.2Z"/><path d="M8 16.4v-3.7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3.7"/>',
+  messages:'<path d="M4.2 3.4h11.6a1.8 1.8 0 0 1 1.8 1.8v7.2a1.8 1.8 0 0 1-1.8 1.8H9.8l-3.9 2.5c-.6.38-1.4-.05-1.4-.77v-1.73H4.2a1.8 1.8 0 0 1-1.8-1.8V5.2a1.8 1.8 0 0 1 1.8-1.8Z"/>',
+  traffic:'<circle cx="10" cy="10" r="7"/><path d="M5.8 10h1.6l1.1-2.6 2.7 5.2 1.1-2.6h1.9"/>',
+  extensions:'<rect x="3.5" y="3.5" width="5.5" height="5.5" rx="1.5"/><rect x="11" y="3.5" width="5.5" height="5.5" rx="1.5"/><rect x="3.5" y="11" width="5.5" height="5.5" rx="1.5"/><rect x="11" y="11" width="5.5" height="5.5" rx="1.5"/>',
+  settings:'<path d="M3.2 6.5h8.1M14.7 6.5h2.1M3.2 13.5h2.1M8.7 13.5h8.1"/><circle cx="12.5" cy="6.5" r="2.1"/><circle cx="6.5" cy="13.5" r="2.1"/>'
+};
+const navIcon=n=>`<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_ICON[n]}</svg>`;
 
 /* ---------- 状态与演示数据 ---------- */
 const dark=matchMedia('(prefers-color-scheme: dark)');
@@ -567,7 +575,7 @@ function copy(text,what){
 const copyline=(text,what)=>`<div class="copyline"><code>${esc(text)}</code><button type="button" class="icon-btn" data-act="copy" data-text="${esc(text)}" aria-label="复制${esc(what)}">${icon('copy')}</button></div>`;
 const seg=(act,cur,opts,label)=>`<div class="seg" role="radiogroup" aria-label="${label}">${opts.map(([v,t])=>`<button type="button" role="radio" aria-checked="${v===cur}" data-act="${act}" data-v="${v}">${t}</button>`).join('')}</div>`;
 
-const MODS={overview:['主页','home'],traffic:['流量','traffic'],ext:['扩展','ext'],settings:['设置','settings']};
+const MODS={overview:['主页','home'],traffic:['流量','traffic'],ext:['扩展','extensions'],settings:['设置','settings']};
 // 前进后退只记录位置：模块、子页面和流量侧栏筛选。
 const H={list:[],at:-1};
 const loc=()=>JSON.stringify({page:S.page,connect:S.connect,set:S.set,ext:S.ext,filter:S.filter});
@@ -585,7 +593,7 @@ function crumbs(){
   return c;
 }
 function drawBar(){
-  const item=p=>`<button type="button" data-act="go" data-v="${p}" title="${MODS[p][0]}" aria-label="${MODS[p][0]}" ${S.page===p?'aria-current="page"':''}>${icon(MODS[p][1])}</button>`;
+  const item=p=>`<button type="button" data-act="go" data-v="${p}" title="${MODS[p][0]}" aria-label="${MODS[p][0]}" ${S.page===p?'aria-current="page"':''}>${navIcon(MODS[p][1])}</button>`;
   $('#rail').innerHTML=item('overview')+(S.trafficOn?item('traffic'):'')+item('ext')
     +'<span class="grow"></span>'+item('settings');
   $('#crumb').innerHTML=crumbs().map(t=>`<span>${esc(t)}</span>`).join(icon('chev'));

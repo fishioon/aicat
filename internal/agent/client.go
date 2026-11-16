@@ -7,7 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -43,9 +46,32 @@ type codexClient struct {
 	nextID  atomic.Uint64
 }
 
-func startCodexClient(binary, workspace string) (*codexClient, error) {
+func startCodexClient(binary, workspace, mcpURL, mcpTokenFile string) (*codexClient, error) {
 	args := []string{"app-server", "--stdio", "-c", `permissions.aicat-room={filesystem={":project_roots"="write",":root"="read",":tmpdir"="write",":slash_tmp"="write"},network={enabled=true}}`, "-c", `default_permissions="aicat-room"`}
+	env := os.Environ()
+	if mcpURL != "" {
+		token, err := os.ReadFile(mcpTokenFile)
+		if err != nil {
+			return nil, fmt.Errorf("read aicat MCP token: %w", err)
+		}
+		value := strings.TrimSpace(string(token))
+		if value == "" {
+			return nil, errors.New("aicat MCP token is empty")
+		}
+		args = append(args,
+			"-c", fmt.Sprintf("mcp_servers.aicat.url=%q", mcpURL),
+			"-c", `mcp_servers.aicat.bearer_token_env_var="AICAT_MCP_TOKEN"`,
+			"-c", `mcp_servers.aicat.default_tools_approval_mode="approve"`,
+		)
+		env = append(env, "AICAT_MCP_TOKEN="+value)
+	}
 	command := exec.Command(binary, args...)
+	if mcpURL != "" {
+		if pwd, err := filepath.Abs(workspace); err == nil {
+			env = append(env, "PWD="+pwd)
+		}
+		command.Env = env
+	}
 	command.Dir = workspace
 	command.Stdin = nil
 	command.Stderr = io.Discard

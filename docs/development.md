@@ -23,7 +23,7 @@
 
 `ui/src/app.css` 是唯一样式表，色板、字号、圆角和组件 class 取自设计稿（`--ink`、`--mark`、`--ok` 等变量与稿子同名），另含虚拟列表、对话框和分隔条。Vue 模板沿用稿子的 class，不引入改变视觉规范的组件库。纯图标按钮统一使用 `icon-btn` 居中，SVG 通过 `Icon.vue` 避免参与文字基线排版。页面不加载 CDN。变更设计稿时同步组件并复核浅深色截图。
 
-需要 Go 1.27.3+、Node.js 22.12+、npm 及 Bun 1.4.4。构建时用 AICAT_BUILD_BUN 或构建环境中的 bun 准备固定运行时；成品只执行应用内 Bun，不查系统 PATH。MyGo Go 模块和 CLI tool 固定为同一提交；UI 依赖由 `ui/package-lock.json` 锁定。TypeScript 使用与当前 vue-tsc 兼容的 5.9 系列。
+需要 Go 1.27.3+、Node.js 22.12+、npm 及 Bun 1.4.4；`make app` 还需要带 `actool` 的 Xcode 26+。构建时用 AICAT_BUILD_BUN 或构建环境中的 bun 准备固定运行时；成品只执行应用内 Bun，不查系统 PATH。MyGo Go 模块和 CLI tool 固定为同一提交；UI 依赖由 `ui/package-lock.json` 锁定。TypeScript 使用与当前 vue-tsc 兼容的 5.9 系列。
 
 | 命令 | 产物与行为 |
 | --- | --- |
@@ -32,6 +32,7 @@
 | `make build` | 生产桌面入口 `bin/aicat`，不含自动化插件或 HTTP 预览 |
 | `make cli` | `-tags nogui` 的 `bin/aicat-cli`，无需前端依赖 |
 | `make app` | 未签名的 `build/desktop/aicat.app` |
+| `make app-icon` | 从 `build/darwin/aicat.icon` 生成新版 `Assets.car` 与兼容用 `aicat.icns` |
 | `make run` | 构建前端、内置渠道资源和 bin/aicat-dev 后运行开发桌面入口 |
 | `make tray-icons` | 从 `assets/logo.svg` 生成原始卷尾、30% 卷曲端点及统一画布的 25 帧 PNG 图集；原生托盘以模板图着色 |
 | `make verify` | 格式、类型检查、vet、已有 Go 检查、release 构建、app 打包、CLI smoke 及构建验收 |

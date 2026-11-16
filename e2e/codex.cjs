@@ -307,6 +307,11 @@ function collect(resolve) {
               limit: { context: 400000, input: 272000, output: 128000 },
               modalities: { input: ["text", "image"], output: ["text"] },
             },
+            "chat-only": {
+              name: "Good Model",
+              limit: { context: 200000, input: 128000, output: 64000 },
+              modalities: { input: ["text"], output: ["text"] },
+            },
           },
         },
       }),
@@ -534,7 +539,7 @@ function collect(resolve) {
     );
     const good = listed[1],
       vision = listed[3];
-    assert.equal(good.display_name, "Good Model · Compat");
+    assert.equal(good.display_name, "good-model · Compat");
     assert.equal(good.context_window, 272000);
     assert.deepEqual(
       good.supported_reasoning_levels.map((l) => l.effort),
@@ -543,6 +548,7 @@ function collect(resolve) {
     assert.equal(good.default_reasoning_level, "medium");
     assert.deepEqual(good.input_modalities, ["text", "image"]);
     assert(good.base_instructions.startsWith("You are Codex"));
+    assert.equal(listed[2].display_name, "chat-only · Compat");
     assert.equal(vision.display_name, "Vision X · Compat");
     assert.equal(vision.context_window, 64000);
     assert.equal(vision.default_reasoning_level, null);

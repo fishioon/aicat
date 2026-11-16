@@ -45,7 +45,7 @@ func (c *Channel) PrepareRooms() error {
 	if err != nil {
 		return err
 	}
-	if err = c.inbox.MigrateRooms(c.source(account.AccountID), previous, c.CanSend()); err != nil {
+	if err = c.inbox.MigrateRooms(c.source(account.AccountID), previous); err != nil {
 		return err
 	}
 	values, err := config.ReadExtension(c.home, c.id)
@@ -74,7 +74,7 @@ func (c *Channel) CanSend() bool {
 	return true
 }
 
-func (s *Inbox) MigrateRooms(source string, previous channelconfig.Settings, canSend bool) error {
+func (s *Inbox) MigrateRooms(source string, previous channelconfig.Settings) error {
 	if err := config.MigrateCodexBinary(s.rooms.home, previous.Agent.Binary); err != nil {
 		return err
 	}
@@ -90,7 +90,6 @@ func (s *Inbox) MigrateRooms(source string, previous channelconfig.Settings, can
 			settings := s.rooms.defaults
 			settings.SendTarget = target
 			settings.Automatic = previous.Agent.Enabled
-			settings.AllowOutbound = previous.Agent.Enabled && canSend
 			if trigger, exists := previous.Local.Triggers[conversation]; exists {
 				settings.Trigger = config.RoomTrigger{All: trigger.All, Direct: trigger.Direct, Mention: trigger.Mention, MentionAll: trigger.MentionAll, Keywords: trigger.Keywords}
 			}
@@ -145,12 +144,10 @@ func (s *Inbox) MigrateRooms(source string, previous channelconfig.Settings, can
 		}
 		settings := s.rooms.defaults
 		settings.Automatic = previous.Agent.Enabled
-		settings.AllowOutbound = previous.Agent.Enabled && previous.Local == nil && canSend
 		if previous.Local != nil {
 			settings.SendTarget = previous.Local.ReplyRooms[message.RoomID]
 			_, configured := previous.Local.ReplyRooms[message.RoomID]
 			settings.Automatic = previous.Agent.Enabled && configured
-			settings.AllowOutbound = settings.Automatic
 			if trigger, exists := previous.Local.Triggers[message.RoomID]; exists {
 				settings.Trigger = config.RoomTrigger{All: trigger.All, Direct: trigger.Direct, Mention: trigger.Mention, MentionAll: trigger.MentionAll, Keywords: trigger.Keywords}
 			}

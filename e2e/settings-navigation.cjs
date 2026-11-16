@@ -265,7 +265,7 @@ async function main() {
           "false",
         );
         const after = await page.locator("#traffic-page").boundingBox();
-        assert.equal(after.x, 52);
+        assert.equal(after.x, 44);
         assert.equal(after.width - before.width, 224);
         await page.screenshot({
           path: path.join(root, `traffic-collapsed-${theme}-${width}.png`),

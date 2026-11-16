@@ -12,26 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/fishioon/aicat/internal/messages"
 )
-
-func Send(ctx context.Context, home, address, channel string, event messages.Event) (messages.Receipt, error) {
-	tool := "messages_send"
-	if event.Type == messages.ReplyPublished {
-		tool = "rooms_reply"
-	}
-	args, _ := json.Marshal(map[string]any{"channel": channel, "event": event})
-	payload, err := Call(ctx, home, address, tool, args)
-	if err != nil {
-		return messages.Receipt{}, err
-	}
-	var receipt messages.Receipt
-	if json.Unmarshal(payload, &receipt) != nil || receipt.ID != event.ID || receipt.Source != event.Source || (receipt.Status != "sent" && receipt.Status != "unknown" && receipt.Status != "pending" && receipt.Status != "saved" && receipt.Status != "failed") {
-		return messages.Receipt{}, errors.New("MCP 未返回匹配的发送回执")
-	}
-	return receipt, nil
-}
 
 func Call(ctx context.Context, home, address, tool string, args json.RawMessage) (json.RawMessage, error) {
 	token, err := os.ReadFile(filepath.Join(home, "mcp-token"))

@@ -2,8 +2,8 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"github.com/fishioon/aicat/internal/agent"
 	"github.com/fishioon/aicat/internal/certificate"
 	"github.com/fishioon/aicat/internal/channelhost"
 	"github.com/fishioon/aicat/internal/config"
@@ -13,7 +13,6 @@ import (
 	capture "github.com/fishioon/aicat/internal/gateway/addons/traffic"
 	"github.com/fishioon/aicat/internal/listenaddr"
 	"github.com/fishioon/aicat/internal/mcpserver"
-	"github.com/fishioon/aicat/internal/messages"
 	"github.com/fishioon/aicat/internal/provider"
 	"github.com/fishioon/aicat/internal/scheduler"
 	"github.com/fishioon/aicat/internal/systemproxy"
@@ -50,6 +49,7 @@ type runtime struct {
 	providers             *provider.Store
 	usage                 *usage.Store
 	extensions            *extension.Host
+	messageRunner         *agent.Runner
 	schedulerDone         chan struct{}
 }
 
@@ -107,30 +107,16 @@ func start(ctx context.Context, o Options) (result *runtime, startErr error) {
 	endpoints.Handle(usage.Path, usage.Handler(calls, providers.Name))
 	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	var gw *gateway.Gateway
-	sendMCP := func(ctx context.Context, channel string, event messages.Event) (messages.Receipt, error) {
-		if gw == nil {
-			return messages.Receipt{}, errors.New("MCP 网关尚未就绪")
-		}
-		return mcpserver.Send(ctx, o.Home, listenaddr.ClientAddress(gw.Status().Addr), channel, event)
+	if _, err = mcpserver.Token(o.Home); err != nil {
+		cancel()
+		service.Close()
+		calls.Close()
+		return nil, err
 	}
-	scheduleMCP := func(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
-		if gw == nil {
-			return nil, errors.New("MCP 网关尚未就绪")
-		}
-		return mcpserver.Call(ctx, o.Home, listenaddr.ClientAddress(gw.Status().Addr), name, args)
-	}
-	extensions, err := extension.New(runCtx, extension.Env{Home: o.Home, MCPSend: sendMCP, MCPSchedule: scheduleMCP, MCPReady: func() bool {
-		if gw == nil {
-			return false
-		}
-		select {
-		case <-gw.Ready():
-			return true
-		default:
-			return false
-		}
-	}, ChannelHost: channelhost.New(o.Home), Providers: providers, Forward: models, Recorder: service.Recorder(), Recording: addon.Recording}, builtins)
+	messageRunner := agent.NewWithMCP(agent.Options{MCPURL: "http://" + listenaddr.ClientAddress(cfg.Gateway.Addr) + "/mcp", MCPTokenFile: filepath.Join(o.Home, "mcp-token")})
+	extensions, err := extension.New(runCtx, extension.Env{Home: o.Home, AgentRunner: messageRunner, ChannelHost: channelhost.New(o.Home), Providers: providers, Forward: models, Recorder: service.Recorder(), Recording: addon.Recording}, builtins)
 	if err != nil {
+		messageRunner.Close()
 		cancel()
 		service.Close()
 		calls.Close()
@@ -139,12 +125,13 @@ func start(ctx context.Context, o Options) (result *runtime, startErr error) {
 	extensions.Mount(endpoints)
 	schedules, err := scheduler.Open(o.Home, extensions.CheckScheduledRoom, extensions.DeliverScheduled)
 	if err != nil {
+		messageRunner.Close()
 		cancel()
 		service.Close()
 		calls.Close()
 		return nil, err
 	}
-	tools, toolsErr := mcpserver.New(o.Home, service, extensions.SendMessage, schedules)
+	tools, toolsErr := mcpserver.New(o.Home, service, extensions, schedules)
 	if toolsErr != nil {
 		slog.Warn("MCP unavailable", "err", toolsErr)
 		tools = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -163,12 +150,13 @@ func start(ctx context.Context, o Options) (result *runtime, startErr error) {
 		return append(append([]proxy.Addon{api.New(address, endpoints)}, extensions.Addons()...), addon)
 	}})
 	if err != nil {
+		messageRunner.Close()
 		cancel()
 		service.Close()
 		calls.Close()
 		return nil, err
 	}
-	r := &runtime{closeLog: closeLog, traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.ExtensionEnabled("traffic"), initialRecording: cfg.Traffic.Recording, providers: providers, usage: calls, extensions: extensions}
+	r := &runtime{closeLog: closeLog, traffic: service, gateway: gw, capture: addon, cancel: cancel, done: make(chan struct{}), home: o.Home, interception: policy, initialTrafficEnabled: cfg.ExtensionEnabled("traffic"), initialRecording: cfg.Traffic.Recording, providers: providers, usage: calls, extensions: extensions, messageRunner: messageRunner}
 	for id, section := range cfg.Extensions {
 		if known, _ := extensions.Known(id); known && section.Enabled {
 			_ = extensions.Set(id, true)
@@ -212,6 +200,7 @@ func (r *runtime) close() error {
 	<-r.done
 	<-r.schedulerDone
 	r.extensions.Close()
+	r.messageRunner.Close()
 	err := r.err
 	// Socket teardown terminates flow callbacks before releasing traffic storage.
 	drained := make(chan struct{})

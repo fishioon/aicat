@@ -36,6 +36,7 @@ import {
 } from "../state/traffic";
 import { dot, status, type, duration, size, reasons } from "../state/format";
 import { host } from "../host";
+import { useFollowLatest } from "../state/follow-latest";
 import { t } from "../i18n";
 import Icon from "./Icon.vue";
 import Inspector from "./Inspector.vue";
@@ -53,6 +54,10 @@ const recordingAction = computed(() =>
 );
 const viewport = ref<HTMLElement>();
 const viewportHeight = ref(340);
+const follow = useFollowLatest(viewport, filtered, () => {
+  traffic.scrollTop = viewport.value?.scrollTop ?? 0;
+  viewportHeight.value = viewport.value?.clientHeight ?? 0;
+});
 const listHeight = ref(45),
   requestWidth = ref(50);
 const first = computed(() =>
@@ -65,11 +70,8 @@ const visible = computed(() =>
   ),
 );
 let started = performance.now();
-function scroll() {
-  traffic.scrollTop = viewport.value?.scrollTop ?? 0;
-}
 function resetScroll() {
-  if (viewport.value) viewport.value.scrollTop = 0;
+  follow.resetPosition();
   traffic.scrollTop = 0;
 }
 // Selecting a request records history without changing the list's position.
@@ -77,13 +79,8 @@ watch(
   () => [shell.route, shell.query, shell.host, shell.path, shell.app],
   resetScroll,
 );
-let observer: ResizeObserver;
 let stop: () => void;
 onMounted(() => {
-  observer = new ResizeObserver(() => {
-    viewportHeight.value = viewport.value?.clientHeight ?? 0;
-  });
-  observer.observe(viewport.value!);
   stop = startTraffic();
 });
 onUpdated(() => {
@@ -95,7 +92,6 @@ onBeforeUpdate(() => {
   started = performance.now();
 });
 onUnmounted(() => {
-  observer?.disconnect();
   stop?.();
 });
 
@@ -212,7 +208,7 @@ async function key(event: KeyboardEvent) {
             tabindex="0"
             role="grid"
             :aria-label="t('流量列表')"
-            @scroll.passive="scroll"
+            @scroll.passive="follow.scroll"
             @keydown="key"
           >
             <div
@@ -414,6 +410,14 @@ async function key(event: KeyboardEvent) {
           ></span
         >
         <span class="grow"></span>
+        <label class="follow-latest">
+          <input
+            id="traffic-follow-latest"
+            type="checkbox"
+            :checked="follow.following.value"
+            @change="follow.toggle"
+          />{{ t("跟随最新") }}
+        </label>
         <span id="selection">{{
           shell.selected
             ? t("Esc 取消选择")

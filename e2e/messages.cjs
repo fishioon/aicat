@@ -24,6 +24,13 @@ const report = {
       binary,
       "ui/src/components/MessagesPage.vue",
       "ui/src/components/RoomSettings.vue",
+      "ui/src/components/RoomAvatar.vue",
+      "ui/index.html",
+      "internal/messages/presentation.go",
+      "internal/messages/catalog.go",
+      "runtime/channel-host/native.mjs",
+      "e2e/message-presentation.cjs",
+      "ui/src/state/follow-latest.ts",
       "ui/src/app.css",
       "internal/messages/issues.go",
       "e2e/messages.cjs",
@@ -207,7 +214,7 @@ async function screenshot(name) {
     );
     fs.writeFileSync(
       path.join(pkg, "index.mjs"),
-      `import fs from 'node:fs';import path from 'node:path';export function createChannel(api){return {open(){return {}},close(){},async observe(event){for(const message of event.query.messages || (event.query.message?[event.query.message]:[]))await api.publish(message);return {}},send(event){fs.appendFileSync(path.join(api.stateDirectory,'sent.jsonl'),JSON.stringify(event)+'\\n');if(event.data.text.content.includes('uncertain'))throw Error('PLATFORM_UNCERTAIN');return {confirmation:'fixture_platform',chatId:event.data.roomid}}}}`,
+      `import fs from 'node:fs';import path from 'node:path';export function createChannel(api){return {open(){return {}},close(){},async observe(event){if(event.query.presentation)await api.updateRoom(event.query.presentation);for(const message of event.query.messages || (event.query.message?[event.query.message]:[]))await api.publish(message);return {}},send(event){fs.appendFileSync(path.join(api.stateDirectory,'sent.jsonl'),JSON.stringify(event)+'\\n');if(event.data.text.content.includes('uncertain'))throw Error('PLATFORM_UNCERTAIN');return {confirmation:'fixture_platform',chatId:event.data.roomid}}}}`,
     );
     const tgz = path.join(root, "channel.tgz");
     execFileSync("tar", ["-czf", tgz, "-C", root, "package"]);
@@ -312,12 +319,34 @@ async function screenshot(name) {
       async () =>
         (await rpc("State")).messageChannels[channel].phase === "connected",
     );
+    if (process.argv[4] === "presentation") {
+      await require("./message-presentation.cjs")({ page, rpc, emit, room, openRoom, configure, screenshot, check, wait, channel, home, start, stop, preview: () => preview });
+      assert.deepEqual(report.pageErrors, []);
+      report.passed = true;
+      return;
+    }
+    if (process.argv[4] === "follow-latest") {
+      await require("./follow-messages.cjs")({
+        page,
+        rpc,
+        emit,
+        room,
+        openRoom,
+        configure,
+        screenshot,
+        check,
+        wait,
+        channel,
+      });
+      assert.deepEqual(report.pageErrors, []);
+      report.passed = true;
+      return;
+    }
     for (const id of ["orders", "notice", "table", "failed"])
       await emit(id, "seed-" + id, "会话已接入", { historical: true });
     await configure("orders", {
       name: "订单协作群",
       automatic: true,
-      allowOutbound: true,
       model: "room-a",
     });
     await emit("orders", "paid", "订单已支付，请核对。");
@@ -333,7 +362,6 @@ async function screenshot(name) {
     await configure("notice", {
       name: "项目通知",
       automatic: true,
-      allowOutbound: true,
       model: "room-a",
     });
     await emit("notice", "uncertain", "send:uncertain platform");
@@ -389,7 +417,11 @@ async function screenshot(name) {
       d = await room("failed");
     check(
       "real ingress, Agent dispatch, authenticated MCP publication and authorized platform sending remain intact",
-      a.messages.some((m) => m.reply_to === "paid") && sent().length === 2,
+      a.messages.some((m) => m.reply_to === "paid") &&
+        sent().some((entry) => entry.data.text.content === "MCP reply paid") &&
+        sent().some(
+          (entry) => entry.data.text.content === "MCP reply send-confirmed",
+        ),
     );
     const oldRead = path.join(home, "rooms", b.id, "read.json");
     fs.writeFileSync(oldRead, "obsolete and malformed reading marker");
@@ -457,6 +489,7 @@ async function screenshot(name) {
     check(
       "conversation search, native shell and canonical reply avatars match the approved design",
     );
+    const sentBeforeIssues = sent().length;
     await page.locator("#room-filter-issues").click();
     await wait(
       async () => (await page.locator("[data-room-id]").count()) === 2,
@@ -475,7 +508,7 @@ async function screenshot(name) {
     await wait(
       async () => (await page.locator("[data-room-id]").count()) === 2,
     );
-    assert.equal(sent().length, 2);
+    assert.equal(sent().length, sentBeforeIssues);
     assert.equal(fs.statSync(oldRead).mtimeMs, oldTime);
     assert.equal(
       fs.existsSync(path.join(home, "rooms", a.id, "read.json")),
@@ -659,6 +692,7 @@ async function screenshot(name) {
         !retained.messages.some((m) => m.delivery) &&
         retained.issues.some((issue) => issue.status === "unknown"),
     );
+    const sentBeforeRestart = sent().length;
     await stop();
     await start();
     await wait(
@@ -669,7 +703,7 @@ async function screenshot(name) {
     assert(restarted.issues.some((issue) => issue.status === "unknown"));
     assert.equal((await room("failed")).tasks.length, 0);
     assert.equal((await room("orders")).settings.model, "room-b");
-    assert.equal(sent().length, 2);
+    assert.equal(sent().length, sentBeforeRestart);
     await page.goto(preview);
     await page.waitForFunction(() => !!window.desktop?.state());
     await page.locator("#nav-messages").click();

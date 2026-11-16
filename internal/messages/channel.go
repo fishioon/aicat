@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fishioon/aicat/internal/agent"
 	"github.com/fishioon/aicat/internal/channelhost"
 	"github.com/fishioon/aicat/internal/channelplugin"
 )
@@ -25,10 +26,9 @@ type Channel struct {
 	onChange           func()
 	dispatcher         *Dispatcher
 	rooms              *roomStore
+	runner             *agent.Runner
 	failures           chan channelFailure
 	inbox              *Inbox
-	mcp                MCPSender
-	schedule           ScheduleCaller
 	manifest           *channelplugin.Manifest
 	observations       chan any
 }
@@ -255,6 +255,13 @@ func (c *Channel) receive(source string, raw json.RawMessage) (any, error) {
 	if len(raw) > 256<<10 || json.Unmarshal(raw, &event) != nil || event.Source != source {
 		return nil, errors.New("无效渠道消息")
 	}
+	if event.Type == PresentationUpdated {
+		if err := c.inbox.updatePresentation(source, raw); err != nil {
+			return nil, err
+		}
+		c.changed()
+		return map[string]string{"source": source, "id": event.ID, "status": "accepted"}, nil
+	}
 	record, err := c.Receive(context.Background(), event)
 	if err != nil {
 		c.mu.Lock()
@@ -381,6 +388,4 @@ func (c *Channel) Validate(ctx context.Context) error {
 	return nil
 }
 
-func (c *Channel) SetMCPSender(send MCPSender) { c.mcp = send }
-
-func (c *Channel) SetScheduleCaller(call ScheduleCaller) { c.schedule = call }
+func (c *Channel) SetRunner(runner *agent.Runner) { c.runner = runner }

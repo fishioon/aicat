@@ -64,6 +64,33 @@ func (h *Host) ReceiveMessage(ctx context.Context, id string, event messages.Eve
 	}
 	return receiver.Receive(ctx, event)
 }
+
+func (h *Host) SendRoomMessage(ctx context.Context, targetRoomID, text, replyTo, requestID string) (messages.Receipt, error) {
+	room, err := messages.RoomIdentityByID(h.home, targetRoomID)
+	if err != nil {
+		return messages.Receipt{}, err
+	}
+	if requestID == "" {
+		requestID = messages.NewEventID()
+	}
+	event := messages.Event{
+		Subject:     targetRoomID,
+		SpecVersion: "1.0",
+		ID:          requestID,
+		Source:      "aicat-agent://mcp",
+		Type:        messages.SendRequested,
+		ContentType: "application/json",
+		Data: messages.Message{
+			Action:  "send",
+			RoomID:  room.Conversation,
+			ReplyTo: replyTo,
+			Type:    "text",
+			Text:    messages.Text{Content: text},
+		},
+	}
+	return h.SendMessage(ctx, room.Channel, event)
+}
+
 func (h *Host) ReadRoom(ctx context.Context, id, room string) (map[string]any, error) {
 	it := h.find(id)
 	if it == nil {

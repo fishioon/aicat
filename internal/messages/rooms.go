@@ -36,9 +36,9 @@ func (s *roomStore) append(source, botID string, event Event, status string) (Re
 	if err := s.register(source, event.Data.RoomID, record.RecordedAt); err != nil {
 		return Record{}, err
 	}
-	if event.Type == Received || event.Type == ReplyPublished || event.Type == SendRequested {
+	if event.Type == Received || event.Type == SendRequested {
 		message := event.Data
-		if event.Type == SendRequested || event.Type == ReplyPublished {
+		if event.Type == SendRequested {
 			message.ID, message.From, message.ToList = event.ID, botID, []string{message.RoomID}
 			message.Outgoing = true
 			stamp := time.Now().UnixMilli()

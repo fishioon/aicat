@@ -14,18 +14,18 @@ import (
 )
 
 type SetInput struct {
-	RoomID   string              `json:"room_id"`
-	ID       string              `json:"id"`
-	Schedule config.ScheduleSpec `json:"schedule"`
+	RoomID   string              `json:"room_id" jsonschema:"Stable aicat Room ID returned by rooms_list."`
+	ID       string              `json:"id" jsonschema:"Stable schedule ID using lowercase letters, digits, underscore or hyphen."`
+	Schedule config.ScheduleSpec `json:"schedule" jsonschema:"Schedule definition. Set exactly one of at or cron."`
 }
 
 type RoomInput struct {
-	RoomID string `json:"room_id"`
+	RoomID string `json:"room_id" jsonschema:"Stable aicat Room ID returned by rooms_list."`
 }
 
 type DeleteInput struct {
-	RoomID string `json:"room_id"`
-	ID     string `json:"id"`
+	RoomID string `json:"room_id" jsonschema:"Stable aicat Room ID returned by rooms_list."`
+	ID     string `json:"id" jsonschema:"Schedule ID to delete."`
 }
 
 type Occurrence struct {

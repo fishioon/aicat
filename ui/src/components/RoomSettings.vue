@@ -226,25 +226,6 @@ defineExpose({ dirty, saving });
           ></textarea>
         </details>
       </fieldset>
-      <fieldset class="room-setting-section">
-        <legend>{{ t("外发授权") }}</legend>
-        <label class="room-check-row">
-          <span>{{ t("允许向外部会话发送消息") }}</span>
-          <input
-            id="room-outbound"
-            type="checkbox"
-            v-model="draft.allowOutbound"
-            :disabled="!channel?.canSend"
-          />
-        </label>
-        <p class="room-help">
-          {{
-            channel?.canSend
-              ? t("自动处理与外发授权独立。设置修改从下一次任务生效。")
-              : t("此渠道的回复仅在 Room 展示，不向外部平台发送。")
-          }}
-        </p>
-      </fieldset>
     </div>
     <footer class="room-panel-footer">
       <button

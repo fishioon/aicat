@@ -43,9 +43,11 @@ Room 默认模板可以描述业务 prompt、上下文及处理模式，但不�
 
 ## 宿主协议
 
-每渠道独立 Bun 进程和 state/<channel>，通过 stdio JSONL 的 channel_open/close/send/observe、channel_status 与 message_push 交接；凭据通过 stdin，session 与 source 由 Go 绑定。createChannel(api) 返回 open、close 与可选 send/observe。api 包含 configuration、stateDirectory、signal、status、publish 及已声明的 native context。
+每渠道独立 Bun 进程和 state/<channel>，通过 stdio JSONL 的 channel_open/close/send/observe、channel_status 与 message_push 交接；凭据通过 stdin，session 与 source 由 Go 绑定。createChannel(api) 返回 open、close 与可选 send/observe。api 包含 configuration、stateDirectory、signal、status、publish、updateRoom 及已声明的 native context。
 
 publish 先进入宿主持久待确认队列，实际 Room fsync 确认后 Promise 才完成。失败保留队列，重启重推；账号和来源变化不能重推到另一账号。单事件最多 256 KiB，待确认队列最多 32 MiB；协议帧有上限，进程独占锁防止并发宿主覆盖状态。插件控制采集游标，但不能自己写 Room 或创建 Agent。
+
+`updateRoom` 通过相同队列提交会话名称、头像、类型和成员展示信息，独立于 `publish` 的聊天消息；不触发 Agent，不覆盖用户设置。数据字段与持久化语义见[消息接入规范](message-ingress-standard.md)。
 
 ## 能力
 

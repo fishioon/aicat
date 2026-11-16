@@ -5,7 +5,8 @@
 <key>CFBundleDisplayName</key><string>aicat</string>
 <key>CFBundleIdentifier</key><string>ai.netcat.aicat</string>
 <key>CFBundleExecutable</key><string>aicat</string>
-<key>CFBundleIconFile</key><string>aicat.icns</string>
+<key>CFBundleIconFile</key><string>aicat</string>
+<key>CFBundleIconName</key><string>aicat</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>@VERSION@</string>
 <key>CFBundleVersion</key><string>@VERSION@</string>

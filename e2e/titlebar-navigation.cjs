@@ -94,7 +94,7 @@ async function main() {
             .boundingBox();
           const controls = await page.locator("#sidebar-toggle").boundingBox();
           assert.equal(expanded.x, content.x);
-          assert.equal(content.x, 276);
+          assert.equal(content.x, 268);
           await page.locator("#sidebar-toggle").click();
           await side.waitFor({ state: "hidden" });
           const collapsed = await page.locator("#breadcrumb").boundingBox();
@@ -103,7 +103,7 @@ async function main() {
             .boundingBox();
           assert(collapsed.x < expanded.x);
           assert(collapsed.x >= controls.x + controls.width + 12);
-          assert.equal(collapsedContent.x, 52);
+          assert.equal(collapsedContent.x, 44);
           assert.deepEqual(
             await page.locator("#sidebar-toggle").boundingBox(),
             controls,

@@ -8,7 +8,7 @@
 */
 :root {
   color-scheme: light;
-  --rail-width: 52px;
+  --rail-width: 44px;
   --sidebar-width: 224px;
   --chrome: #f6f6f7;
   --surface: #ffffff;
@@ -417,7 +417,7 @@ select.field {
   color: var(--ink-2);
 }
 
-/* Window skeleton: 44px title bar, 52px rail, module sidebar, main. */
+/* Window skeleton: 44px title bar, 44px rail, module sidebar, main. */
 .titlebar {
   position: fixed;
   inset: 0 0 auto;
@@ -515,7 +515,7 @@ select.field {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 10px;
   padding: 12px 0;
   background: var(--chrome);
   border-right: 1px solid var(--line);
@@ -524,27 +524,24 @@ select.field {
 .rail button {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 0;
   border-radius: var(--r2);
   background: none;
-  color: var(--ink-3);
-}
-.rail button .icon {
-  width: 20px;
-  height: 20px;
+  color: var(--ink-2);
 }
 .rail button:hover {
-  background: var(--hover);
+  background: var(--sunken);
   color: var(--ink);
 }
 .rail button[aria-current="page"] {
-  background: var(--mark-soft);
-  color: var(--mark-line);
+  background: var(--hover);
+  color: var(--ink);
 }
 .page {
+  position: relative;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
@@ -653,6 +650,16 @@ select.field {
   height: 100%;
   border-radius: inherit;
   background: #f5f2ed;
+  object-fit: cover;
+}
+.room-avatar-group {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+}
+.room-avatar-group img {
+  border-radius: 0;
 }
 .room-item-copy {
   flex: 1;
@@ -869,6 +876,13 @@ select.field {
 }
 .room-records-footer .link {
   color: var(--ink-3);
+}
+.follow-latest {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
 }
 .room-panel-shade {
   position: absolute;
@@ -1283,22 +1297,6 @@ select.field {
   height: 16px;
 }
 
-.app-brand {
-  display: grid;
-  gap: 4px;
-}
-.app-brand h2 {
-  font-size: var(--t20);
-  font-weight: 600;
-}
-.app-brand p {
-  color: var(--ink-2);
-}
-.app-brand [data-brand="inspiration"] {
-  color: var(--ink-3);
-  font-size: var(--t12);
-}
-
 /* Overview */
 .ov {
   max-width: 1080px;
@@ -1309,7 +1307,6 @@ select.field {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-top: 24px;
 }
 .ov-head h1 {
   display: flex;
@@ -2365,6 +2362,8 @@ pre.body {
   background: var(--chrome);
 }
 .splitter {
+  touch-action: none;
+  user-select: none;
   flex: none;
   position: relative;
   z-index: 2;
@@ -2392,6 +2391,13 @@ pre.body {
 .splitter:focus-visible {
   background: var(--mark-line);
   outline: none;
+}
+
+.splitter.sidebar-splitter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sidebar-width) - 1px);
 }
 
 /* Extensions */

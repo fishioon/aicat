@@ -29,7 +29,7 @@ aicat 在你自己的机器上连接 Agent、模型、工具与消息渠道，�
 
 ## 构建与运行
 
-构建需要 Go 1.27.3+、Node.js 22.12+、npm 和 Bun 1.4.4。构建流程将 Bun、渠道宿主和锁定依赖一起打包，用户运行 app 不需要自行准备 Bun。构建时可用 AICAT_BUILD_BUN 指定 Bun 二进制。
+构建需要 Go 1.27.3+、Node.js 22.12+、npm 和 Bun 1.4.4；构建 app 还需要带 `actool` 的 Xcode 26+。构建流程将 Bun、渠道宿主和锁定依赖一起打包，用户运行 app 不需要自行准备 Bun。构建时可用 AICAT_BUILD_BUN 指定 Bun 二进制。
 
 ```sh
 make build

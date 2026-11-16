@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import plistlib
 import socket
 import subprocess
 import tempfile
@@ -81,6 +82,20 @@ state.certificate.Trusted;
         assert not (runtime / 'packages.json').exists()
         assert not list(bundle.rglob('*.tgz')), 'NPM extension archives shipped in app'
         report['checks'].append('production bundle contains the shared host without NPM extension archives')
+        resources = bundle / 'Contents/Resources'
+        icon = resources / 'Assets.car'
+        legacy_icon = resources / 'aicat.icns'
+        assert icon.is_file() and legacy_icon.is_file()
+        info = plistlib.loads((bundle / 'Contents/Info.plist').read_bytes())
+        assert info['CFBundleIconFile'] == 'aicat'
+        assert info['CFBundleIconName'] == 'aicat'
+        icon_info = subprocess.check_output(['assetutil', '--info', str(icon)], text=True)
+        assert 'aicat.iconstack' in icon_info
+        report['icon'] = {
+            'Assets.car': hashlib.sha256(icon.read_bytes()).hexdigest(),
+            'aicat.icns': hashlib.sha256(legacy_icon.read_bytes()).hexdigest(),
+        }
+        report['checks'].append('official layered app icon and legacy ICNS are packaged with matching Info.plist keys')
         archive = root / 'aicat-macos.zip'
         with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as out:
             for file in bundle.rglob('*'):

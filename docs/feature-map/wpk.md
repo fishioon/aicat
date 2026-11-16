@@ -1,16 +1,16 @@
 # 微扑克
 
-`@aicat/wpk` 是独立 NPM 消息渠道，由 [aicat-wpk](https://github.com/fishioon/aicat-wpk) 维护。采集声明范围内的游戏页面事件，还原牌局并将快照写入 Room；Agent 显式调用 rooms_reply 保存建议，无平台外发能力。
+`@aicat/wpk` 是独立 NPM 消息渠道，由 [aicat-wpk](https://github.com/fishioon/aicat-wpk) 维护。采集声明范围内的游戏页面事件，还原牌局并将快照写入 Room；无平台外发能力，可见结果由渠道包自身声明和实现。
 
 ## Sub-features
 
 - 扩展实现、打包、业务规则与专属验收由外部仓库维护。
-- aicat 提供 NPM 安装、通用宿主、Room 持久化、Agent 调度与显式 MCP 回复。
+- aicat 提供 NPM 安装、通用宿主、Room 持久化、Agent 调度与 MCP 工具执行。
 - 当前包尚未发布到公网 NPM；推荐目录仅保留元数据，新安装需要可用的外部 registry 版本。主仓库及应用资源不提供源码或归档。
 
 ## How to get to it (user POV)
 
-扩展 → 推荐 → 微扑克。包可下载后安装并启用；平台配置在扩展详情中，正式消息、回复、自动处理和外发授权在「消息」对应 Room 中管理。已有安装、配置和 Room 历史保留在用户 Home。
+扩展 → 推荐 → 微扑克。包可下载后安装并启用；平台配置在扩展详情中，消息与自动处理在「消息」对应 Room 中管理。已有安装、配置和 Room 历史保留在用户 Home。
 
 ## Driving it with Playwright and native harness
 

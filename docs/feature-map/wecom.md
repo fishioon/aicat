@@ -6,9 +6,9 @@
 
 平台会话按绑定账号和会话ID映射到Room，私聊或群聊各自隔离，同一群内不同发送者进入同一Room。支持SDK提供的单聊/群聊文本；未声明结构化提及的消息不能满足个人提及规则，可使用Room全量或群关键词触发。消息先同步写Room再确认，断线待确认队列恢复；最近200条相同内容重推不重复追加或执行，冲突拒绝。非文本以元数据保存，不下载媒体，历史、自发与过期消息不触发。
 
-在「消息」选择Room，设置自动处理、触发、Room prompt、context、model与外发授权。固定Codex app-server，普通聊天复用thread/steer，任务重启不重跑。固定Agent prompt始终与Room prompt组合。
+在「消息」选择Room，设置自动处理、触发、Room prompt、context与model。固定Codex app-server，普通聊天复用thread/steer，任务重启不重跑。固定Agent prompt始终与Room prompt组合。
 
-Agent通过rooms_reply HTTP MCP发布本地正式回复。外发须显式messages_send并检查Room授权；先保存意图，再经原插件sendText发送，长文本按UTF-8边界分段，超时或断线为unknown、不自动重发。已发布正文用reply_id关联发送；相同外发请求返回持久回执，不重复平台调用。sent仅代表渠道确认，不代表已读。
+Agent通过messages_send MCP指定目标Room并交原插件sendText发送；先保存意图，长文本按UTF-8边界分段，超时或断线为unknown、不自动重发。相同外发请求返回持久回执，不重复平台调用。sent仅代表渠道确认，不代表已读。
 
 后台验证使用真实官方包和SDK、隔离Home、本地WSS平台夹具与headless页面：
 

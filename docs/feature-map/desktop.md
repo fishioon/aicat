@@ -4,10 +4,9 @@
 
 ## Sub-features
 
-- `desktop-branding`：主页和通用设置显示 aicat 的品牌定位「你的通用 AI 连接工具」，并说明「模块化设计，可扩展、可组合」及灵感源自 netcat；每次仅显示当前界面语言对应的文案。
 - `desktop-window`：关闭窗口隐藏到托盘，通过托盘或 Dock 恢复，显式退出才停止服务。
 - `desktop-settings`：从导航栏底部的设置入口、快捷键和托盘进入设置。
-- `desktop-layout`：标题栏按钮统一展开或收起流量、扩展（含诊断）与设置侧栏，默认宽度均为 224px，同一窗口内跨页面保持折叠状态；调整流量列表与详情、请求与响应的比例。
+- `desktop-layout`：标题栏按钮统一展开或收起流量、扩展（含诊断）与设置侧栏，默认及最小宽度均为 224px，可拖动至 480px，窄窗口时上限收紧以给主区保留 320px，同一窗口内跨页面保持宽度与折叠状态；调整流量列表与详情、请求与响应的比例。
 - `desktop-language`：选择跟随系统、简体中文或 English。
 - `desktop-theme`：选择跟随系统、浅色、深色，或使用标题栏快速切换。
 
@@ -29,9 +28,9 @@ Preconditions:
 
 - **账号入口。** `await page.locator('#account-menu').click()`，再点击 `page.locator('#popup').getByRole('menuitem', { name: '设置', exact: true })`；主面板显示代理页。另起一步按 `await page.keyboard.press('Meta+,')`，应显示通用页，不能以第一次进入设置代替快捷键验证。
 - **语言。** 点击 `#preference-language-en`，等待 `html[lang="en"]`；设置标签和连接文案变为英文。选择 `zh-Hans` 后恢复中文。只读检查 `aicat.yaml` 的 `ui.language`，重启同一 Home 后再次核对。
-- **品牌介绍。** 独立后台运行 `node e2e/branding.cjs bin/aicat-e2e build/branding-<run>`，经主页与通用设置入口核对中英文定位、模块化设计原则和 netcat 灵感说明，覆盖浅深色与 1180/860 宽度，保存报告、日志和截图；同时检查默认英文 `README.md` 和中文 `README_CN.md` 分别使用对应语言，并提供互相切换的链接。此场景不覆盖真实 WKWebView 窗口。
+- **品牌介绍。** 独立后台运行 `node e2e/branding.cjs bin/aicat-e2e build/branding-<run>`，经主页与通用设置入口确认不显示品牌介绍，覆盖浅深色与 1180/860 宽度，保存报告、日志和截图；同时检查默认英文 `README.md` 和中文 `README_CN.md` 分别使用对应语言，并提供互相切换的链接。此场景不覆盖真实 WKWebView 窗口。
 - **主题。** `await page.locator('#preference-theme-dark').click()`，等待 `html[data-theme="dark"]`；切换 light 和 system，检查按钮的 `aria-pressed` 与实际系统外观。再点 `#theme` 验证快速切换，并检查配置与重启后的外观。
-- **布局。** 消息、流量、扩展、扩展诊断与通用/代理设置的侧栏默认宽度均为 224px。点击标题栏 `#sidebar-toggle`，`aria-expanded` 变为 false 且侧栏隐藏，再点击恢复；切换栏目、前进/后退后仍保持当前折叠状态，不清空搜索、所选条目或未保存的表单。主页、供应商和接入 Agent 页面没有侧栏，按钮禁用。在流量页用鼠标拖动 `#list-split` 和 `#detail-split`，核对两侧尺寸变化及内容可用，保留前后截图。
+- **布局。** 消息、流量、扩展、扩展诊断与通用/代理设置的侧栏默认及最小宽度均为 224px。拖动右边界 `#sidebar-split` 调整宽度，上限 480px；窄窗口时上限收紧，给主区至少保留 320px。方向键每次调整 8px，Home/End 到达最小/最大宽度。点击标题栏 `#sidebar-toggle`，`aria-expanded` 变为 false 且侧栏隐藏，再点击恢复；切换栏目、前进/后退后仍保持当前宽度与折叠状态，不清空搜索、所选条目或未保存的表单。主页、供应商和接入 Agent 页面没有侧栏，按钮禁用。在流量页用鼠标拖动 `#list-split` 和 `#detail-split`，核对两侧尺寸变化及内容可用，保留前后截图。
 - **托盘菜单状态。** `node e2e/tray.cjs bin/aicat-e2e build/tray-headless-<run>` 在 headless 浏览器与隐藏应用下，读取真实原生菜单模型，调用采集回调与菜单栏点击共用的处理入口，核对固定名称/对号、代理独立状态、两态图标、往返帧、重复点击、中途状态变化、退出取消、显式刷新、代理直接切换和恢复、中英文；保存菜单 JSON、图标帧轨迹及浏览器截图。实际调用原生 SetIcon，但不弹出或点击原生菜单，不计为 macOS 菜单栏像素或指针验收。
 - **托盘图形。** `node e2e/tray-assets.cjs build/tray-assets-<run>` 在无头浏览器中比较图标生成器与手动 SVG 调节页：25 帧均保持猫身、尾根、画布和尾巴长度/粗细，末帧对应用户选定的 30%。保存生成的 SVG 帧、PNG、报告及浅深色栏的资源对照图。
 - **原生生命周期。** 通过真实窗口关闭按钮或 native harness 关闭窗口，向本地上游发送请求；API 仍有新记录。通过托盘和 Dock 分别恢复，再查看新记录。现有 harness 的 `auto.call('menu', {path: ['E2E', '关闭窗口']})` / `打开窗口` 只证明原生隐藏/恢复行为，不是托盘点击覆盖。
@@ -44,7 +43,9 @@ Preconditions:
 ## Gotchas
 
 - CLI `serve` 没有窗口和托盘，不能用于桌面交互证明。
-- 语言、主题持久化；侧边栏折叠、详情视图等窗口内状态不要据此推断也会跨重启保留。
+- 语言、主题持久化；侧边栏宽度与折叠、详情视图等窗口内状态不要据此推断也会跨重启保留。
 - `⌘[` / `⌘]` 对应导航历史；`⌘K` 聚焦流量搜索。快捷键应在对应页面且没有弹窗拦截时验证。
 - 跟随系统必须核对当前系统值；不能因画面恰好是浅色就报告“跟随系统”已生效。
 - 锁屏、原生授权等待或恢复失败应报告具体阻塞，不复用旧截图宣称通过。
+
+侧栏拖动可独立后台验收：`node e2e/sidebar-resize.cjs bin/aicat-e2e build/sidebar-resize-<run>`。覆盖各页面共用宽度、拖动上下限、窄窗口约束、标题栏对齐、折叠恢复、跨页面与历史导航、键盘及指针取消，保存报告、日志和浅深色截图；不计为真实 WKWebView 窗口验收。

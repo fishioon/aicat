@@ -8,7 +8,6 @@ import (
 
 const Received = "org.aicat.message.received.v1"
 const SendRequested = "org.aicat.message.send.requested.v1"
-const ReplyPublished = "org.aicat.room.reply.published.v1"
 
 type Event struct {
 	Subject     string  `json:"subject,omitempty"`
@@ -29,7 +28,6 @@ type Message struct {
 	Schedule      *scheduler.Occurrence `json:"schedule,omitempty"`
 	Historical    bool                  `json:"historical,omitempty"`
 	Summary       string                `json:"summary,omitempty"`
-	ReplyID       string                `json:"reply_id,omitempty"`
 	Delivery      *Delivery             `json:"delivery,omitempty"`
 	AgentSnapshot *Text                 `json:"agent_snapshot,omitempty"`
 	ReplyTo       string                `json:"reply_to,omitempty"`

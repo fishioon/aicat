@@ -9,15 +9,14 @@ import (
 )
 
 type RoomSettings struct {
-	Name          string            `yaml:"name,omitempty" json:"name"`
-	SendTarget    string            `yaml:"sendTarget,omitempty" json:"sendTarget"`
-	Automatic     bool              `yaml:"automatic" json:"automatic"`
-	Prompt        string            `yaml:"prompt" json:"prompt"`
-	Model         string            `yaml:"model" json:"model"`
-	Mode          string            `yaml:"mode" json:"mode"`
-	AllowOutbound bool              `yaml:"allowOutbound" json:"allowOutbound"`
-	Context       map[string]string `yaml:"context,omitempty" json:"context"`
-	Trigger       RoomTrigger       `yaml:"trigger" json:"trigger"`
+	Name       string            `yaml:"name,omitempty" json:"name"`
+	SendTarget string            `yaml:"sendTarget,omitempty" json:"sendTarget"`
+	Automatic  bool              `yaml:"automatic" json:"automatic"`
+	Prompt     string            `yaml:"prompt" json:"prompt"`
+	Model      string            `yaml:"model" json:"model"`
+	Mode       string            `yaml:"mode" json:"mode"`
+	Context    map[string]string `yaml:"context,omitempty" json:"context"`
+	Trigger    RoomTrigger       `yaml:"trigger" json:"trigger"`
 }
 
 type RoomTrigger struct {

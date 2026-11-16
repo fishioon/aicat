@@ -13,8 +13,7 @@ func packageExtension(descriptor channelplugin.Descriptor) Extension {
 	return Extension{PackageSource: "registry", PackageFormat: descriptor.Format, ID: descriptor.ID, Name: descriptor.Name, Summary: descriptor.Summary, Lede: descriptor.Summary, Categories: []string{"消息渠道"}, Registry: descriptor.Registry, Package: descriptor.Package, Version: descriptor.Version, Publisher: descriptor.Publisher,
 		Build: func(env Env) (Parts, error) {
 			channel := messages.New(env.Home, descriptor.ID, platformEndpoint(), channelhost.New(env.Home))
-			channel.SetMCPSender(env.MCPSend)
-			channel.SetScheduleCaller(env.MCPSchedule)
+			channel.SetRunner(env.AgentRunner)
 			parts := Parts{Messages: channel, Configuration: channel, Run: channel.Run}
 			if descriptor.Format == "aicat" {
 				parts.ReadData = channel.ReadNativeData

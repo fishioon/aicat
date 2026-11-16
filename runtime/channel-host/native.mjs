@@ -56,30 +56,11 @@ async function open(binding) {
       accountId: binding.accountId, session: binding.session, phase, error,
     } });
   };
-  try {
-    const module = await import(pathToFileURL(entry).href);
-    if (typeof module.createChannel !== "function") throw Error("INVALID_CHANNEL_ENTRY");
-    account.plugin = await module.createChannel({
-      stateDirectory: directory, signal: account.controller.signal,
-      configuration: binding.configuration ?? {}, native: binding.nativeContext ?? {}, status,
-      publish(message) {
-        if (account.closing || closing || !message?.msgid || !message?.roomid)
-          throw Error("INVALID_CHANNEL_MESSAGE");
-        if (typeof message.msgid !== "string" || typeof message.roomid !== "string" || message.roomid.length>256 || message.reply_id || message.delivery ||
-            (message.msgtime != null && (!Number.isSafeInteger(message.msgtime) || message.msgtime<0 || message.msgtime>253402300799999)) ||
-            (message.summary != null && (typeof message.summary!=="string" || Buffer.byteLength(message.summary)>8192)) ||
-            (message.agent_snapshot != null && (message.outgoing || message.msgtype!=="text" || typeof message.context_key!=="string" || !message.context_key.trim() || typeof message.agent_snapshot.content!=="string" || !message.agent_snapshot.content.trim() || Buffer.byteLength(message.agent_snapshot.content)>65536)))
-          throw Error("INVALID_CHANNEL_MESSAGE");
-        const eventId = crypto.createHash("sha256").update(binding.source + "\0" + message.roomid + "\0" + message.msgid).digest("hex");
-        const wait = () => new Promise((resolve, reject) => {
-          const list = waiters.get(eventId) ?? [];
-          list.push({resolve, reject}); waiters.set(eventId, list);
-        });
-        const event = { specversion: "1.0", id: eventId, source: binding.source,
-          type: "org.aicat.message.received.v1", datacontenttype: "application/json",
-          time: message.msgtime != null ? new Date(message.msgtime).toISOString() : new Date().toISOString(),
-          data: { ...message, action: "receive" },
-        };
+  function enqueue(event) {
+    const wait = () => new Promise((resolve, reject) => {
+      const list = waiters.get(event.id) ?? [];
+      list.push({resolve, reject}); waiters.set(event.id, list);
+    });
         const key = crypto.createHash("sha256").update(binding.source + "\0" + event.id).digest("hex");
         const record = { accountId: binding.accountId, event };
         if (Buffer.byteLength(JSON.stringify(event)) > 256 * 1024) throw Error("CHANNEL_MESSAGE_TOO_LARGE");
@@ -97,6 +78,36 @@ async function open(binding) {
         const acknowledged = wait();
         pushStored(record);
         return acknowledged;
+  }
+  try {
+    const module = await import(pathToFileURL(entry).href);
+    if (typeof module.createChannel !== "function") throw Error("INVALID_CHANNEL_ENTRY");
+    account.plugin = await module.createChannel({
+      stateDirectory: directory, signal: account.controller.signal,
+      configuration: binding.configuration ?? {}, native: binding.nativeContext ?? {}, status,
+      updateRoom(presentation) {
+        if (account.closing || closing || typeof presentation?.roomid !== "string" || !presentation.roomid)
+          throw Error("INVALID_ROOM_PRESENTATION");
+        const data = JSON.parse(JSON.stringify(presentation));
+        const id = crypto.createHash("sha256").update(binding.source + "\0presentation\0" + JSON.stringify(data)).digest("hex");
+        return enqueue({ specversion: "1.0", id, source: binding.source,
+          type: "org.aicat.room.presentation.updated.v1", datacontenttype: "application/json", data });
+      },
+      publish(message) {
+        if (account.closing || closing || !message?.msgid || !message?.roomid)
+          throw Error("INVALID_CHANNEL_MESSAGE");
+        if (typeof message.msgid !== "string" || typeof message.roomid !== "string" || message.roomid.length>256 || message.reply_id || message.delivery ||
+            (message.msgtime != null && (!Number.isSafeInteger(message.msgtime) || message.msgtime<0 || message.msgtime>253402300799999)) ||
+            (message.summary != null && (typeof message.summary!=="string" || Buffer.byteLength(message.summary)>8192)) ||
+            (message.agent_snapshot != null && (message.outgoing || message.msgtype!=="text" || typeof message.context_key!=="string" || !message.context_key.trim() || typeof message.agent_snapshot.content!=="string" || !message.agent_snapshot.content.trim() || Buffer.byteLength(message.agent_snapshot.content)>65536)))
+          throw Error("INVALID_CHANNEL_MESSAGE");
+        const eventId = crypto.createHash("sha256").update(binding.source + "\0" + message.roomid + "\0" + message.msgid).digest("hex");
+        const event = { specversion: "1.0", id: eventId, source: binding.source,
+          type: "org.aicat.message.received.v1", datacontenttype: "application/json",
+          time: message.msgtime != null ? new Date(message.msgtime).toISOString() : new Date().toISOString(),
+          data: { ...message, action: "receive" },
+        };
+        return enqueue(event);
       },
     });
     if (!account.plugin || typeof account.plugin.open !== "function") throw Error("INVALID_CHANNEL_LIFECYCLE");

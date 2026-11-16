@@ -28,7 +28,7 @@
 | --- | --- |
 | aicat.yaml / rooms.<hash> | 名称、Room prompt、model、context、mode、触发与授权、寻址 |
 | rooms/<hash>/room.json | 渠道、来源、平台会话的不可变绑定 |
-| rooms/<hash>/context/messages.log | 入站、正式回复、外发正文意图 |
+| rooms/<hash>/context/messages.log | 入站消息和通过 MCP 发送的消息意图 |
 | rooms/<hash>/agent.json | 普通对话 thread、模型与工具权限、指令摘要 |
 | rooms/<hash>/outbound 与 deliveries | 外发请求、回执和已发布正文关联 |
 | state/<channel> | 包宿主与渠道自身游标、采样、待确认队列 |
@@ -42,6 +42,6 @@ Desktop 提供 ListRooms、ReadRoomByID、UpdateRoomSettings、ListRoomModels，
 
 ## 执行与结果
 
-固定 Codex app-server，按 Room 选择 model。输入为 trigger_messages、requesters、room_context；固定 Agent prompt 与 Room prompt 组合。conversation 可复用 thread/steer；snapshot 独立执行和合并等待状态。正式回复通过 rooms_reply HTTP MCP 保存，外发通过 messages_send HTTP MCP 授权后交渠道，二者没有隐式联动。
+所有渠道共享固定 Codex app-server 和 Agent 配置，按 Room 建立 thread 并选择 model。输入为 trigger_messages、requesters、room_context 和 source_room；固定 Agent prompt 只约束数据与权限边界，Room prompt 描述业务。conversation 可复用 thread/steer；snapshot 独立执行和合并等待状态。Agent 启动时直接连接 aicat MCP，发送消息统一使用 messages_send。
 
-内部工具只接收正文及 reply_to/reply_id，宿主生成身份与当前 Room subject；兼容旧完整事件时仍校验其目标和来源。saved 是本地保存，sent 是渠道确认，unknown 不自动重发。外发请求 ID 与正文关联持久化，避免重启或重查造成再次发送。
+messages_send 要求 target_room_id，可用 rooms_list 解析稳定 ID；reply_to 必须属于目标 Room。aicat 校验目标与渠道账号绑定，持久保存发送请求并调用渠道实现。渠道决定确认类型；unknown 不自动重发。

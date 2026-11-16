@@ -25,7 +25,7 @@
 - **默认停用。** `state().extensions` 里 `codex` 一项的 `enabled` 为 false；直连入口返回 503；经网关 CONNECT 到后端时看到后端自己的证书（未解密）；没有下载 models.dev，Home 下没有 `cache/models-dev.json`。
 - **启用。** `#nav-extensions` → `#extension-codex` → `#feature-codex`。未信任证书时出现“需要先安装证书”对话框；取消后保持停用，点“安装证书”后启用，`aicat.yaml` 写入 `extensions.codex.enabled: true`，详情显示 `#codex-status`。
 - **同步模型。** 直接接入供应商，名称填 `Compat`（ID 为 `compat`），填 fixture 地址与密钥保存；`providers[0].models` 自动出现，向量、出图模型被滤掉，只声明 Chat Completions 的模型也提供给 Codex，不据此预判协议。
-- **模型列表。** 直连与经网关两种入口的 `/backend-api/codex/models` 都返回 ChatGPT 条目加 `compat/...` 条目；上下文窗口、推理强度、默认强度、图片输入先取供应商列表，缺少时取 models.dev；Codex 不支持的 `max` 强度被丢弃；ETag 形如 `"<后端 ETag>+aicat-<标记>"`；后端收到原始 Authorization，没有条件请求头。
+- **模型列表。** 直连与经网关两种入口的 `/backend-api/codex/models` 都返回 ChatGPT 条目加 `compat/...` 条目；名称优先取供应商列表，缺少时取 models.dev，不同模型补成同名时双方退回模型 ID，仍重复时只在 `display_name` 追加唯一模型标识；上下文窗口、推理强度、默认强度、图片输入先取供应商列表，缺少时取 models.dev；Codex 不支持的 `max` 强度被丢弃；ETag 形如 `"<后端 ETag>+aicat-<标记>"`；后端收到原始 Authorization，没有条件请求头。
 - **勾选。** 在供应商页取消 `vision-x` 后 `/backend-api/codex/models` 不再有 `compat/vision-x`，`compat/vision-x` 的回合在本机返回 400；重新勾选后回来。
 - **供应商回合。** zstd 压缩的请求被解开，供应商收到 `Bearer <保管密钥>`、去掉前缀的模型名，没有 `ChatGPT-Account-Id` 等头，也没有 `stream_options.reasoning_summary_delivery`、`configuration_update` 与消息元数据；文本中的 `<` `&` 不被转义；SSE 分段到达。后端收不到这次请求。
 - **ChatGPT 回合。** 原样到达后端（正文与账号头不变），响应的 `X-Models-Etag` 与列表 ETag 一致。

@@ -29,7 +29,7 @@ See the [Feature map](docs/feature-map/README.md) for entry points, usage, verif
 
 ## Build and run
 
-Building requires Go 1.27.3+, Node.js 22.12+, npm, and Bun 1.4.4. The build bundles Bun, the channel host, and locked dependencies, so users do not need to install Bun. Set `AICAT_BUILD_BUN` to choose a Bun binary during the build.
+Building requires Go 1.27.3+, Node.js 22.12+, npm, and Bun 1.4.4. Building the app bundle additionally requires Xcode 26+ with `actool`. The build bundles Bun, the channel host, and locked dependencies, so users do not need to install Bun. Set `AICAT_BUILD_BUN` to choose a Bun binary during the build.
 
 ```sh
 make build

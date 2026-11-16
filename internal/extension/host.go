@@ -266,24 +266,6 @@ func (h *Host) SendMessage(ctx context.Context, channel string, event messages.E
 	if it == nil || it.parts.Messages == nil || !it.on.Load() {
 		return messages.Receipt{}, fmt.Errorf("消息渠道未启用")
 	}
-	if event.Type == messages.ReplyPublished {
-		binding, ok := it.parts.Messages.(interface{ BoundSource() (string, error) })
-		if !ok {
-			return messages.Receipt{}, fmt.Errorf("渠道缺少 Room 来源绑定")
-		}
-		source, err := binding.BoundSource()
-		if err != nil {
-			return messages.Receipt{}, err
-		}
-		if err = messages.CheckRoomBinding(channel, source, event); err != nil {
-			return messages.Receipt{}, err
-		}
-		receipt, err := messages.PublishReply(ctx, h.home, channel, source, event)
-		if err == nil && h.changed != nil {
-			h.changed()
-		}
-		return receipt, err
-	}
 	capability, ok := it.parts.Messages.(interface{ CanSend() bool })
 	if !ok || !capability.CanSend() {
 		return messages.Receipt{}, fmt.Errorf("这个渠道不支持外部发送")
@@ -297,9 +279,6 @@ func (h *Host) SendMessage(ctx context.Context, channel string, event messages.E
 		return messages.Receipt{}, err
 	}
 	if err = messages.CheckRoomBinding(channel, source, event); err != nil {
-		return messages.Receipt{}, err
-	}
-	if err = messages.CheckOutbound(ctx, h.home, channel, source, event.Data.RoomID); err != nil {
 		return messages.Receipt{}, err
 	}
 	receipt, err := messages.Deliver(ctx, h.home, channel, source, event, func(ctx context.Context, _ string, outbound messages.Event) (messages.Receipt, error) {

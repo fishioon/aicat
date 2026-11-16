@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -18,20 +17,14 @@ var ErrTurnEnded = errors.New("Codex turn 已结束")
 
 var ErrUnknown = errors.New("Codex 任务结果不明")
 
-type ToolCall struct {
-	Name      string
-	ID        string
-	Arguments json.RawMessage
-}
-
-type Send func(context.Context, ToolCall) (any, error)
-
 type Runner struct {
-	mu       sync.Mutex
-	client   *codexClient
-	sessions map[string]*turnSession
-	closed   bool
-	loaded   map[string]bool
+	mu           sync.Mutex
+	client       *codexClient
+	sessions     map[string]*turnSession
+	closed       bool
+	loaded       map[string]bool
+	mcpURL       string
+	mcpTokenFile string
 }
 
 type turnSession struct {
@@ -39,8 +32,15 @@ type turnSession struct {
 	id     string
 }
 
-func New() *Runner {
-	return &Runner{sessions: make(map[string]*turnSession), loaded: map[string]bool{}}
+type Options struct {
+	MCPURL       string
+	MCPTokenFile string
+}
+
+func New() *Runner { return NewWithMCP(Options{}) }
+
+func NewWithMCP(options Options) *Runner {
+	return &Runner{sessions: make(map[string]*turnSession), loaded: map[string]bool{}, mcpURL: options.MCPURL, mcpTokenFile: options.MCPTokenFile}
 }
 
 func executable(binary string) (string, error) {
@@ -71,7 +71,7 @@ func (r *Runner) connect(binary, workspace string) (*codexClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, err := startCodexClient(path, workspace)
+	client, err := startCodexClient(path, workspace, r.mcpURL, r.mcpTokenFile)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,6 @@ func (r *Runner) route(client *codexClient) {
 
 type ThreadOptions struct {
 	Instructions string
-	Tools        []any
 	Ephemeral    bool
 	Model        string
 }
@@ -131,7 +130,6 @@ func (r *Runner) Thread(ctx context.Context, binary, workspace, threadID string,
 	}
 	method := "thread/start"
 	if threadID == "" {
-		params["dynamicTools"] = options.Tools
 		params["ephemeral"] = options.Ephemeral
 		params["serviceName"] = "aicat_messages"
 	} else {
@@ -193,11 +191,11 @@ func (r *Runner) UpdateInstructions(ctx context.Context, threadID, instructions 
 	return err
 }
 
-func (r *Runner) Turn(ctx context.Context, threadID, taskID, prompt string, send Send, output func(context.Context, string, string) error, started chan<- struct{}, toolName string) error {
-	return r.TurnWithModel(ctx, threadID, taskID, prompt, "", send, output, started, toolName)
+func (r *Runner) Turn(ctx context.Context, threadID, taskID, prompt string, started chan<- struct{}) error {
+	return r.TurnWithModel(ctx, threadID, taskID, prompt, "", started)
 }
 
-func (r *Runner) TurnWithModel(ctx context.Context, threadID, taskID, prompt, model string, send Send, output func(context.Context, string, string) error, started chan<- struct{}, toolName string) error {
+func (r *Runner) TurnWithModel(ctx context.Context, threadID, taskID, prompt, model string, started chan<- struct{}) error {
 	r.mu.Lock()
 	client := r.client
 	if client == nil || client.isDone() || r.closed {
@@ -238,7 +236,6 @@ func (r *Runner) TurnWithModel(ctx context.Context, threadID, taskID, prompt, mo
 	if started != nil {
 		close(started)
 	}
-	var outputErr error
 	for {
 		select {
 		case <-ctx.Done():
@@ -262,41 +259,7 @@ func (r *Runner) TurnWithModel(ctx context.Context, threadID, taskID, prompt, mo
 				}
 			}
 			if len(event.ID) > 0 {
-				var p struct {
-					ThreadID  string          `json:"threadId"`
-					TurnID    string          `json:"turnId"`
-					Tool      string          `json:"tool"`
-					Arguments json.RawMessage `json:"arguments"`
-				}
-				_ = json.Unmarshal(event.Params, &p)
-				if event.Method != "item/tool/call" || !slices.Contains(strings.Split(toolName, ","), p.Tool) || p.ThreadID != threadID || p.TurnID != turnID {
-					_ = client.rejectServerRequest(event)
-					continue
-				}
-				value, toolErr := send(ctx, ToolCall{Name: p.Tool, ID: string(event.ID), Arguments: p.Arguments})
-				if toolErr != nil {
-					value = map[string]string{"error": toolErr.Error()}
-				}
-				encoded, _ := json.Marshal(value)
-				if err = client.write(map[string]any{"id": event.ID, "result": map[string]any{"success": toolErr == nil, "contentItems": []any{map[string]string{"type": "inputText", "text": string(encoded)}}}}); err != nil {
-					return fmt.Errorf("%w: %v", ErrUnknown, err)
-				}
-			}
-			if event.Method == "item/completed" {
-				var p struct {
-					TurnID string `json:"turnId"`
-					Item   struct {
-						ID    string `json:"id"`
-						Type  string `json:"type"`
-						Text  string `json:"text"`
-						Phase string `json:"phase"`
-					} `json:"item"`
-				}
-				if json.Unmarshal(event.Params, &p) == nil && p.TurnID == turnID && p.Item.Type == "agentMessage" && strings.TrimSpace(p.Item.Text) != "" && (p.Item.Phase == "" || p.Item.Phase == "commentary" || p.Item.Phase == "final_answer") {
-					if err := output(ctx, turnID+"-"+p.Item.ID, p.Item.Text); err != nil {
-						outputErr = err
-					}
-				}
+				_ = client.rejectServerRequest(event)
 			}
 			if event.Method == "turn/completed" {
 				var p struct {
@@ -312,7 +275,7 @@ func (r *Runner) TurnWithModel(ctx context.Context, threadID, taskID, prompt, mo
 					continue
 				}
 				if p.Turn.Status == "completed" {
-					return outputErr
+					return nil
 				}
 				if p.Turn.Error != nil {
 					return fmt.Errorf("Codex %s: %s", p.Turn.Status, p.Turn.Error.Message)

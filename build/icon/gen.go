@@ -1,12 +1,8 @@
-// Command gen draws aicat's icons from the private cloud's logo, which has one
-// source: netcat's site/public/logo.svg, kept in the window's assets as
-// logo.svg. The mark is never redrawn by hand — this reads the paths out of
-// that SVG, curves included, and rasterizes them itself: the icons are the
-// logo's own outline at any size, drawn the same on any machine, and the tray
-// glyph is black and alpha alone, which the menu bar tints.
+// Command gen draws aicat's tray icons from the private cloud's logo. The
+// application icon is maintained as an Icon Composer source in build/darwin
+// and compiled by actool.
 //
 //	go run ./build/icon/*.go tray-motion assets/logo.svg assets
-//	go run ./build/icon/*.go app assets/logo.svg 256 assets/icon.png
 package main
 
 import (
@@ -29,9 +25,6 @@ type mark struct {
 	fill  color.NRGBA
 }
 
-// paper is the logo's own background, from its source: the app icon's field.
-var paper = color.NRGBA{R: 0xf5, G: 0xf2, B: 0xed, A: 0xff}
-
 func main() {
 	switch {
 	case (len(os.Args) == 4 || len(os.Args) == 5) && os.Args[1] == "tray-motion":
@@ -50,21 +43,8 @@ func main() {
 		if err := write(os.Args[3], picture); err != nil {
 			fail(err)
 		}
-	case len(os.Args) == 5 && os.Args[1] == "app":
-		size, err := strconv.Atoi(os.Args[3])
-		if err != nil || size < 16 {
-			fmt.Fprintln(os.Stderr, "size must be a number of at least 16")
-			os.Exit(2)
-		}
-		picture, err := app(os.Args[2], size)
-		if err != nil {
-			fail(err)
-		}
-		if err := write(os.Args[4], picture); err != nil {
-			fail(err)
-		}
 	default:
-		fmt.Fprintln(os.Stderr, "usage: gen tray-motion <logo.svg> <out-dir> | gen tray <logo.svg> <out.png> | gen app <logo.svg> <size> <out.png>")
+		fmt.Fprintln(os.Stderr, "usage: gen tray-motion <logo.svg> <out-dir> | gen tray <logo.svg> <out.png>")
 		os.Exit(2)
 	}
 }
@@ -105,35 +85,6 @@ func tray(svgPath string) (image.Image, error) {
 	// Two pixels of breathing room keep the visible mark near 15.5pt when
 	// MyGo fits the canvas to 18pt, a little quieter than the tight 1px crop.
 	return glyph.SubImage(ink.Inset(-2).Intersect(glyph.Bounds())), nil
-}
-
-// app is the application icon: the mark in its own colours on the logo's
-// paper field, rounded the way macOS draws an app.
-func app(svgPath string, size int) (image.Image, error) {
-	marks, err := read(svgPath)
-	if err != nil {
-		return nil, err
-	}
-	k, ox, oy := fit(box(marks), float64(size), 0.72*float64(size))
-	icon := image.NewNRGBA(image.Rect(0, 0, size, size))
-	corner := 0.22 * float64(size)
-	for y := range size {
-		for x := range size {
-			if insideRoundedSquare(float64(x)+0.5, float64(y)+0.5, float64(size), corner) {
-				icon.SetNRGBA(x, y, paper)
-			}
-		}
-	}
-	// Each path in the colour the SVG fills it with, one over the other as
-	// the SVG draws them.
-	for _, m := range marks {
-		for i, cover := range coverage([]mark{m}, size, 8, k, ox, oy) {
-			ink := m.fill
-			ink.A = channel(cover * 255)
-			blend(icon, i%size, i/size, ink)
-		}
-	}
-	return icon, nil
 }
 
 // read is the logo's marks, in the order the SVG draws them.
@@ -385,34 +336,6 @@ func coverage(marks []mark, size, samples int, k, ox, oy float64) []float64 {
 		}
 	}
 	return cover
-}
-
-// blend puts overlay over what target already holds at (x, y).
-func blend(target *image.NRGBA, x, y int, overlay color.NRGBA) {
-	if !image.Pt(x, y).In(target.Bounds()) {
-		return
-	}
-	under := target.NRGBAAt(x, y)
-	over := float64(overlay.A) / 255
-	keep := 1 - over
-	target.SetNRGBA(x, y, color.NRGBA{
-		R: channel(float64(overlay.R)*over + float64(under.R)*keep),
-		G: channel(float64(overlay.G)*over + float64(under.G)*keep),
-		B: channel(float64(overlay.B)*over + float64(under.B)*keep),
-		A: channel(255*over + float64(under.A)*keep),
-	})
-}
-
-func insideRoundedSquare(x, y, size, corner float64) bool {
-	extent := corner
-	dx, dy := math.Abs(x-size/2), math.Abs(y-size/2)
-	if dx > size/2 || dy > size/2 {
-		return false
-	}
-	if dx <= size/2-extent || dy <= size/2-extent {
-		return true
-	}
-	return math.Hypot(dx-(size/2-extent), dy-(size/2-extent)) <= extent
 }
 
 func write(path string, picture image.Image) error {

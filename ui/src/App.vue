@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   state,
   busy,
@@ -19,6 +19,7 @@ import { t } from "./i18n";
 import { extensionOf } from "./extensions";
 import { records, appKey, clearSelection, copy } from "./state/traffic";
 import Icon from "./components/Icon.vue";
+import NavIcon from "./components/NavIcon.vue";
 import Overlays from "./components/Overlays.vue";
 import TrafficPage from "./components/TrafficPage.vue";
 import SettingsPage from "./components/SettingsPage.vue";
@@ -27,6 +28,21 @@ import OverviewPage from "./components/OverviewPage.vue";
 import ConnectPage from "./components/ConnectPage.vue";
 import MessagesPage from "./components/MessagesPage.vue";
 import ProviderPage from "./components/ProviderPage.vue";
+import Splitter from "./components/Splitter.vue";
+
+const viewportWidth = ref(window.innerWidth);
+const sidebarMax = computed(() =>
+  Math.max(224, Math.min(480, viewportWidth.value - 44 - 320)),
+);
+const sidebarWidth = computed(() =>
+  Math.min(shell.sidebarWidth, sidebarMax.value),
+);
+const layoutStyle = computed(() => ({
+  "--sidebar-width": sidebarWidth.value + "px",
+}));
+function resized() {
+  viewportWidth.value = window.innerWidth;
+}
 
 const settings = computed(
   () => shell.route === "proxy" || shell.route === "general",
@@ -171,10 +187,12 @@ function focused() {
 onMounted(() => {
   document.addEventListener("keydown", keydown);
   window.addEventListener("focus", focused);
+  window.addEventListener("resize", resized);
 });
 onUnmounted(() => {
   document.removeEventListener("keydown", keydown);
   window.removeEventListener("focus", focused);
+  window.removeEventListener("resize", resized);
 });
 window.desktop = {
   navigate,
@@ -188,6 +206,7 @@ window.desktop = {
   <header
     class="titlebar"
     :class="{ 'sidebar-expanded': hasSidebar && !shell.sidebarHidden }"
+    :style="layoutStyle"
     id="titlebar"
   >
     <div class="titlebar-controls">
@@ -259,7 +278,7 @@ window.desktop = {
       <Icon :name="dark ? 'sun' : 'moon'" />
     </button>
   </header>
-  <div class="shell">
+  <div class="shell" :style="layoutStyle">
     <nav class="rail" :aria-label="t('模块')" id="navigation">
       <button
         id="nav-overview"
@@ -268,7 +287,7 @@ window.desktop = {
         :aria-current="overview ? 'page' : undefined"
         @click="navigate('overview')"
       >
-        <Icon name="home" />
+        <NavIcon name="home" />
       </button>
       <button
         id="nav-messages"
@@ -277,7 +296,7 @@ window.desktop = {
         :aria-current="shell.route === 'messages' ? 'page' : undefined"
         @click="navigate('messages')"
       >
-        <Icon name="messages" />
+        <NavIcon name="messages" />
       </button>
       <button
         v-if="state?.trafficEnabled"
@@ -287,7 +306,7 @@ window.desktop = {
         :aria-current="shell.route === 'traffic' ? 'page' : undefined"
         @click="navigate('traffic')"
       >
-        <Icon name="traffic" />
+        <NavIcon name="traffic" />
       </button>
       <button
         id="nav-extensions"
@@ -301,7 +320,7 @@ window.desktop = {
         "
         @click="navigate('extensions')"
       >
-        <Icon name="extensions" />
+        <NavIcon name="extensions" />
       </button>
       <span class="grow"></span>
       <button
@@ -311,7 +330,7 @@ window.desktop = {
         :aria-current="settings ? 'page' : undefined"
         @click="navigate('general')"
       >
-        <Icon name="settings" />
+        <NavIcon name="settings" />
       </button>
     </nav>
     <main
@@ -320,6 +339,19 @@ window.desktop = {
       id="module-page"
       v-if="state"
     >
+      <Splitter
+        v-if="hasSidebar && !shell.sidebarHidden"
+        id="sidebar-split"
+        class="sidebar-splitter"
+        axis="x"
+        unit="px"
+        container="#module-page"
+        :model-value="sidebarWidth"
+        :min="224"
+        :max="sidebarMax"
+        :label="t('调整侧边栏宽度')"
+        @update:model-value="shell.sidebarWidth = $event"
+      />
       <MessagesPage v-if="shell.route === 'messages'" />
       <OverviewPage v-if="shell.route === 'overview'" />
       <ConnectPage v-else-if="shell.route === 'connect'" />

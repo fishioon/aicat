@@ -199,7 +199,6 @@ export interface Message {
   schedule?: Occurrence;
   historical?: boolean;
   summary?: string;
-  reply_id?: string;
   delivery?: Delivery;
   agent_snapshot?: Text;
   reply_to?: string;
@@ -290,6 +289,11 @@ export interface Operation {
   finishedAt: string;
   error: string;
   cancellable: boolean;
+}
+
+export interface PersonPresentation {
+  name: string;
+  avatar: string;
 }
 
 export interface PlatformResult {
@@ -385,6 +389,14 @@ export interface RoomIssue {
   messageId: string;
 }
 
+export interface RoomPresentation {
+  roomid: string;
+  name: string;
+  avatar: string;
+  kind: string;
+  members: Record<string, PersonPresentation>;
+}
+
 export interface RoomSettings {
   name: string;
   sendTarget: string;
@@ -392,7 +404,6 @@ export interface RoomSettings {
   prompt: string;
   model: string;
   mode: string;
-  allowOutbound: boolean;
   context: Record<string, string>;
   trigger: RoomTrigger;
 }
@@ -403,6 +414,11 @@ export interface RoomSummary {
   source: string;
   conversation: string;
   createdAt: string;
+  presentation: RoomPresentation;
+  lastSender: string;
+  lastType: string;
+  lastOutgoing: boolean;
+  lastAgent: boolean;
   lastMessage: string;
   updatedAt: string;
   settings: RoomSettings;
@@ -423,6 +439,11 @@ export interface RoomView {
   source: string;
   conversation: string;
   createdAt: string;
+  presentation: RoomPresentation;
+  lastSender: string;
+  lastType: string;
+  lastOutgoing: boolean;
+  lastAgent: boolean;
   lastMessage: string;
   updatedAt: string;
   settings: RoomSettings;

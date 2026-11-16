@@ -151,6 +151,24 @@ function tunnel(port, authority) {
     ])
       assert(await page.locator("#" + id).isVisible(), id);
     check("shell");
+    const navIcon = await page.locator("#nav-overview svg").boundingBox();
+    assert.equal(navIcon?.width, 20);
+    assert.equal(navIcon?.height, 20);
+    assert.deepEqual(
+      await page.locator("#navigation svg").first().evaluate((svg) => ({
+        viewBox: svg.getAttribute("viewBox"),
+        strokeWidth: svg.getAttribute("stroke-width"),
+      })),
+      { viewBox: "0 0 20 20", strokeWidth: "1" },
+    );
+    const firstTwo = await page.locator("#navigation > button").evaluateAll(
+      (buttons) =>
+        buttons
+          .slice(0, 2)
+          .map((button) => button.getBoundingClientRect().top),
+    );
+    assert.equal(firstTwo[1] - firstTwo[0], 42);
+    check("navigation icon standard");
 
     // Seed traffic through the proxy.
     const base = `http://127.0.0.1:${fixture}`;

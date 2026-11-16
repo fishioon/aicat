@@ -279,6 +279,10 @@ function event(id, text = "MCP outgoing") {
 async function mcp(outgoing, auth = true) {
   const address = JSON.parse(JSON.stringify(await rpc("State"))).gateway.addr;
   const bearer = fs.readFileSync(path.join(home, "mcp-token"), "utf8").trim();
+  const room = (await rpc("ListRooms")).find(
+    (value) => value.conversation === outgoing.data.roomid,
+  );
+  assert(room, "missing MCP target Room");
   const response = await fetch("http://" + address + "/mcp", {
     method: "POST",
     headers: {
@@ -293,7 +297,11 @@ async function mcp(outgoing, auth = true) {
       method: "tools/call",
       params: {
         name: "messages_send",
-        arguments: { channel: "wecom", event: outgoing },
+        arguments: {
+          target_room_id: room.id,
+          text: outgoing.data.text.content,
+          request_id: outgoing.id,
+        },
       },
     }),
   });
@@ -349,7 +357,7 @@ async function runAgent() {
   assert.equal(trace().length, 0);
   publish("seed-bob", "bob", "image", Date.now());
   await wait(async()=> (await rpc("ListRooms")).length===2);
-  for(const room of await rpc("ListRooms"))await rpc("UpdateRoomSettings",[room.id,{...room.settings,automatic:true,allowOutbound:true}]);
+  for(const room of await rpc("ListRooms"))await rpc("UpdateRoomSettings",[room.id,{...room.settings,automatic:true}]);
   publish("first", "alice", "text", Date.now());
   await wait(() => completed("first"));
   publish("start-steer", "alice", "text", Date.now());
@@ -411,7 +419,7 @@ async function runAgent() {
   publish("group-seed","alice","image",Date.now(),"group-room");
   await wait(async()=> (await rpc("ListRooms")).some(r=>r.conversation==="group-room"));
   const groupRoom=(await rpc("ListRooms")).find(r=>r.conversation==="group-room");
-  await rpc("UpdateRoomSettings",[groupRoom.id,{...groupRoom.settings,automatic:true,allowOutbound:true}]);
+  await rpc("UpdateRoomSettings",[groupRoom.id,{...groupRoom.settings,automatic:true}]);
   publish("group-alice","alice","text",Date.now(),"group-room");publish("group-bob","bob","text",Date.now(),"group-room");
   await wait(async()=> await completed("group-alice")&&await completed("group-bob"));
   const groupView=await rpc("ReadRoomByID",[groupRoom.id]);
@@ -872,7 +880,6 @@ async function runRecovery() {
       check(
         "diagnostics opens the server-selected Room directory through an isolated native boundary",
       );
-      for(const room of await rpc("ListRooms")) await rpc("UpdateRoomSettings",[room.id,{...room.settings,allowOutbound:true}]);
       let releaseSend;
       const holdSend = async (route) => {
         if (route.request().postDataJSON()?.method !== "Desktop.SendMessage") return route.continue();

@@ -18,7 +18,7 @@ aicat 的品牌定位是「你的通用 AI 连接工具」，采用模块化设�
 | [Codex 扩展](codex.md) | 在 Codex 的模型列表中使用供应商的模型，保留 ChatGPT 登录 | 扩展 → 已安装 → Codex；解密 `chatgpt.com` 或 `openai_base_url` 指向 `/backend-api/codex` |
 | [微扑克](wpk.md) | NPM采集包，牌桌Room中的业务快照和正式分析 | 扩展 → 推荐 → 微扑克；消息 → 桌Room |
 | [定时消息](schedules.md) | Agent 创建单次或周期规则，到点向原 Room 投递系统消息 | MCP schedules_set、schedules_list、schedules_delete |
-| [统一消息](messages.md) | 所有渠道的Room、正式回复和设置 | 消息导航 |
+| [统一消息](messages.md) | 所有渠道的Room、发送记录和设置 | 消息导航 |
 | [企业微信客户端](wecom-local.md) | 本地消息增量进入 Room，Agent 通过 MCP 请求客户端脚本发送文本 | 扩展 → 已安装 → 企业微信客户端 |
 | [企业微信 BOT](wecom.md) | 配置机器人、接收私聊文本并通过界面或 MCP 显式发送 | 扩展 → 推荐 → 企业微信 BOT → 安装 → 配置验证 → 启用 |
 | [Agent 查询接口](agent-access.md) | 通过 HTTP 或 MCP 查询实际经过网关的请求 | 同一监听地址的 `/api/*` 与 `/mcp` |

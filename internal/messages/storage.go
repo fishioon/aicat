@@ -20,6 +20,10 @@ func newID() string {
 	return hex.EncodeToString(b[:])
 }
 
+func NewEventID() string {
+	return "agent-" + newID()
+}
+
 func digest(b []byte) string { sum := sha256.Sum256(b); return hex.EncodeToString(sum[:]) }
 
 func syncDir(dir string) error {

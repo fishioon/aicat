@@ -3,7 +3,11 @@ VERSION ?= dev
 LDFLAGS := -s -w -X main.version=$(VERSION)
 DESKTOP_LDFLAGS := $(LDFLAGS) -X github.com/egoist/mygo.production=1
 .DEFAULT_GOAL := build
-.PHONY: build cli app run bindings frontend frontend-check frontend-e2e e2e-build vet fmt-check verify e2e design-shots clean tray-icons channel-check
+.PHONY: build cli app app-icon run bindings frontend frontend-check frontend-e2e e2e-build vet fmt-check verify e2e design-shots clean tray-icons channel-check
+
+APP_ICON_NAME := aicat
+APP_ICON_SOURCE := build/darwin/$(APP_ICON_NAME).icon
+APP_ICON_OUTPUT := build/app-icon
 
 assets/tray-motion.json: assets/logo.svg build/icon/gen.go build/icon/tail.go
 	$(GO) run ./build/icon/*.go tray-motion assets/logo.svg assets
@@ -40,13 +44,27 @@ cli: bin/channel-host/.ready
 	@mkdir -p bin
 	CGO_ENABLED=0 $(GO) build -tags nogui -trimpath -ldflags "$(LDFLAGS)" -o bin/aicat-cli ./cmd/aicat
 
+app-icon:
+	@mkdir -p "$(APP_ICON_OUTPUT)"
+	xcrun actool "$(APP_ICON_SOURCE)" \
+		--compile "$(APP_ICON_OUTPUT)" \
+		--platform macosx \
+		--minimum-deployment-target 13.0 \
+		--app-icon "$(APP_ICON_NAME)" \
+		--standalone-icon-behavior all \
+		--output-partial-info-plist "$(APP_ICON_OUTPUT)/partial.plist" \
+		--output-format human-readable-text \
+		--notices \
+		--warnings
+
 # Manual embed is supported by MyGo. Local bundles remain unsigned;
 # its CLI packager would add signing and distribution artifacts.
-app: build
+app: build app-icon
 	@mkdir -p "build/desktop/aicat.app/Contents/MacOS" "build/desktop/aicat.app/Contents/Resources"
 	cp bin/aicat "build/desktop/aicat.app/Contents/MacOS/aicat.next"
 	mv -f "build/desktop/aicat.app/Contents/MacOS/aicat.next" "build/desktop/aicat.app/Contents/MacOS/aicat"
-	cp build/darwin/aicat.icns "build/desktop/aicat.app/Contents/Resources/aicat.icns"
+	cp "$(APP_ICON_OUTPUT)/$(APP_ICON_NAME).icns" "build/desktop/aicat.app/Contents/Resources/$(APP_ICON_NAME).icns"
+	cp "$(APP_ICON_OUTPUT)/Assets.car" "build/desktop/aicat.app/Contents/Resources/Assets.car"
 	rm -rf "build/desktop/aicat.app/Contents/Resources/channel-host"
 	cp -R bin/channel-host "build/desktop/aicat.app/Contents/Resources/channel-host"
 	sed 's/@VERSION@/0.1.0/g' build/darwin/Info.plist > "build/desktop/aicat.app/Contents/Info.plist"

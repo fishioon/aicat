@@ -41,6 +41,7 @@ export const shell = reactive({
   customInstallVersion: "",
   provider: "",
   sidebarHidden: false,
+  sidebarWidth: 224,
   historyAt: -1,
   history: [] as Location[],
 });

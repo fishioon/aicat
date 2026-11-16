@@ -1,60 +1,238 @@
-const fs=require('node:fs'),path=require('node:path'),readline=require('node:readline'),assert=require('node:assert/strict');
-const root=path.dirname(process.argv[1]);
-const trace=x=>fs.appendFileSync(path.join(root,'codex-trace.jsonl'),JSON.stringify({...x,pid:process.pid})+'\n');
-const emit=x=>process.stdout.write(JSON.stringify(x)+'\n');
-const threads=new Map(),active=new Map(),calls=new Map();let seq=0,call=100;
-function parse(text){return JSON.parse(text.split('trigger_messages:\n')[1].split('\nrequesters:\n')[0]);}
-function finish(thread){const t=active.get(thread);if(!t)return;emit({method:'item/completed',params:{threadId:thread,turnId:t.id,item:{type:'agentMessage',id:'ordinary',phase:'final_answer',text:'ordinary output must not be published'}}});emit({method:'turn/completed',params:{threadId:thread,turn:{id:t.id,status:'completed'}}});active.delete(thread);}
-function scheduleCall(thread){
- const t=active.get(thread),action=t.scheduleActions.shift();
- if(!action){t.scheduleActions=null;return send(thread);}
- const id=++call;calls.set(id,{thread,phase:'schedule'});
- emit({id,method:'item/tool/call',params:{threadId:thread,turnId:t.id,tool:action.name,arguments:action.arguments}});
+const fs = require("node:fs"),
+  path = require("node:path"),
+  readline = require("node:readline"),
+  assert = require("node:assert/strict");
+const root = path.dirname(process.argv[1]);
+const trace = (value) =>
+  fs.appendFileSync(
+    path.join(root, "codex-trace.jsonl"),
+    JSON.stringify({ ...value, pid: process.pid }) + "\n",
+  );
+const emit = (value) => process.stdout.write(JSON.stringify(value) + "\n");
+const threads = new Map(),
+  active = new Map();
+let seq = 0,
+  mcpID = 100;
+
+function parse(text) {
+  return JSON.parse(
+    text.split("trigger_messages:\n")[1].split("\nrequesters:\n")[0],
+  );
 }
-function send(thread){
- const t=active.get(thread);if(!t)return;
- const m=t.messages.at(-1),gates=path.join(root,'codex-gates.json');
- if(fs.existsSync(gates)&&JSON.parse(fs.readFileSync(gates)).includes(m.msgid)){t.timer=setTimeout(()=>send(thread),50);return;}
- if(!t.scheduled&&m.text.content.startsWith('schedule-actions:')){t.scheduled=true;t.scheduleActions=JSON.parse(m.text.content.slice('schedule-actions:'.length));return scheduleCall(thread);}
- if(m.text.content==='ordinary-only')return finish(thread);
- if(m.text.content.includes('hold-agent'))return;
- const id=++call;const args={event:{text:'正式回复 '+m.msgid,reply_to:m.msgid}};
- if(m.text.content==='forged-target')args.event.roomid='another-room';
- calls.set(id,{thread,phase:'publish',args});
- emit({id,method:'item/tool/call',params:{threadId:thread,turnId:t.id,tool:'rooms_reply',arguments:args}});
+
+function sourceRoom(text) {
+  const value = JSON.parse(text.split("\nsource_room:\n")[1]);
+  assert(value.id);
+  return value.id;
 }
-readline.createInterface({input:process.stdin}).on('line',line=>{
- const m=JSON.parse(line),p=m.params;trace(m);
- if(!m.method){
-  const c=calls.get(m.id);calls.delete(m.id);if(!c)return;const t=active.get(c.thread);if(!t)return;
-  if(c.phase==='schedule')return scheduleCall(c.thread);
-  const last=t.messages.at(-1),text=last.schedule?.prompt||last.text.content;
-  if(c.phase==='publish'&&m.result?.success&&text.startsWith('send:')){
-   const receipt=JSON.parse(m.result.contentItems.find(x=>x.type==='inputText')?.text||m.result.contentItems[0].text);
-   const id=++call;calls.set(id,{thread:c.thread,phase:'send'});
-   return emit({id,method:'item/tool/call',params:{threadId:c.thread,turnId:t.id,tool:'messages_send',arguments:{event:{...c.args.event,reply_id:receipt.id}}}});
+
+function mcpURL() {
+  for (let index = 0; index < process.argv.length; index += 1) {
+    const value = process.argv[index];
+    if (!value.startsWith("mcp_servers.aicat.url=")) continue;
+    return JSON.parse(value.slice("mcp_servers.aicat.url=".length));
   }
-  return finish(c.thread);
- }
- if(m.method==='initialize')return emit({id:m.id,result:{userAgent:'fixture'}});
- if(m.method==='initialized')return;
- if(m.method==='model/list')return emit({id:m.id,result:{data:p.cursor?[{model:'room-b',displayName:'Room B',isDefault:false}]:[{model:'room-a',displayName:'Room A',isDefault:true}],nextCursor:p.cursor?null:'page2'}});
- if(['thread/start','thread/resume'].includes(m.method)){
-  assert(p.developerInstructions.includes('rooms_reply')&&p.developerInstructions.includes('messages_send'));
-  if(p.model==='bad-model')return emit({id:m.id,error:{code:-1,message:'MODEL_UNAVAILABLE'}});
-  const id=p.threadId||'thread-'+process.pid+'-'+ ++seq;threads.set(id,p);
-  return emit({id:m.id,result:{thread:{id},model:p.model||'room-a'}});
- }
- if(m.method==='thread/inject_items')return emit({id:m.id,result:{}});
- if(m.method==='turn/start'){
-  const messages=parse(p.input[0].text),history=fs.readFileSync(path.join(threads.get(p.threadId).cwd,'context/messages.log'),'utf8').trim().split('\n').map(JSON.parse);
-  for(const message of messages)assert(history.some(x=>x.msgid===message.msgid));
-  const id='turn-'+ ++seq;active.set(p.threadId,{id,messages});emit({id:m.id,result:{turn:{id}}});
-  if(p.model==='rerouted')return setTimeout(()=>emit({method:'model/rerouted',params:{threadId:p.threadId,turnId:id,fromModel:p.model,toModel:'room-a',reason:'fixture'}}),30);
-  return setTimeout(()=>send(p.threadId),80);
- }
- if(m.method==='turn/steer'){const t=active.get(p.threadId);assert(t&&t.id===p.expectedTurnId);t.messages.push(...parse(p.input[0].text));emit({id:m.id,result:{}});return setTimeout(()=>send(p.threadId),80);}
- if(m.method==='turn/interrupt'){clearTimeout(active.get(p.threadId)?.timer);active.delete(p.threadId);return emit({id:m.id,result:{}});}
- if(m.method==='thread/unsubscribe'){threads.delete(p.threadId);return emit({id:m.id,result:{status:'unsubscribed'}});}
- emit({id:m.id,result:{}});
+  throw new Error("missing aicat MCP URL");
+}
+
+async function mcpTool(name, args) {
+  trace({ method: "mcp_tool_call", name, args });
+  const response = await fetch(mcpURL(), {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + process.env.AICAT_MCP_TOKEN,
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: ++mcpID,
+      method: "tools/call",
+      params: { name, arguments: args },
+    }),
+  });
+  const payload = await response.json();
+  trace({ method: "mcp_tool_result", name, status: response.status, payload });
+  assert.equal(response.status, 200);
+  assert(!payload.error && !payload.result?.isError);
+  return (
+    payload.result?.structuredContent ??
+    JSON.parse(payload.result?.content?.[0]?.text ?? "null")
+  );
+}
+
+function finish(thread) {
+  const turn = active.get(thread);
+  if (!turn) return;
+  emit({
+    method: "item/completed",
+    params: {
+      threadId: thread,
+      turnId: turn.id,
+      item: {
+        type: "agentMessage",
+        id: "ordinary",
+        phase: "final_answer",
+        text: "ordinary output must not be published",
+      },
+    },
+  });
+  emit({
+    method: "turn/completed",
+    params: { threadId: thread, turn: { id: turn.id, status: "completed" } },
+  });
+  active.delete(thread);
+}
+
+async function reply(thread, content) {
+  const turn = active.get(thread);
+  if (!turn) return;
+  const message = turn.messages.at(-1);
+  await mcpTool("messages_send", {
+    target_room_id: turn.roomID,
+    text: content,
+    reply_to: message.msgid,
+    request_id: "fixture-" + message.msgid,
+  });
+  finish(thread);
+}
+
+async function schedule(thread) {
+  const turn = active.get(thread);
+  const actions = turn.scheduleActions.shift();
+  if (!actions) return reply(thread, "schedule complete");
+  await mcpTool(actions.name, { ...actions.arguments, room_id: turn.roomID });
+  return schedule(thread);
+}
+
+async function processTrigger(thread) {
+  const turn = active.get(thread);
+  const message = turn.messages.at(-1);
+  const gates = path.join(root, "codex-gates.json");
+  if (
+    fs.existsSync(gates) &&
+    JSON.parse(fs.readFileSync(gates)).includes(message.msgid)
+  ) {
+    turn.timer = setTimeout(() => processTrigger(thread), 50);
+    return;
+  }
+  if (message.text.content.startsWith("schedule-actions:")) {
+    turn.scheduleActions = JSON.parse(
+      message.text.content.slice("schedule-actions:".length),
+    );
+    return schedule(thread);
+  }
+  if (message.text.content === "ordinary-only") return finish(thread);
+  if (message.text.content.includes("hold-agent")) return;
+  if (message.text.content === "forged-target") {
+    try {
+      await mcpTool("messages_send", {
+        target_room_id: "not-a-room",
+        text: "forged",
+        request_id: "fixture-forged",
+      });
+      trace({ method: "forged_target_unexpectedly_accepted" });
+    } catch (error) {
+      trace({ method: "forged_target_rejected", error: error.message });
+    }
+    return finish(thread);
+  }
+  return reply(thread, "MCP reply " + message.msgid);
+}
+
+readline.createInterface({ input: process.stdin }).on("line", async (line) => {
+  const message = JSON.parse(line),
+    params = message.params;
+  trace(message);
+  if (!message.method) return;
+  if (message.method === "initialize") {
+    emit({ id: message.id, result: { userAgent: "fixture" } });
+    return;
+  }
+  if (message.method === "initialized") return;
+  if (message.method === "model/list") {
+    emit({
+      id: message.id,
+      result: {
+        data: params.cursor
+          ? [{ model: "room-b", displayName: "Room B", isDefault: false }]
+          : [{ model: "room-a", displayName: "Room A", isDefault: true }],
+        nextCursor: params.cursor ? null : "page2",
+      },
+    });
+    return;
+  }
+  if (["thread/start", "thread/resume"].includes(message.method)) {
+    assert(!params.dynamicTools);
+    if (params.model === "bad-model") {
+      emit({ id: message.id, error: { code: -1, message: "MODEL_UNAVAILABLE" } });
+      return;
+    }
+    const id = params.threadId || "thread-" + process.pid + "-" + ++seq;
+    threads.set(id, params);
+    emit({ id: message.id, result: { thread: { id }, model: params.model || "room-a" } });
+    return;
+  }
+  if (message.method === "thread/inject_items") {
+    emit({ id: message.id, result: {} });
+    return;
+  }
+  if (message.method === "turn/start") {
+    const messages = parse(params.input[0].text);
+    const history = fs
+      .readFileSync(path.join(threads.get(params.threadId).cwd, "context/messages.log"), "utf8")
+      .trim()
+      .split("\n")
+      .map(JSON.parse);
+    for (const item of messages) {
+      assert(history.some((row) => row.msgid === item.msgid));
+    }
+    const id = "turn-" + ++seq;
+    active.set(params.threadId, {
+      id,
+      messages,
+      roomID: sourceRoom(params.input[0].text),
+      scheduleActions: [],
+    });
+    emit({ id: message.id, result: { turn: { id } } });
+    if (params.model === "rerouted") {
+      setTimeout(
+        () =>
+          emit({
+            method: "model/rerouted",
+            params: {
+              threadId: params.threadId,
+              turnId: id,
+              fromModel: params.model,
+              toModel: "room-a",
+              reason: "fixture",
+            },
+          }),
+        30,
+      );
+      return;
+    }
+    setTimeout(() => processTrigger(params.threadId), 80);
+    return;
+  }
+  if (message.method === "turn/steer") {
+    const turn = active.get(params.threadId);
+    assert(turn && turn.id === params.expectedTurnId);
+    turn.messages.push(...parse(params.input[0].text));
+    emit({ id: message.id, result: {} });
+    setTimeout(() => processTrigger(params.threadId), 80);
+    return;
+  }
+  if (message.method === "turn/interrupt") {
+    clearTimeout(active.get(params.threadId)?.timer);
+    active.delete(params.threadId);
+    emit({ id: message.id, result: {} });
+    return;
+  }
+  if (message.method === "thread/unsubscribe") {
+    threads.delete(params.threadId);
+    emit({ id: message.id, result: { status: "unsubscribed" } });
+    return;
+  }
+  if (message.id) emit({ id: message.id, result: {} });
 });

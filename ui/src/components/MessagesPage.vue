@@ -10,9 +10,11 @@ import {
 import { host } from "../host";
 import { ask, modal, navigate, shell, state } from "../state/desktop";
 import { locale, t } from "../i18n";
+import { useFollowLatest } from "../state/follow-latest";
 import logo from "../../../assets/logo.svg";
 import Icon from "./Icon.vue";
 import RoomSettings from "./RoomSettings.vue";
+import RoomAvatar from "./RoomAvatar.vue";
 import type {
   Message,
   RoomIssue,
@@ -37,6 +39,8 @@ const taskLabels: Record<string, string> = {
 };
 const rooms = ref<RoomSummary[]>([]);
 const view = ref<RoomView>();
+const viewport = ref<HTMLElement>();
+const follow = useFollowLatest(viewport, () => view.value);
 const query = ref("");
 const filter = ref<"all" | "issues">("all");
 const panel = ref<"" | "settings" | "activity">("");
@@ -55,7 +59,10 @@ const channel = computed(() =>
   state.value?.extensions.find((x) => x.id === view.value?.channel),
 );
 const roomName = (room: RoomSummary) =>
-  room.settings.name || room.settings.sendTarget || room.conversation;
+  room.settings.name ||
+  room.presentation.name ||
+  room.settings.sendTarget ||
+  room.conversation;
 const filteredRooms = computed(() => {
   const search = query.value.trim().toLocaleLowerCase();
   return rooms.value.filter(
@@ -80,8 +87,52 @@ function compact(value: string, limit = 22) {
     ? value.slice(0, limit - 8) + "…" + value.slice(-7)
     : value;
 }
-function roomIcon(room: RoomSummary) {
-  return room.conversation.startsWith("S:") ? "person" : "people";
+const typeLabels: Record<string, string> = {
+  image: "[图片]",
+  voice: "[语音]",
+  file: "[文件]",
+  video: "[视频]",
+  link: "[链接]",
+  card: "[卡片]",
+  mixed: "[图文消息]",
+  voip: "[通话]",
+  meeting: "[会议]",
+  event: "[事件]",
+  unknown: "[未知消息]",
+};
+function memberAvatars(room: RoomSummary) {
+  return Object.values(room.presentation.members ?? {})
+    .map((member) => member.avatar)
+    .filter(Boolean);
+}
+function isGroup(room: RoomSummary) {
+  return (
+    room.presentation.kind === "group" || room.conversation.startsWith("R:")
+  );
+}
+function agentMessage(message: Message) {
+  return (
+    message.outgoing &&
+    message.action !== "receive" &&
+    !view.value?.presentation.members?.[message.from ?? ""]
+  );
+}
+function senderName(message: Message) {
+  if (agentMessage(message)) return "aicat";
+  if (message.schedule) return t("定时系统消息");
+  return (
+    view.value?.presentation.members?.[message.from ?? ""]?.name ||
+    compact(message.from || t("渠道消息"))
+  );
+}
+function messageText(message: Message) {
+  return (
+    message.summary ||
+    (typeLabels[message.msgtype]
+      ? t(typeLabels[message.msgtype])
+      : message.text.content) ||
+    t("非文本消息")
+  );
 }
 function date(value: string | number) {
   return new Date(value).toLocaleDateString(locale.value);
@@ -94,7 +145,23 @@ function time(value: string | number) {
   });
 }
 function activity(value: string) {
-  return date(value) === date(Date.now()) ? time(value) : date(value);
+  const then = new Date(value),
+    now = new Date();
+  if (date(value) === date(now.getTime())) return time(value);
+  const yesterday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - 1,
+  );
+  if (date(value) === date(yesterday.getTime())) return t("昨天");
+  const week = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+  if (then >= week && then <= now)
+    return then.toLocaleDateString(locale.value, { weekday: "long" });
+  return then.toLocaleDateString(locale.value, {
+    month: "numeric",
+    day: "numeric",
+    ...(then.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}),
+  });
 }
 function issueLabel(issue: RoomIssue) {
   return t(
@@ -112,7 +179,7 @@ function isEarlier(message: Message) {
   );
 }
 function isStructured(message: Message) {
-  if (message.outgoing) return false;
+  if (message.outgoing || message.msgtype !== "text") return false;
   try {
     const value: unknown = JSON.parse(message.text.content);
     return typeof value === "object" && value !== null;
@@ -121,10 +188,22 @@ function isStructured(message: Message) {
   }
 }
 function preview(room: RoomSummary) {
-  try {
-    if (typeof JSON.parse(room.lastMessage) === "object") return t("业务状态");
-  } catch {}
-  return room.lastMessage || t("暂无消息");
+  let content = room.lastMessage || t("暂无消息");
+  if (typeLabels[room.lastType]) content = t(typeLabels[room.lastType]);
+  else
+    try {
+      const value: unknown = JSON.parse(content);
+      if (value !== null && typeof value === "object") content = t("业务状态");
+    } catch {}
+  const sender = room.lastAgent
+    ? "aicat"
+    : room.lastOutgoing
+      ? t("我")
+      : isGroup(room)
+        ? room.presentation.members?.[room.lastSender]?.name ||
+          compact(room.lastSender)
+        : "";
+  return (sender ? sender + ": " : "") + content.replace(/\s+/g, " ");
 }
 function originalLabel(id: string) {
   const original = view.value?.messages.find((m) => m.msgid === id);
@@ -191,6 +270,7 @@ function openPanel(next: "settings" | "activity") {
 }
 function showOriginal(id: string) {
   cleanThen(() => {
+    follow.following.value = false;
     panel.value = "";
     void nextTick(() =>
       document.getElementById("room-message-" + id)?.scrollIntoView({
@@ -246,6 +326,7 @@ watch(
     generation++;
     panel.value = "";
     view.value = undefined;
+    follow.reset();
     void reload();
   },
 );
@@ -318,9 +399,11 @@ onBeforeUnmount(() => {
           :title="roomName(room)"
           @click="choose(room.id)"
         >
-          <span class="room-avatar" aria-hidden="true"
-            ><Icon :name="roomIcon(room)"
-          /></span>
+          <RoomAvatar
+            :avatar="room.presentation.avatar"
+            :members="memberAvatars(room)"
+            :group="isGroup(room)"
+          />
           <span class="room-item-copy">
             <span class="room-item-heading"
               ><strong>{{ roomName(room) }}</strong
@@ -328,7 +411,9 @@ onBeforeUnmount(() => {
                 activity(room.updatedAt)
               }}</time></span
             >
-            <span class="room-preview">{{ preview(room) }}</span>
+            <span class="room-preview" :title="preview(room)">{{
+              preview(room)
+            }}</span>
             <span class="room-source"
               ><span>{{ channelName(room.channel) }}</span
               ><span v-if="room.issues.length" class="room-issue-label"
@@ -408,8 +493,10 @@ onBeforeUnmount(() => {
         </div>
         <div
           id="room-messages"
+          ref="viewport"
           class="room-messages"
           :aria-label="t('会话消息')"
+          @scroll.passive="follow.scroll"
         >
           <template
             v-for="(message, index) in view.messages"
@@ -432,22 +519,17 @@ onBeforeUnmount(() => {
               :data-message-id="message.msgid"
               :id="'room-message-' + message.msgid"
             >
-              <span class="room-avatar" aria-hidden="true"
-                ><img
-                  v-if="message.outgoing || message.schedule"
-                  :src="logo"
-                  alt="" /><Icon v-else name="person"
-              /></span>
+              <RoomAvatar
+                :avatar="
+                  agentMessage(message) || message.schedule
+                    ? logo
+                    : view.presentation.members?.[message.from ?? '']?.avatar
+                "
+              />
               <div class="room-message-content">
                 <div class="room-message-meta">
-                  <span :title="message.from">{{
-                    message.outgoing
-                      ? "aicat"
-                      : message.schedule
-                        ? t("定时系统消息")
-                        : compact(message.from || t("渠道消息"))
-                  }}</span
-                  ><span v-if="message.outgoing" class="room-agent-label"
+                  <span :title="message.from">{{ senderName(message) }}</span
+                  ><span v-if="agentMessage(message)" class="room-agent-label"
                     >Agent</span
                   ><time
                     v-if="message.msgtime != null"
@@ -470,8 +552,8 @@ onBeforeUnmount(() => {
                     <summary>{{ t("业务状态") }}</summary>
                     <pre>{{ message.text.content }}</pre>
                   </details>
-                  <div v-else class="room-message-text">
-                    {{ message.text.content || t("非文本消息") }}
+                  <div v-else-if="!message.summary" class="room-message-text">
+                    {{ messageText(message) }}
                   </div>
                 </div>
                 <p v-if="message.historical" class="room-message-note">
@@ -505,11 +587,7 @@ onBeforeUnmount(() => {
                   >
                 </p>
                 <p v-else-if="message.outgoing" class="room-delivery">
-                  {{
-                    message.action === "publish"
-                      ? t("已保存到 Room")
-                      : t("外发记录")
-                  }}
+                  {{ t("外发记录") }}
                 </p>
               </div>
             </article>
@@ -521,8 +599,16 @@ onBeforeUnmount(() => {
         <footer class="room-records-footer">
           <span :title="t('仅展示最近 200 条消息')">{{
             t("最近 {n} 条消息", { n: view.messages.length })
-          }}</span
-          ><button
+          }}</span>
+          <label class="follow-latest">
+            <input
+              id="room-follow-latest"
+              type="checkbox"
+              :checked="follow.following.value"
+              @change="follow.toggle"
+            />{{ t("跟随最新") }}
+          </label>
+          <button
             class="link"
             id="room-activity-toggle"
             :aria-expanded="panel === 'activity'"

@@ -163,7 +163,10 @@ async function verify({ page, root, home, current, wait, stop, launch }) {
     .sort();
   assert.deepEqual(names, [
     "messages_send",
-    "rooms_reply",
+    "rooms_list",
+    "schedules_delete",
+    "schedules_list",
+    "schedules_set",
     "traffic_body",
     "traffic_get",
     "traffic_list",

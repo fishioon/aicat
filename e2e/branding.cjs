@@ -38,7 +38,6 @@ async function main() {
         binary,
         "README.md",
         "README_CN.md",
-        "ui/src/components/BrandIntro.vue",
         "ui/src/components/OverviewPage.vue",
         "ui/src/components/SettingsPage.vue",
         "ui/src/translations.json",
@@ -101,15 +100,6 @@ async function main() {
         (value) => document.documentElement.lang === value,
         language,
       );
-      const positioning = language === "en"
-        ? "Your General-Purpose AI Connector"
-        : "你的通用 AI 连接工具";
-      const inspiration = language === "en"
-        ? "Inspired by netcat."
-        : "灵感源自 netcat。";
-      const principles = language === "en"
-        ? "Modular by design. Extensible and composable."
-        : "模块化设计，可扩展、可组合。";
       for (const theme of ["light", "dark"]) {
         if ((await page.locator("html").getAttribute("data-theme")) !== theme)
           await page.locator("#theme").click();
@@ -121,22 +111,15 @@ async function main() {
           await page.setViewportSize({ width, height: 820 });
           for (const route of ["overview", "settings"]) {
             await page.locator("#nav-" + route).click();
-            const brand = page.locator(".app-brand");
-            await brand.waitFor();
-            assert.equal(await brand.getByRole("heading").innerText(), "aicat");
-            assert.equal(await brand.locator('[data-brand="positioning"]').innerText(), positioning);
-            assert.equal(await brand.locator('[data-brand="inspiration"]').innerText(), inspiration);
-            assert.equal(await brand.locator('[data-brand="principles"]').innerText(), principles);
-            const bounds = await brand.boundingBox();
-            assert(bounds.x >= 0 && bounds.x + bounds.width <= width);
-            assert(bounds.y >= 0 && bounds.y + bounds.height <= 820);
-            assert(await brand.evaluate((element) =>
-              [...element.querySelectorAll("p")].every((p) => p.scrollWidth <= p.clientWidth)
-            ));
+            await page.locator(route === "overview" ? "#gateway-state" : "#preference-language-" + language).waitFor();
+            assert.equal(await page.locator(".app-brand, [data-brand]").count(), 0);
+            const content = await page.locator("main").innerText();
+            for (const text of ["你的通用 AI 连接工具", "模块化设计，可扩展、可组合。", "灵感源自 netcat。", "Your General-Purpose AI Connector", "Modular by design. Extensible and composable.", "Inspired by netcat."])
+              assert(!content.includes(text), `${route}: unexpected brand text ${text}`);
             await page.screenshot({
               path: path.join(root, `${route}-${language}-${theme}-${width}.png`),
             });
-            report.checks.push({ route, language, theme, width, positioning, principles, inspiration });
+            report.checks.push({ route, language, theme, width, brandIntroAbsent: true });
           }
         }
       }

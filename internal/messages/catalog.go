@@ -24,10 +24,15 @@ type RoomIdentity struct {
 
 type RoomSummary struct {
 	RoomIdentity
-	LastMessage string              `json:"lastMessage"`
-	UpdatedAt   time.Time           `json:"updatedAt"`
-	Settings    config.RoomSettings `json:"settings"`
-	Issues      []RoomIssue         `json:"issues"`
+	Presentation RoomPresentation    `json:"presentation"`
+	LastSender   string              `json:"lastSender"`
+	LastType     string              `json:"lastType"`
+	LastOutgoing bool                `json:"lastOutgoing"`
+	LastAgent    bool                `json:"lastAgent"`
+	LastMessage  string              `json:"lastMessage"`
+	UpdatedAt    time.Time           `json:"updatedAt"`
+	Settings     config.RoomSettings `json:"settings"`
+	Issues       []RoomIssue         `json:"issues"`
 }
 
 type RoomView struct {
@@ -180,11 +185,21 @@ func summarizeRoom(home string, identity RoomIdentity, settings config.RoomSetti
 	if err != nil {
 		return RoomSummary{}, err
 	}
-	result := RoomSummary{RoomIdentity: identity, Settings: settings, UpdatedAt: updated, Issues: issues}
+	presentation, err := readPresentation(home, identity.ID)
+	if err != nil {
+		return RoomSummary{}, err
+	}
+	result := RoomSummary{Presentation: presentation, RoomIdentity: identity, Settings: settings, UpdatedAt: updated, Issues: issues}
 	if len(rows) == 0 {
 		return result, nil
 	}
 	last := rows[len(rows)-1]
+	result.LastSender, result.LastType, result.LastOutgoing = last.From, last.Type, last.Outgoing
+	_, known := presentation.Members[last.From]
+	result.LastAgent = last.Outgoing && (last.Action != "receive" && !known)
+	if last.Time != nil {
+		result.UpdatedAt = time.UnixMilli(*last.Time)
+	}
 	preview := last.Summary
 	if preview == "" {
 		preview = last.Text.Content

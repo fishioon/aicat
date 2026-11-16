@@ -11,12 +11,12 @@ import (
 )
 
 type ScheduleSpec struct {
-	Name     string `yaml:"name" json:"name"`
-	Prompt   string `yaml:"prompt" json:"prompt"`
-	At       string `yaml:"at,omitempty" json:"at,omitempty"`
-	Cron     string `yaml:"cron,omitempty" json:"cron,omitempty"`
-	Timezone string `yaml:"timezone,omitempty" json:"timezone,omitempty"`
-	Enabled  bool   `yaml:"enabled" json:"enabled"`
+	Name     string `yaml:"name" json:"name" jsonschema:"Human-readable schedule name."`
+	Prompt   string `yaml:"prompt" json:"prompt" jsonschema:"Task content delivered when the schedule fires."`
+	At       string `yaml:"at,omitempty" json:"at,omitempty" jsonschema:"Single future RFC3339 timestamp with UTC offset. Mutually exclusive with cron."`
+	Cron     string `yaml:"cron,omitempty" json:"cron,omitempty" jsonschema:"Five-field cron expression. Requires timezone."`
+	Timezone string `yaml:"timezone,omitempty" json:"timezone,omitempty" jsonschema:"IANA timezone for cron, for example Asia/Taipei."`
+	Enabled  bool   `yaml:"enabled" json:"enabled" jsonschema:"Whether the schedule is active."`
 }
 
 type Schedule struct {

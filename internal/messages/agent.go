@@ -38,6 +38,7 @@ type Dispatcher struct {
 	isConnected func() bool
 	options     DispatcherOptions
 	runner      *agent.Runner
+	ownsRunner  bool
 	mu          sync.Mutex
 	active      map[string]chan struct{}
 	wg          sync.WaitGroup
@@ -48,7 +49,7 @@ type Dispatcher struct {
 
 func newDispatcher(ctx context.Context, c *Channel) *Dispatcher {
 	credentials, _ := c.credentials()
-	return dispatcherForRooms(ctx, c.rooms, DispatcherOptions{CanSend: c.CanSend, SelfID: c.selfID(), Source: c.source(credentials.AccountID), Connected: func() bool { c.mu.Lock(); defer c.mu.Unlock(); return c.account != nil && c.state.Phase == "connected" }, Changed: c.changed, Execute: MCPExecutor(MCPExecutorOptions{Channel: c.id, Send: c.mcp, Schedule: c.schedule})})
+	return dispatcherForRooms(ctx, c.rooms, DispatcherOptions{Runner: c.runner, SelfID: c.selfID(), Source: c.source(credentials.AccountID), Connected: func() bool { c.mu.Lock(); defer c.mu.Unlock(); return c.account != nil && c.state.Phase == "connected" }, Changed: c.changed})
 }
 
 func (d *Dispatcher) Enqueue(source string, record Record) {
@@ -163,7 +164,8 @@ func triggerPrompt(tasks []queuedTask) string {
 	raw, _ := json.Marshal(messages)
 	people, _ := json.Marshal(requesters)
 	context, _ := json.Marshal(tasks[0].task.Settings.Context)
-	return "trigger_messages:\n" + string(raw) + "\nrequesters:\n" + string(people) + "\nroom_context:\n" + string(context)
+	room, _ := json.Marshal(map[string]string{"id": roomID(tasks[0].task.Account, tasks[0].task.Source, tasks[0].task.Room), "channel": tasks[0].task.Account, "conversation": tasks[0].task.Room})
+	return "trigger_messages:\n" + string(raw) + "\nrequesters:\n" + string(people) + "\nroom_context:\n" + string(context) + "\nsource_room:\n" + string(room)
 }
 
 func (d *Dispatcher) saveTasks(tasks []queuedTask, status string, cause error) {
@@ -229,7 +231,9 @@ func (d *Dispatcher) process(dir string) {
 		done := make(chan error, 1)
 		started := make(chan struct{})
 		first := tasks[0].task
-		go func() { done <- d.options.Execute(ctx, d.runner, thread, first, triggerPrompt(tasks), started) }()
+		go func() {
+			done <- d.runner.TurnWithModel(ctx, thread, first.Trigger.ID, triggerPrompt(tasks), first.Settings.Model, started)
+		}()
 		ready := false
 		finished := false
 		for !finished {
@@ -291,7 +295,6 @@ func (d *Dispatcher) process(dir string) {
 }
 
 func (d *Dispatcher) thread(dir string, task Task) (string, error) {
-	canSend := task.Settings.AllowOutbound && (d.options.CanSend == nil || d.options.CanSend())
 	instructions := agentInstructions + "\nRoom prompt:\n" + task.Settings.Prompt
 	cfg, err := config.Load(d.rooms.home)
 	if err != nil {
@@ -299,14 +302,12 @@ func (d *Dispatcher) thread(dir string, task Task) (string, error) {
 	}
 	binary := cfg.MessageExecution.CodexBinary
 	if task.Settings.Mode == "snapshot" {
-		return d.runner.Thread(d.ctx, binary, dir, "", agent.ThreadOptions{Instructions: instructions + "\n" + snapshotInstructions, Tools: agentTools(canSend), Ephemeral: true, Model: task.Settings.Model})
+		return d.runner.Thread(d.ctx, binary, dir, "", agent.ThreadOptions{Instructions: instructions + "\n" + snapshotInstructions, Ephemeral: true, Model: task.Settings.Model})
 	}
 	var state struct {
 		ThreadID         string `json:"threadId"`
-		ToolsHash        string `json:"toolsHash"`
 		InstructionsHash string `json:"instructionsHash,omitempty"`
 		Model            string `json:"model,omitempty"`
-		AllowOutbound    bool   `json:"allowOutbound"`
 	}
 	file := filepath.Join(dir, "agent.json")
 	raw, err := os.ReadFile(file)
@@ -317,15 +318,13 @@ func (d *Dispatcher) thread(dir string, task Task) (string, error) {
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}
-	tools, _ := json.Marshal(agentTools(canSend))
-	toolsHash := digest(tools)
-	if state.ThreadID != "" && (state.Model != task.Settings.Model || state.AllowOutbound != canSend || state.ToolsHash != toolsHash) {
+	if state.ThreadID != "" && state.Model != task.Settings.Model {
 		if err := d.runner.Unsubscribe(d.ctx, state.ThreadID); err != nil {
 			return "", err
 		}
 		state.ThreadID = ""
 	}
-	id, err := d.runner.Thread(d.ctx, binary, dir, state.ThreadID, agent.ThreadOptions{Instructions: instructions, Tools: agentTools(canSend), Model: task.Settings.Model})
+	id, err := d.runner.Thread(d.ctx, binary, dir, state.ThreadID, agent.ThreadOptions{Instructions: instructions, Model: task.Settings.Model})
 	if err != nil {
 		return "", err
 	}
@@ -338,10 +337,8 @@ func (d *Dispatcher) thread(dir string, task Task) (string, error) {
 	}
 	if state.ThreadID == "" || update {
 		state.ThreadID = id
-		state.ToolsHash = toolsHash
 		state.InstructionsHash = instructionsHash
 		state.Model = task.Settings.Model
-		state.AllowOutbound = canSend
 		if err = writeJSON(file, state); err != nil {
 			return "", err
 		}
@@ -351,18 +348,19 @@ func (d *Dispatcher) thread(dir string, task Task) (string, error) {
 
 func (d *Dispatcher) Close() {
 	<-d.done
-	d.runner.Close()
+	if d.ownsRunner {
+		d.runner.Close()
+	}
 	d.wg.Wait()
 }
 
 type DispatcherOptions struct {
-	CanSend   func() bool
 	SelfID    string
 	Source    string
 	Connected func() bool
 	Changed   func()
 	Accept    func(Message) bool
-	Execute   func(context.Context, *agent.Runner, string, Task, string, chan<- struct{}) error
+	Runner    *agent.Runner
 }
 
 func (s *Inbox) Dispatcher(ctx context.Context, options DispatcherOptions) *Dispatcher {
@@ -370,7 +368,12 @@ func (s *Inbox) Dispatcher(ctx context.Context, options DispatcherOptions) *Disp
 }
 func dispatcherForRooms(ctx context.Context, rooms *roomStore, options DispatcherOptions) *Dispatcher {
 	rooms.tasks.reset()
-	return &Dispatcher{ctx: ctx, rooms: rooms, id: rooms.channel, runner: agent.New(), source: options.Source, notify: options.Changed, isConnected: options.Connected, options: options, active: map[string]chan struct{}{}, done: make(chan struct{}), wake: make(chan struct{}, 1)}
+	runner := options.Runner
+	ownsRunner := runner == nil
+	if runner == nil {
+		runner = agent.New()
+	}
+	return &Dispatcher{ctx: ctx, rooms: rooms, id: rooms.channel, runner: runner, ownsRunner: ownsRunner, source: options.Source, notify: options.Changed, isConnected: options.Connected, options: options, active: map[string]chan struct{}{}, done: make(chan struct{}), wake: make(chan struct{}, 1)}
 }
 func (s *Inbox) Tasks(source string) []Task { return s.rooms.tasks.list(source) }
 
