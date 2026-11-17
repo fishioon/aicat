@@ -29,7 +29,6 @@ type Message struct {
 	Historical    bool                  `json:"historical,omitempty"`
 	Summary       string                `json:"summary,omitempty"`
 	Delivery      *Delivery             `json:"delivery,omitempty"`
-	AgentSnapshot *Text                 `json:"agent_snapshot,omitempty"`
 	ReplyTo       string                `json:"reply_to,omitempty"`
 	ContextKey    string                `json:"context_key,omitempty"`
 	SearchName    string                `json:"search_name,omitempty"`

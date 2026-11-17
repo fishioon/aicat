@@ -575,7 +575,7 @@ function copy(text,what){
 const copyline=(text,what)=>`<div class="copyline"><code>${esc(text)}</code><button type="button" class="icon-btn" data-act="copy" data-text="${esc(text)}" aria-label="复制${esc(what)}">${icon('copy')}</button></div>`;
 const seg=(act,cur,opts,label)=>`<div class="seg" role="radiogroup" aria-label="${label}">${opts.map(([v,t])=>`<button type="button" role="radio" aria-checked="${v===cur}" data-act="${act}" data-v="${v}">${t}</button>`).join('')}</div>`;
 
-const MODS={overview:['主页','home'],traffic:['流量','traffic'],ext:['扩展','extensions'],settings:['设置','settings']};
+const MODS={overview:['主页','home'],messages:['消息','messages'],traffic:['流量','traffic'],ext:['扩展','extensions'],settings:['设置','settings']};
 // 前进后退只记录位置：模块、子页面和流量侧栏筛选。
 const H={list:[],at:-1};
 const loc=()=>JSON.stringify({page:S.page,connect:S.connect,set:S.set,ext:S.ext,filter:S.filter});
@@ -594,7 +594,7 @@ function crumbs(){
 }
 function drawBar(){
   const item=p=>`<button type="button" data-act="go" data-v="${p}" title="${MODS[p][0]}" aria-label="${MODS[p][0]}" ${S.page===p?'aria-current="page"':''}>${navIcon(MODS[p][1])}</button>`;
-  $('#rail').innerHTML=item('overview')+(S.trafficOn?item('traffic'):'')+item('ext')
+  $('#rail').innerHTML=item('overview')+item('messages')+(S.trafficOn?item('traffic'):'')+item('ext')
     +'<span class="grow"></span>'+item('settings');
   $('#crumb').innerHTML=crumbs().map(t=>`<span>${esc(t)}</span>`).join(icon('chev'));
   $('#hist-back').innerHTML=icon('back');$('#hist-back').disabled=H.at<=0;
@@ -608,6 +608,7 @@ function draw(){
   applyTheme();track();drawBar();
   const p=$('#page');
   if(S.page==='overview')p.innerHTML=S.connect==='provider'?providerPage():S.connect?connectPage():overview();
+  else if(S.page==='messages')p.innerHTML=messagesPage();
   else if(S.page==='traffic'){p.innerHTML=trafficShell();drawSide();drawList();drawInsp();}
   else if(S.page==='ext'){p.innerHTML=extPage();drawExtSide();}
   else p.innerHTML=settingsPage();
@@ -615,12 +616,12 @@ function draw(){
 }
 
 /* ---------- 主页：用量总览 ---------- */
-// 演示数据。实际数字来自经过网关的模型请求；费用按公开价目估算。
+// 演示数据。实际数字来自经过网关的模型请求。
 const rnd=(a,b)=>{const x=Math.sin(a*127.1+b*311.7)*43758.5453;return x-Math.floor(x);};
 const USE=[
-  {agent:'Claude Code',prov:'Anthropic',model:'claude-sonnet-4-5',w:.66,tok:21000,price:.42},
-  {agent:'Codex',prov:'OpenAI',model:'gpt-5-codex',w:.22,tok:16000,price:.36},
-  {agent:'Claude Code',prov:'Anthropic',model:'claude-haiku-4-5',w:.12,tok:9000,price:.11}
+  {agent:'Claude Code',prov:'Anthropic',model:'claude-sonnet-4-5',w:.66,tok:21000},
+  {agent:'Codex',prov:'OpenAI',model:'gpt-5-codex',w:.22,tok:16000},
+  {agent:'Claude Code',prov:'Anthropic',model:'claude-haiku-4-5',w:.12,tok:9000}
 ];
 // 颜色跟随实体，不跟随排名：切换时间范围或拆分维度时，同一个实体保持同一个颜色。
 const SLOT={'claude-sonnet-4-5':1,'gpt-5-codex':2,'claude-haiku-4-5':3,Anthropic:1,OpenAI:2,'Claude Code':1,Codex:2};
@@ -632,7 +633,7 @@ const RANGES={
   d30:{name:'30 天',n:30,every:5,scale:1.6e7,shape:i=>{const d=dayAt(i).getDay();return (d===0||d===6?.15:.45)+.55*rnd(i+3,7);},label:i=>(dayAt(i).getMonth()+1)+'/'+dayAt(i).getDate(),fail:9,hit:96.1,speed:40,first:'1.9'}
 };
 const big=v=>v>=1e6?(v/1e6).toFixed(v<1e7?1:0)+'M':v>=1e3?(v/1e3).toFixed(v<1e4?1:0)+'K':String(Math.round(v));
-const FMT={token:big,cost:v=>'$'+(v>=100?v.toFixed(0):v.toFixed(2)),req:big};
+const FMT={token:big,req:big};
 function usage(range,dim,metric){
   const R=RANGES[range],keyOf=c=>dim==='model'?c.model:dim==='prov'?c.prov:c.agent,map=new Map();
   USE.forEach((c,ci)=>{
@@ -640,7 +641,7 @@ function usage(range,dim,metric){
     if(!map.has(k))map.set(k,{name:k,slot:SLOT[k],v:Array(R.n).fill(0)});
     for(let i=0;i<R.n;i++){
       const tk=R.scale*R.shape(i)*c.w*(.8+.4*rnd(i+1,ci+1));
-      map.get(k).v[i]+=metric==='token'?tk:metric==='cost'?tk/1e6*c.price:tk/c.tok;
+      map.get(k).v[i]+=metric==='token'?tk:tk/c.tok;
     }
   });
   const series=[...map.values()].sort((a,b)=>a.slot-b.slot);
@@ -690,6 +691,11 @@ const endpoints=()=>`<section><h2>接入地址</h2><p class="sub">MCP 和 HTTP A
   <div><label>MCP</label>${copyline(base()+'/mcp',' MCP 地址')}</div>
   <div><label>HTTP API</label>${copyline(base()+'/api',' API 地址')}</div>
   <div><label>HTTP 代理</label>${copyline(base(),'代理地址')}</div></div></section>`;
+function messagesPage(){
+  return `<div class="main" style="height:100%"><div class="empty">
+  <h2>消息</h2><p>渠道收到消息后，会话会显示在这里。选择一个会话查看消息。</p>
+  </div></div>`;
+}
 function firstRun(){
   return `<div class="main" style="height:100%"><div class="ov">
   <div class="ov-head"><div><h1>网关运行中，还没有调用经过</h1><p>aicat 已在后台监听 <span class="num">${esc(S.host)}:${esc(S.port)}</span>。完成下面两步后，这里会显示用量。</p></div></div>
@@ -698,7 +704,7 @@ function firstRun(){
       <p>${S.waiting?`<span class="waiting"><i class="spin"></i>等待 ${CLIENTS[S.client].name} 首次连接…在 Agent 里发一条消息即可。</span>`:'让 Agent 通过 MCP 查询网关记录、编写改写规则。'}</p>
       <button type="button" class="btn primary" data-act="connect">${icon('plus')}接入 Agent</button></div></li>
     <li class="step"><span class="n num">2</span><div><h2>接入供应商</h2>
-      <p>让模型请求经过网关，这里才会有 Token、费用和速度的统计。</p>
+      <p>让模型请求经过网关，这里才会有 Token 和速度的统计。</p>
       <button type="button" class="btn" data-act="connect-prov">接入供应商</button></div></li>
   </ol></section>
   <div class="ov-cols">${endpoints()}</div></div></div>`;
@@ -706,7 +712,7 @@ function firstRun(){
 function overview(){
   if(!S.connected)return firstRun();
   const r=S.range,R=RANGES[r],u=usage(r,S.dim,S.metric),fmt=FMT[S.metric];
-  const tok=usage(r,'model','token').sum,req=usage(r,'model','req').sum,cost=usage(r,'model','cost').sum;
+  const tok=usage(r,'model','token').sum,req=usage(r,'model','req').sum;
   const reqBy=d=>Object.fromEntries(usage(r,d,'req').series.map(s=>[s.name,s.total])),reqDim=reqBy(S.dim),reqAgent=reqBy('agent'),reqProv=reqBy('prov');
   const todo=[];
   todo.push(`<li><div><strong>Codex 调用 api.openai.com 失败</strong><span class="who bad">401 Unauthorized，API Key 无效</span></div>${S.trafficOn?'<button type="button" class="btn" data-act="see-fail">查看请求</button>':''}</li>`);
@@ -722,12 +728,11 @@ function overview(){
   <section class="card tiles" aria-label="用量摘要">
     <div class="tile"><h2>Token</h2><div class="v num">${big(tok)}</div><div class="s">输入 <span class="num">${big(tok*.02)}</span> · 输出 <span class="num">${big(tok*.004)}</span> · 缓存 <span class="num">${big(tok*.976)}</span></div></div>
     <div class="tile"><h2>请求</h2><div class="v num">${big(req)}</div><div class="s"><b><span class="num">${R.fail}</span> 次失败</b> · 成功 <span class="num">${(Math.floor((1-R.fail/req)*1000)/10).toFixed(1)}%</span></div></div>
-    <div class="tile"><h2>费用</h2><div class="v num">≈${FMT.cost(cost)}</div><div class="s">按公开价目估算</div></div>
     <div class="tile"><h2>缓存命中率</h2><div class="v num">${R.hit}%</div><div class="meter" aria-hidden="true"><i style="width:${R.hit}%"></i></div></div>
     <div class="tile"><h2>输出速度</h2><div class="v num">${R.speed}<small>token/秒</small></div><div class="s">首字平均 <span class="num">${R.first}</span> 秒</div></div>
   </section>
   <section class="card usage" aria-label="用量趋势">
-    <div class="usage-head">${seg('metric',S.metric,[['token','Token'],['cost','费用'],['req','请求']],'指标')}<span class="grow"></span>
+    <div class="usage-head">${seg('metric',S.metric,[['token','Token'],['req','请求']],'指标')}<span class="grow"></span>
       <span class="lbl">拆分</span>${seg('dim',S.dim,[['model','模型'],['prov','供应商'],['agent','Agent']],'拆分维度')}</div>
     <div class="usage-body">${chart(u,fmt)}
       <ul class="legend">${u.series.map(s=>`<li><i style="background:var(--s${s.slot})"></i><span class="name" title="${esc(s.name)}">${esc(s.name)}</span><b class="num">${fmt(s.total)}</b>

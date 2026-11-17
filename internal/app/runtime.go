@@ -13,6 +13,7 @@ import (
 	capture "github.com/fishioon/aicat/internal/gateway/addons/traffic"
 	"github.com/fishioon/aicat/internal/listenaddr"
 	"github.com/fishioon/aicat/internal/mcpserver"
+	"github.com/fishioon/aicat/internal/messages"
 	"github.com/fishioon/aicat/internal/provider"
 	"github.com/fishioon/aicat/internal/scheduler"
 	"github.com/fishioon/aicat/internal/systemproxy"
@@ -67,6 +68,12 @@ func start(ctx context.Context, o Options) (result *runtime, startErr error) {
 
 	cfg, err := config.Load(o.Home)
 	if err != nil {
+		return nil, err
+	}
+	if err = config.InitializeRoomConfig(o.Home); err != nil {
+		return nil, err
+	}
+	if err = messages.InitializeRoomStorage(o.Home); err != nil {
 		return nil, err
 	}
 	if o.Addr != "" {

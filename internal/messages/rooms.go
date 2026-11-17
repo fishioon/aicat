@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fishioon/aicat/internal/channelplugin"
 	"github.com/fishioon/aicat/internal/config"
 )
 
@@ -15,13 +16,37 @@ type roomStore struct {
 	logMu         *sync.Mutex
 	tasks         *taskStore
 	defaults      config.RoomSettings
+	defaultsErr   error
 }
 
 var roomLogLocks sync.Map
 
 func newRoomStore(home, channel string) *roomStore {
 	lock, _ := roomLogLocks.LoadOrStore(filepath.Clean(home), &sync.Mutex{})
-	return &roomStore{home: home, channel: channel, logMu: lock.(*sync.Mutex), tasks: newTaskStore(), defaults: config.DefaultRoomSettings()}
+	defaults := config.DefaultRoomSettings()
+	var defaultsErr error
+	if cfg, err := config.Load(home); err == nil {
+		defaults = cfg.RoomDefaults.Settings()
+	} else {
+		defaultsErr = err
+	}
+	if manifest, err := channelplugin.New(home).Manifest(channel); err == nil {
+		defaults = config.ApplyRoomTemplate(defaults, manifest.Room)
+	}
+	return &roomStore{home: home, channel: channel, logMu: lock.(*sync.Mutex), tasks: newTaskStore(), defaults: defaults, defaultsErr: defaultsErr}
+}
+
+func (s *roomStore) applyTemplate(template *config.RoomTemplate) error {
+	defaults := config.DefaultRoomSettings()
+	cfg, err := config.Load(s.home)
+	if err != nil {
+		s.defaultsErr = err
+		return err
+	}
+	defaults = cfg.RoomDefaults.Settings()
+	s.defaults = config.ApplyRoomTemplate(defaults, template)
+	s.defaultsErr = nil
+	return nil
 }
 
 func (s *roomStore) directory(source, room string) string {

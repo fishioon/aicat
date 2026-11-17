@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -32,11 +31,6 @@ func (s *Inbox) Receive(source string, raw json.RawMessage) (Record, error) {
 	}
 	if event.Data.Time != nil && (*event.Data.Time < 0 || *event.Data.Time > 253402300799999) {
 		return Record{}, errors.New("无效消息时间")
-	}
-	if snapshot := event.Data.AgentSnapshot; snapshot != nil {
-		if event.Data.Outgoing || event.Data.Type != "text" || strings.TrimSpace(event.Data.ContextKey) == "" || strings.TrimSpace(snapshot.Content) == "" || len(snapshot.Content) > 64<<10 || !utf8.ValidString(snapshot.Content) {
-			return Record{}, errors.New("Agent 快照必须包含业务上下文标识及有效文本，且不超过 64 KiB")
-		}
 	}
 	if len(event.Data.Summary) > 8<<10 || !utf8.ValidString(event.Data.Summary) {
 		return Record{}, errors.New("消息摘要无效或过长")

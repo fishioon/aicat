@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/fishioon/aicat/internal/config"
 	"github.com/fishioon/aicat/internal/scheduler"
 )
 
@@ -24,7 +23,7 @@ func (c *Channel) CheckScheduledRoom(ctx context.Context, room RoomIdentity) err
 	if room.Channel != c.id || room.Source != source {
 		return errors.New("定时任务绑定的 Room 不属于当前渠道账号")
 	}
-	settings, err := config.ReadRoomSettings(c.home, room.ID)
+	settings, err := c.rooms.readSettings(room.ID)
 	if err != nil {
 		return err
 	}

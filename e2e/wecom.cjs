@@ -419,7 +419,7 @@ async function runAgent() {
   publish("group-seed","alice","image",Date.now(),"group-room");
   await wait(async()=> (await rpc("ListRooms")).some(r=>r.conversation==="group-room"));
   const groupRoom=(await rpc("ListRooms")).find(r=>r.conversation==="group-room");
-  await rpc("UpdateRoomSettings",[groupRoom.id,{...groupRoom.settings,automatic:true}]);
+  await rpc("UpdateRoomSettings",[groupRoom.id,{...groupRoom.settings,automatic:true,trigger:{...groupRoom.settings.trigger,regex:{enabled:true,pattern:".*",self:false}}}]);
   publish("group-alice","alice","text",Date.now(),"group-room");publish("group-bob","bob","text",Date.now(),"group-room");
   await wait(async()=> await completed("group-alice")&&await completed("group-bob"));
   const groupView=await rpc("ReadRoomByID",[groupRoom.id]);

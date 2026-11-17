@@ -23,7 +23,7 @@ type Manifest struct {
 	ID              string                       `json:"id"`
 	Entry           string                       `json:"entry"`
 	Capabilities    Capabilities                 `json:"capabilities"`
-	Room            config.RoomSettings          `json:"room"`
+	Room            *config.RoomTemplate         `json:"room,omitempty"`
 	Fields          []Field                      `json:"fields"`
 }
 
@@ -82,15 +82,10 @@ func inspectManifest(packageDir string, d Descriptor) (Manifest, string, error) 
 	if m.API != ChannelAPI || m.ID != d.ID || m.Entry == "" || len(m.Fields) > 64 || len(m.IdentityFields) > 64 || len(m.SendTargetLabel) > 256 || len(m.Capabilities.Intercepts) > 64 || len(m.Capabilities.Native) > 16 {
 		return Manifest{}, "", errors.New("渠道 API 版本、标识或入口无效")
 	}
-	if m.Room.Mode == "" {
-		m.Room.Mode = "conversation"
-		m.Room.Trigger.All = true
-	}
-	if m.Room.Automatic {
-		return Manifest{}, "", errors.New("渠道模板不能自行开启自动处理")
-	}
-	if err = m.Room.Validate(); err != nil {
-		return Manifest{}, "", err
+	if m.Room != nil {
+		if err = m.Room.Validate(); err != nil {
+			return Manifest{}, "", err
+		}
 	}
 	seen := map[string]bool{}
 	for _, field := range m.Fields {

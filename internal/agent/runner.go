@@ -109,7 +109,6 @@ func (r *Runner) route(client *codexClient) {
 
 type ThreadOptions struct {
 	Instructions string
-	Ephemeral    bool
 	Model        string
 }
 
@@ -130,7 +129,6 @@ func (r *Runner) Thread(ctx context.Context, binary, workspace, threadID string,
 	}
 	method := "thread/start"
 	if threadID == "" {
-		params["ephemeral"] = options.Ephemeral
 		params["serviceName"] = "aicat_messages"
 	} else {
 		method = "thread/resume"

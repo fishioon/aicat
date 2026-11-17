@@ -1,6 +1,6 @@
 # 微扑克
 
-`@aicat/wpk` 是独立 NPM 消息渠道，由 [aicat-wpk](https://github.com/fishioon/aicat-wpk) 维护。采集声明范围内的游戏页面事件，还原牌局并将快照写入 Room；无平台外发能力，可见结果由渠道包自身声明和实现。
+`@aicat/wpk` 是独立 NPM 消息渠道，由 [aicat-wpk](https://github.com/fishioon/aicat-wpk) 维护。采集声明范围内的游戏页面事件，还原牌局并将状态消息写入 Room；无平台外发能力，可见结果由渠道包自身声明和实现。
 
 ## Sub-features
 

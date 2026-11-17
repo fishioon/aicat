@@ -1,7 +1,7 @@
 package messages
 
 import (
-	"strings"
+	"regexp"
 
 	"github.com/fishioon/aicat/internal/config"
 )
@@ -10,32 +10,24 @@ func roomTriggerReason(trigger config.RoomTrigger, message Message, self string)
 	if message.Schedule != nil {
 		return "schedule"
 	}
-	if trigger.All {
-		return "all"
-	}
-	if message.RoomType == "direct" && trigger.Direct {
-		return "direct"
-	}
-	if message.RoomType == "group" && message.MentionStatus == "parsed" {
-		if trigger.Mention && self != "" {
-			for _, id := range message.MentionIDs {
-				if id == self {
-					return "mention"
-				}
+	chatMatched := trigger.Chat.Enabled && !message.Outgoing &&
+		(message.RoomType == "direct" || message.RoomType == "private")
+	if trigger.Chat.Enabled && !message.Outgoing && message.RoomType == "group" && message.MentionStatus == "parsed" && self != "" {
+		for _, id := range message.MentionIDs {
+			if id == self {
+				chatMatched = true
+				break
 			}
 		}
-		if trigger.MentionAll && message.MentionAll {
-			return "mention_all"
-		}
 	}
-	if message.RoomType != "group" {
-		return ""
+	regexMatched := trigger.Regex.Enabled &&
+		(trigger.Regex.Self || !message.Outgoing) &&
+		regexp.MustCompile(trigger.Regex.Pattern).MatchString(message.Text.Content)
+	if chatMatched {
+		return "chat"
 	}
-	text := strings.ToLower(message.Text.Content)
-	for _, keyword := range trigger.Keywords {
-		if strings.Contains(text, strings.ToLower(keyword)) {
-			return "keyword"
-		}
+	if regexMatched {
+		return "regex"
 	}
 	return ""
 }

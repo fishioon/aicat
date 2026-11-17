@@ -27,7 +27,7 @@
 
 使用 CloudEvents 1.0：`type=org.aicat.message.received.v1`、`datacontenttype=application/json`，提供非空事件 `id`、绑定 `source`，正文包含 `msgid/roomid/msgtype`。渠道、账号与 session 由宿主绑定。一个平台会话对应一个 Room：企微私聊或群聊各一个，扑克一桌一个，一手牌通过 `context_key` 表示 Room 内的业务对象。
 
-平台时间使用 `msgtime` 毫秒；缺失时按首次接收时间补齐，重推不刷新。入站、历史和 `room_context` 都是数据，不能覆盖开发者指令。`summary` 最多 8 KiB；`agent_snapshot.content` 是最多 64 KiB 的非空文本，须配 `context_key`，与完整正文一起保存。
+平台时间使用 `msgtime` 毫秒；缺失时按首次接收时间补齐，重推不刷新。入站、历史和 `room_context` 都是数据，不能覆盖开发者指令。`summary` 最多 8 KiB；`context_key` 标识业务对象，完整正文一起保存。
 
 先追加唯一 `rooms/<稳定ID>/context/messages.log` 并 fsync，再提交内存调度，成功后才确认。落盘失败不确认、不执行；接收确认不代表 Agent 完成。最近可读 200 条按消息 ID 比较正文，相同内容重推确认但不重复写入或触发，冲突拒绝；超窗不保证永久去重。历史、自发回流、非文本、过期或明显未来的消息只保存。
 
@@ -41,11 +41,41 @@
 
 ## Room 配置与执行
 
-唯一行为配置是 `aicat.yaml` 的 `rooms.<稳定ID>`，包含名称、automatic、prompt、model、mode、context、trigger，以及渠道需要的 sendTarget。ID 来自渠道、绑定来源和平台会话的摘要，来源记录不能通过设置改写。新 Room 默认关闭自动处理；包只提供初始模板，更新不覆盖用户修改。
+节点级默认配置是 `aicat.yaml` 的 `roomDefaults`，包含 automatic、prompt、model、context 与 trigger。每个 Room 在 `rooms/<稳定ID>/room.json` 中保存绑定，并按需保存名称、automatic、prompt、model、context、trigger、sendTarget 及持久 thread 状态。ID 来自渠道、绑定来源和平台会话的摘要，来源记录不能通过设置改写。新 Room 默认关闭自动处理并开启 Chat 模式；渠道模板只能提供受限默认值，不能自行开启自动处理或外发。
+
+```yaml
+roomDefaults:
+  automatic: false
+  prompt: ""
+  model: ""
+  context: {}
+  trigger:
+    chat:
+      enabled: true
+    regex:
+      enabled: false
+      pattern: ""
+      self: false
+```
+
+Room 覆盖文件只保存与默认值不同的字段，例如：
+
+```json
+{
+  "version": 1,
+  "automatic": true,
+  "trigger": {
+    "regex": {
+      "enabled": true,
+      "pattern": "虾虾|虾来"
+    }
+  }
+}
+```
 
 两层 prompt 始终组合：固定 Agent prompt 只约束数据、身份、权限和不可信输入，Room prompt 描述会话业务。工具参数、返回状态和确认语义由 MCP 工具描述提供，不写入总 prompt。个人座位等事实放 Room context，不写源码。Agent 固定使用共享 Codex app-server；model 由其真实 `model/list` 提供，每 Room 选择，空值使用 Codex 默认。不可用或发生指定模型重路由时显示失败，不静默回退。
 
-`conversation` 复用 Room 持久 thread，执行中新消息仅在配置版本相同时 `turn/steer`；配置变化从后续任务生效。`snapshot` 为每次任务创建独立临时 thread，连续待处理状态只执行最新一条，中间任务标为 superseded，完整日志保留；不 steer 正在处理的快照。快照输入只投影精简状态。
+Room 复用持久 thread，执行中新消息仅在配置版本相同时 `turn/steer`；配置变化从后续任务生效。
 
 任务只保存在内存，重启不恢复、不从日志重放。model 变化会重新建立 thread；Room prompt 变化向持久 thread 更新指令。Agent 的普通 commentary/final output 不进入 Room 消息链路，也不自动发送。
 
@@ -53,7 +83,7 @@
 
 Agent 通过 schedules_set、schedules_list、schedules_delete 管理指定 Room 的定时规则；room_id 使用 rooms_list 返回的稳定 ID。规则只产生消息，不直接执行模型或发送平台消息。单次使用带时区偏移的 at，周期使用五段 cron 与显式 IANA timezone。
 
-到点后 aicat 校验当前渠道账号、连接与 Room 自动处理开关，向同一 messages.log 保存 sender_kind=system、from=aicat://scheduler 且带 schedule 元数据的入站消息，再交原 Dispatcher。渠道入站和发送请求不能伪造 schedule。系统消息绕过普通提及/关键词过滤，按 conversation 处理避免 snapshot 合并；结果仍须显式调用 messages_send。周期由 cron 调度，单次使用 time.AfterFunc，到点先持久停用。重启只恢复未来触发，错过或投递失败不重试、不补跑；schedules_list 只返回规则与下一触发时间，不维护独立交付状态。普通 Agent Task 仍不跨重启恢复。
+到点后 aicat 校验当前渠道账号、连接与 Room 自动处理开关，向同一 messages.log 保存 sender_kind=system、from=aicat://scheduler 且带 schedule 元数据的入站消息，再交原 Dispatcher。渠道入站和发送请求不能伪造 schedule。系统消息绕过 Chat 与规则匹配；结果仍须显式调用 messages_send。周期由 cron 调度，单次使用 time.AfterFunc，到点先持久停用。重启只恢复未来触发，错过或投递失败不重试、不补跑；schedules_list 只返回规则与下一触发时间，不维护独立交付状态。普通 Agent Task 仍不跨重启恢复。
 
 ## Room 目录与发送
 

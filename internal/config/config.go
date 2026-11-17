@@ -14,10 +14,10 @@ type Config struct {
 	MessageExecution struct {
 		CodexBinary string `yaml:"codexBinary,omitempty"`
 	} `yaml:"messageExecution,omitempty"`
-	Rooms      map[string]RoomSettings `yaml:"rooms,omitempty"`
-	Schedules  map[string]Schedule     `yaml:"schedules,omitempty"`
-	UI         Preferences             `yaml:"ui"`
-	Navigation struct {
+	RoomDefaults RoomDefaults        `yaml:"roomDefaults"`
+	Schedules    map[string]Schedule `yaml:"schedules,omitempty"`
+	UI           Preferences         `yaml:"ui"`
+	Navigation   struct {
 		Pinned []string `yaml:"pinned"`
 	} `yaml:"navigation"`
 	SystemProxy struct {
@@ -56,6 +56,7 @@ func Load(home string) (Config, error) {
 	c.UI = Preferences{Language: "system", Theme: "system"}
 	c.Navigation.Pinned = []string{"traffic"}
 	c.Extensions = map[string]Extension{"traffic": {Enabled: true}}
+	c.RoomDefaults = DefaultRoomDefaults()
 	c.Gateway.Addr = "127.0.0.1:9981"
 	c.Gateway.BufferedBodyLimit = 1 << 20
 	c.Traffic.MaxRecords = 2000
@@ -97,6 +98,9 @@ func Load(home string) (Config, error) {
 		c.Extensions["traffic"] = Extension{Enabled: true}
 	}
 	if err := c.UI.Validate(); err != nil {
+		return c, err
+	}
+	if err := c.RoomDefaults.Validate(); err != nil {
 		return c, err
 	}
 	return c, nil

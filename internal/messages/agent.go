@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -54,7 +53,7 @@ func newDispatcher(ctx context.Context, c *Channel) *Dispatcher {
 
 func (d *Dispatcher) Enqueue(source string, record Record) {
 	message := record.Event.Data
-	if message.Outgoing || message.Historical || (message.Schedule == nil && d.options.Accept != nil && !d.options.Accept(message)) || message.Type != "text" || strings.TrimSpace(message.Text.Content) == "" {
+	if message.Historical || (message.Schedule == nil && d.options.Accept != nil && !d.options.Accept(message)) || message.Type != "text" || strings.TrimSpace(message.Text.Content) == "" {
 		return
 	}
 	var timestamp time.Time
@@ -71,17 +70,18 @@ func (d *Dispatcher) Enqueue(source string, record Record) {
 	if age > 10*time.Minute || age < -time.Minute {
 		return
 	}
-	settings, settingsErr := config.ReadRoomSettings(d.rooms.home, roomID(d.id, source, message.RoomID))
-	if settingsErr == nil && (!settings.Automatic || roomTriggerReason(settings.Trigger, message, d.options.SelfID) == "") {
+	settings, settingsErr := d.rooms.readSettings(roomID(d.id, source, message.RoomID))
+	reason := roomTriggerReason(settings.Trigger, message, d.options.SelfID)
+	if settingsErr == nil && (!settings.Automatic || reason == "") {
 		return
 	}
 	dir := d.rooms.directory(source, message.RoomID)
 	log := filepath.Join(dir, "context", "messages.log")
 	task := Task{ID: record.ID, Account: d.id, Source: source, Room: record.Event.Data.RoomID, Log: log, Status: "pending", CreatedAt: record.RecordedAt, Trigger: record.Event.Data}
-	task.Settings = taskSettings(settings, message)
+	task.Settings = settings
 	raw, _ := json.Marshal(task.Settings)
 	task.ConfigurationVersion = digest(raw)
-	task.TriggerReason = roomTriggerReason(settings.Trigger, message, d.options.SelfID)
+	task.TriggerReason = reason
 	if settingsErr != nil {
 		task.Status, task.Error = "failed", settingsErr.Error()
 	}
@@ -149,9 +149,6 @@ func triggerPrompt(tasks []queuedTask) string {
 	positions := map[string]int{}
 	for _, item := range tasks {
 		message := item.task.Trigger
-		if item.task.Settings.Mode == "snapshot" && message.AgentSnapshot != nil {
-			message = Message{ID: message.ID, From: message.From, RoomID: message.RoomID, ContextKey: message.ContextKey, Type: "text", Text: *message.AgentSnapshot}
-		}
 		messages = append(messages, message)
 		requester := map[string]string{"from": message.From, "msgid": message.ID, "roomid": message.RoomID}
 		if pos, ok := positions[message.From]; ok {
@@ -191,7 +188,7 @@ func (d *Dispatcher) process(dir string) {
 	d.mu.Unlock()
 	for d.ctx.Err() == nil && d.connected() {
 		tasks := d.pending(dir)
-		settings, settingsErr := config.ReadRoomSettings(d.rooms.home, filepath.Base(dir))
+		settings, settingsErr := d.rooms.readSettings(filepath.Base(dir))
 		valid := []queuedTask{}
 		for _, item := range tasks {
 			if settingsErr != nil {
@@ -201,7 +198,7 @@ func (d *Dispatcher) process(dir string) {
 			} else if item.task.Trigger.ID == "" || item.task.Trigger.RoomID != item.task.Room {
 				d.saveTasks([]queuedTask{item}, "failed", errors.New("旧格式任务缺少完整触发消息，请重新发送"))
 			} else {
-				item.task.Settings = taskSettings(settings, item.task.Trigger)
+				item.task.Settings = settings
 				raw, _ := json.Marshal(item.task.Settings)
 				item.task.ConfigurationVersion = digest(raw)
 				valid = append(valid, item)
@@ -211,16 +208,11 @@ func (d *Dispatcher) process(dir string) {
 		if len(tasks) == 0 {
 			return
 		}
-		snapshot := tasks[0].task.Settings.Mode == "snapshot"
 		end := 1
 		for end < len(tasks) && tasks[end].task.ConfigurationVersion == tasks[0].task.ConfigurationVersion {
 			end++
 		}
 		tasks = tasks[:end]
-		if snapshot && len(tasks) > 1 {
-			d.saveTasks(tasks[:len(tasks)-1], "superseded", nil)
-			tasks = tasks[len(tasks)-1:]
-		}
 		d.saveTasks(tasks, "running", nil)
 		thread, err := d.thread(dir, tasks[0].task)
 		if err != nil {
@@ -253,9 +245,6 @@ func (d *Dispatcher) process(dir string) {
 				if len(next) == 0 {
 					continue
 				}
-				if snapshot {
-					continue
-				}
 				end := 0
 				for end < len(next) && next[end].task.ConfigurationVersion == first.ConfigurationVersion {
 					end++
@@ -286,11 +275,6 @@ func (d *Dispatcher) process(dir string) {
 			}
 		}
 		cancel()
-		if snapshot {
-			if err := d.runner.Unsubscribe(d.ctx, thread); err != nil {
-				slog.Warn("snapshot thread unsubscribe failed", "channel", d.id, "room", first.Room, "error", err)
-			}
-		}
 	}
 }
 
@@ -301,25 +285,16 @@ func (d *Dispatcher) thread(dir string, task Task) (string, error) {
 		return "", err
 	}
 	binary := cfg.MessageExecution.CodexBinary
-	if task.Settings.Mode == "snapshot" {
-		return d.runner.Thread(d.ctx, binary, dir, "", agent.ThreadOptions{Instructions: instructions + "\n" + snapshotInstructions, Ephemeral: true, Model: task.Settings.Model})
-	}
-	var state struct {
-		ThreadID         string `json:"threadId"`
-		InstructionsHash string `json:"instructionsHash,omitempty"`
-		Model            string `json:"model,omitempty"`
-	}
-	file := filepath.Join(dir, "agent.json")
-	raw, err := os.ReadFile(file)
-	if err == nil {
-		if err = json.Unmarshal(raw, &state); err != nil {
-			return "", err
-		}
-	} else if !os.IsNotExist(err) {
+	record, err := readRoomRecord(d.rooms.home, filepath.Base(dir))
+	if err != nil {
 		return "", err
 	}
+	state := roomRuntimeState{}
+	if record.Runtime != nil {
+		state = *record.Runtime
+	}
 	if state.ThreadID != "" && state.Model != task.Settings.Model {
-		if err := d.runner.Unsubscribe(d.ctx, state.ThreadID); err != nil {
+		if err = d.runner.Unsubscribe(d.ctx, state.ThreadID); err != nil {
 			return "", err
 		}
 		state.ThreadID = ""
@@ -339,7 +314,10 @@ func (d *Dispatcher) thread(dir string, task Task) (string, error) {
 		state.ThreadID = id
 		state.InstructionsHash = instructionsHash
 		state.Model = task.Settings.Model
-		if err = writeJSON(file, state); err != nil {
+		if _, err = d.rooms.updateRecord(filepath.Base(dir), func(record *RoomRecord) error {
+			record.Runtime = &state
+			return nil
+		}); err != nil {
 			return "", err
 		}
 	}
@@ -376,10 +354,3 @@ func dispatcherForRooms(ctx context.Context, rooms *roomStore, options Dispatche
 	return &Dispatcher{ctx: ctx, rooms: rooms, id: rooms.channel, runner: runner, ownsRunner: ownsRunner, source: options.Source, notify: options.Changed, isConnected: options.Connected, options: options, active: map[string]chan struct{}{}, done: make(chan struct{}), wake: make(chan struct{}, 1)}
 }
 func (s *Inbox) Tasks(source string) []Task { return s.rooms.tasks.list(source) }
-
-func taskSettings(settings config.RoomSettings, message Message) config.RoomSettings {
-	if message.Schedule != nil {
-		settings.Mode = "conversation"
-	}
-	return settings
-}

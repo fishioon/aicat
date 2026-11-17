@@ -32,14 +32,14 @@
     "identityFields":["account"],
     "fields":[{"key":"account","type":"string","label":"账号","required":true}],
     "capabilities":{"send":true},
-    "room":{"mode":"conversation","trigger":{"all":true}}
+    "room":{"trigger":{"chat":{"enabled":true}}}
   }
 }
 ```
 
 入口及可选 prepare 都必须是包内常规文件，解析符号链接后不能越界。fields 支持 string/directory/boolean/secret；公开字段存 extensions.<id>.settings，secret 保存在私有 credentials.<values>，空值保留现有凭据。身份字段只能引用必填公开文本字段，不能把 model、prompt 或 Agent 配置塞进渠道字段。
 
-Room 默认模板可以描述业务 prompt、上下文及处理模式，但不能自行开启自动处理或外发。首次创建 Room 时写入，包升级不覆盖用户配置。
+Room 默认模板可以描述业务 prompt、上下文、处理模式及 Chat/规则默认值，但不能自行开启自动处理或外发。模板只在读取 Room 有效配置时叠加到 `roomDefaults`，不写入 `aicat.yaml`，也不覆盖 Room 已保存的覆盖项。
 
 ## 宿主协议
 

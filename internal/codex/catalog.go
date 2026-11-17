@@ -7,6 +7,9 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+
+	"github.com/fishioon/aicat/internal/codex/catalog"
+	"github.com/fishioon/aicat/internal/provider"
 )
 
 // prompt is Codex's generic system prompt (Apache-2.0, openai/codex,
@@ -175,7 +178,19 @@ func defaultEffort(levels []level) string {
 
 // tag names the providers' models as Codex is offered them.
 func (h *Handler) tag() string {
-	b, _ := json.Marshal(h.entries(0))
+	models := h.providers.ResponsesModels()
+	type signature struct {
+		Model   provider.ResponsesModel
+		Catalog catalog.Info
+	}
+	input := make([]signature, len(models))
+	for i, model := range models {
+		input[i].Model = model
+		if h.catalog != nil {
+			input[i].Catalog, _ = h.catalog.Lookup(model.ID)
+		}
+	}
+	b, _ := json.Marshal(input)
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:6])
 }

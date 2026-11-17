@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/fishioon/aicat/internal/config"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,7 +47,7 @@ func readOutbound(file string) (outboundRecord, error) {
 
 func Deliver(ctx context.Context, home, channel, source string, event Event, send MCPSender) (Receipt, error) {
 	m := event.Data
-	if event.SpecVersion != "1.0" || event.Type != SendRequested || event.ContentType != "application/json" || (event.Source != "aicat-agent://mcp" && event.Source != "aicat-ui://desktop") || event.ID == "" || len(event.ID) > 256 || m.Action != "send" || m.Type != "text" || strings.TrimSpace(m.Text.Content) == "" || len(m.Text.Content) > 256<<10 || !utf8.ValidString(m.Text.Content) || m.ID != "" || m.From != "" || m.Time != nil || m.AgentSnapshot != nil || m.Schedule != nil || m.ContextKey != "" || m.Outgoing || m.Delivery != nil || len(m.ReplyTo) > 256 || m.RoomID == "" || len(m.RoomID) > 256 {
+	if event.SpecVersion != "1.0" || event.Type != SendRequested || event.ContentType != "application/json" || (event.Source != "aicat-agent://mcp" && event.Source != "aicat-ui://desktop") || event.ID == "" || len(event.ID) > 256 || m.Action != "send" || m.Type != "text" || strings.TrimSpace(m.Text.Content) == "" || len(m.Text.Content) > 256<<10 || !utf8.ValidString(m.Text.Content) || m.ID != "" || m.From != "" || m.Time != nil || m.Schedule != nil || m.ContextKey != "" || m.Outgoing || m.Delivery != nil || len(m.ReplyTo) > 256 || m.RoomID == "" || len(m.RoomID) > 256 {
 		return Receipt{}, errors.New("无效外发请求")
 	}
 	dir := filepath.Join(home, "rooms", roomID(channel, source, m.RoomID))
@@ -75,7 +74,7 @@ func Deliver(ctx context.Context, home, channel, source string, event Event, sen
 		outboundMu.Unlock()
 		return Receipt{}, err
 	}
-	settings, err := config.ReadRoomSettings(home, roomID(channel, source, m.RoomID))
+	settings, err := newRoomStore(home, channel).readSettings(roomID(channel, source, m.RoomID))
 	if err != nil || (m.SearchName != "" && m.SearchName != settings.SendTarget) {
 		outboundMu.Unlock()
 		return Receipt{}, errors.New("外发寻址必须与 Room 配置一致")

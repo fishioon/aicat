@@ -31,3 +31,6 @@ __pycache__/
 /ui/dist-e2e/
 
 /runtime/channel-host/node_modules/
+
+# WorkBuddy 本地记忆与 skill
+/.workbuddy/

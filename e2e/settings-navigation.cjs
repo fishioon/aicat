@@ -67,7 +67,7 @@ async function main() {
           { key: "dataDir", label: "目录", type: "directory", required: true },
           { key: "key", label: "密钥", type: "secret", required: true },
         ],
-        capabilities: {}, room: { mode: "conversation", trigger: { all: true } },
+        capabilities: {}, room: { trigger: { chat: { enabled: true } } },
       },
     }, "export function createChannel(){return {open(){},close(){}}}");
     const previewURL = new URL(fs.readFileSync(previewFile, "utf8"));

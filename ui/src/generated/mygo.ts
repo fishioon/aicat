@@ -200,7 +200,6 @@ export interface Message {
   historical?: boolean;
   summary?: string;
   delivery?: Delivery;
-  agent_snapshot?: Text;
   reply_to?: string;
   context_key?: string;
   search_name?: string;
@@ -381,6 +380,10 @@ export interface Response {
   body: BodyInfo;
 }
 
+export interface RoomChatTrigger {
+  enabled: boolean;
+}
+
 export interface RoomIssue {
   id: string;
   kind: string;
@@ -397,13 +400,18 @@ export interface RoomPresentation {
   members: Record<string, PersonPresentation>;
 }
 
+export interface RoomRegexTrigger {
+  enabled: boolean;
+  pattern: string;
+  self: boolean;
+}
+
 export interface RoomSettings {
   name: string;
   sendTarget: string;
   automatic: boolean;
   prompt: string;
   model: string;
-  mode: string;
   context: Record<string, string>;
   trigger: RoomTrigger;
 }
@@ -426,11 +434,8 @@ export interface RoomSummary {
 }
 
 export interface RoomTrigger {
-  all: boolean;
-  direct: boolean;
-  mention: boolean;
-  mentionAll: boolean;
-  keywords: string[];
+  chat: RoomChatTrigger;
+  regex: RoomRegexTrigger;
 }
 
 export interface RoomView {

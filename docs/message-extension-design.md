@@ -20,21 +20,20 @@
 }
 ```
 
-身份由绑定来源决定。msgtime 缺失时首次接收补齐；summary 是展示摘要，agent_snapshot.content 是执行器投影，context_key 标识业务对象。historical 与 outgoing 只入历史，不触发。完整消息正文保留在唯一 context/messages.log，不嵌套 account 或 event。
+身份由绑定来源决定。msgtime 缺失时首次接收补齐；summary 是展示摘要，context_key 标识业务对象。historical 与 outgoing 只入历史，不触发。完整消息正文保留在唯一 context/messages.log，不嵌套 account 或 event。
 
 ## 持久数据
 
 | 路径 | 内容 |
 | --- | --- |
-| aicat.yaml / rooms.<hash> | 名称、Room prompt、model、context、mode、触发与授权、寻址 |
-| rooms/<hash>/room.json | 渠道、来源、平台会话的不可变绑定 |
+| aicat.yaml / roomDefaults | 节点级 automatic、prompt、model、context 与触发默认值 |
+| rooms/<hash>/room.json | 渠道、来源、平台会话绑定，Room 覆盖设置与 thread 状态 |
 | rooms/<hash>/context/messages.log | 入站消息和通过 MCP 发送的消息意图 |
-| rooms/<hash>/agent.json | 普通对话 thread、模型与工具权限、指令摘要 |
 | rooms/<hash>/outbound 与 deliveries | 外发请求、回执和已发布正文关联 |
 | state/<channel> | 包宿主与渠道自身游标、采样、待确认队列 |
 | logs/aicat.log | 运行状态，不记录正文或凭据 |
 
-任务只在内存保留，重启不恢复。旧 messages.jsonl 在下一次成功追加后清理。尾部未完成消息先截断再写。最近200条相同消息重推去重；超窗不保证永久去重。已有 Room 和旧明确列出的客户端会话迁移为独立配置，旧渠道开关不会扩散到之后发现的新 Room。
+任务只在内存保留，重启不恢复。旧 messages.jsonl 在下一次成功追加后清理。尾部未完成消息先截断再写。最近200条相同消息重推去重；超窗不保证永久去重。Room 注册不修改 `aicat.yaml`；用户设置和持久 thread 状态按 Room 原子更新 `room.json`。
 
 ## 查询与设置
 
@@ -42,6 +41,6 @@ Desktop 提供 ListRooms、ReadRoomByID、UpdateRoomSettings、ListRoomModels，
 
 ## 执行与结果
 
-所有渠道共享固定 Codex app-server 和 Agent 配置，按 Room 建立 thread 并选择 model。输入为 trigger_messages、requesters、room_context 和 source_room；固定 Agent prompt 只约束数据与权限边界，Room prompt 描述业务。conversation 可复用 thread/steer；snapshot 独立执行和合并等待状态。Agent 启动时直接连接 aicat MCP，发送消息统一使用 messages_send。
+所有渠道共享固定 Codex app-server 和 Agent 配置，按 Room 建立持久 thread 并选择 model。输入为 trigger_messages、requesters、room_context 和 source_room；固定 Agent prompt 只约束数据与权限边界，Room prompt 描述业务。Agent 启动时直接连接 aicat MCP，发送消息统一使用 messages_send。
 
 messages_send 要求 target_room_id，可用 rooms_list 解析稳定 ID；reply_to 必须属于目标 Room。aicat 校验目标与渠道账号绑定，持久保存发送请求并调用渠道实现。渠道决定确认类型；unknown 不自动重发。

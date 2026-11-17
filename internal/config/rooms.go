@@ -2,10 +2,9 @@ package config
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"unicode/utf8"
-
-	"gopkg.in/yaml.v3"
 )
 
 type RoomSettings struct {
@@ -14,25 +13,113 @@ type RoomSettings struct {
 	Automatic  bool              `yaml:"automatic" json:"automatic"`
 	Prompt     string            `yaml:"prompt" json:"prompt"`
 	Model      string            `yaml:"model" json:"model"`
-	Mode       string            `yaml:"mode" json:"mode"`
 	Context    map[string]string `yaml:"context,omitempty" json:"context"`
 	Trigger    RoomTrigger       `yaml:"trigger" json:"trigger"`
 }
 
+type RoomDefaults struct {
+	Automatic bool              `yaml:"automatic" json:"automatic"`
+	Prompt    string            `yaml:"prompt" json:"prompt"`
+	Model     string            `yaml:"model" json:"model"`
+	Context   map[string]string `yaml:"context,omitempty" json:"context"`
+	Trigger   RoomTrigger       `yaml:"trigger" json:"trigger"`
+}
+
+type RoomTemplate struct {
+	Automatic *bool                `json:"automatic,omitempty"`
+	Prompt    *string              `json:"prompt,omitempty"`
+	Model     *string              `json:"model,omitempty"`
+	Context   map[string]string    `json:"context,omitempty"`
+	Trigger   *RoomTriggerTemplate `json:"trigger,omitempty"`
+}
+
+type RoomTriggerTemplate struct {
+	Chat  *RoomChatTrigger  `json:"chat,omitempty"`
+	Regex *RoomRegexTrigger `json:"regex,omitempty"`
+}
+
 type RoomTrigger struct {
-	All        bool     `yaml:"all" json:"all"`
-	Direct     bool     `yaml:"direct" json:"direct"`
-	Mention    bool     `yaml:"mention" json:"mention"`
-	MentionAll bool     `yaml:"mentionAll" json:"mentionAll"`
-	Keywords   []string `yaml:"keywords,omitempty" json:"keywords"`
+	Chat  RoomChatTrigger  `yaml:"chat" json:"chat"`
+	Regex RoomRegexTrigger `yaml:"regex" json:"regex"`
+}
+
+type RoomChatTrigger struct {
+	Enabled bool `yaml:"enabled" json:"enabled"`
+}
+
+type RoomRegexTrigger struct {
+	Enabled bool   `yaml:"enabled" json:"enabled"`
+	Pattern string `yaml:"pattern,omitempty" json:"pattern"`
+	Self    bool   `yaml:"self,omitempty" json:"self"`
+}
+
+func (d RoomDefaults) Validate() error {
+	if d.Automatic {
+		return errors.New("Room 默认配置不能自动开启处理")
+	}
+	return d.Settings().Validate()
 }
 
 func ValidRoomID(id string) bool {
 	return len(id) == 64 && strings.Trim(id, "0123456789abcdef") == ""
 }
 
+func DefaultRoomDefaults() RoomDefaults {
+	return RoomDefaults{
+		Context: map[string]string{},
+		Trigger: RoomTrigger{
+			Chat:  RoomChatTrigger{Enabled: true},
+			Regex: RoomRegexTrigger{Enabled: false, Pattern: "", Self: false},
+		},
+	}
+}
+
 func DefaultRoomSettings() RoomSettings {
-	return RoomSettings{Mode: "conversation", Context: map[string]string{}, Trigger: RoomTrigger{All: true, Keywords: []string{}}}
+	return DefaultRoomDefaults().Settings()
+}
+
+func (d RoomDefaults) Settings() RoomSettings {
+	return RoomSettings{
+		Automatic: d.Automatic,
+		Prompt:    d.Prompt,
+		Model:     d.Model,
+		Context:   cloneContext(d.Context),
+		Trigger:   d.Trigger,
+	}
+}
+
+func ApplyRoomTemplate(settings RoomSettings, template *RoomTemplate) RoomSettings {
+	if template == nil {
+		return settings
+	}
+	if template.Automatic != nil {
+		settings.Automatic = *template.Automatic
+	}
+	if template.Prompt != nil {
+		settings.Prompt = *template.Prompt
+	}
+	if template.Model != nil {
+		settings.Model = *template.Model
+	}
+	if template.Context != nil {
+		settings.Context = cloneContext(template.Context)
+	}
+	if template.Trigger != nil {
+		if template.Trigger.Chat != nil {
+			settings.Trigger.Chat = *template.Trigger.Chat
+		}
+		if template.Trigger.Regex != nil {
+			settings.Trigger.Regex = *template.Trigger.Regex
+		}
+	}
+	return settings
+}
+
+func (t RoomTemplate) Validate() error {
+	if t.Automatic != nil && *t.Automatic {
+		return errors.New("渠道模板不能自行开启自动处理")
+	}
+	return ApplyRoomTemplate(DefaultRoomSettings(), &t).Validate()
 }
 
 func (s RoomSettings) Validate() error {
@@ -41,9 +128,6 @@ func (s RoomSettings) Validate() error {
 	}
 	if len(s.SendTarget) > 256 || strings.ContainsAny(s.SendTarget, "\r\n\x00") || !utf8.ValidString(s.SendTarget) {
 		return errors.New("Room 外发寻址名称无效")
-	}
-	if s.Mode != "conversation" && s.Mode != "snapshot" {
-		return errors.New("Room 处理方式必须是 conversation 或 snapshot")
 	}
 	if len(s.Prompt) > 64<<10 || !utf8.ValidString(s.Prompt) || strings.ContainsRune(s.Prompt, 0) {
 		return errors.New("Room prompt 必须是有效文本且不超过 64 KiB")
@@ -59,66 +143,27 @@ func (s RoomSettings) Validate() error {
 			return errors.New("Room 上下文无效")
 		}
 	}
-	if len(s.Trigger.Keywords) > 32 {
-		return errors.New("每个 Room 最多配置 32 个关键词")
-	}
-	seen := map[string]bool{}
-	for _, keyword := range s.Trigger.Keywords {
-		folded := strings.ToLower(strings.TrimSpace(keyword))
-		if folded == "" || keyword != strings.TrimSpace(keyword) || len(keyword) > 128 || strings.ContainsAny(keyword, "\r\n\x00") || !utf8.ValidString(keyword) || seen[folded] {
-			return errors.New("Room 关键词必须是有效、不重复的非空文本")
+	if s.Trigger.Regex.Enabled {
+		if s.Trigger.Regex.Pattern == "" {
+			return errors.New("启用规则匹配时必须填写正则表达式")
 		}
-		seen[folded] = true
+		if len(s.Trigger.Regex.Pattern) > 4096 || strings.ContainsRune(s.Trigger.Regex.Pattern, 0) || !utf8.ValidString(s.Trigger.Regex.Pattern) {
+			return errors.New("规则匹配表达式无效")
+		}
+		if _, err := regexp.Compile(s.Trigger.Regex.Pattern); err != nil {
+			return errors.New("规则匹配表达式无效")
+		}
 	}
 	return nil
 }
 
-func ReadRoomSettings(home, id string) (RoomSettings, error) {
-	if !ValidRoomID(id) {
-		return RoomSettings{}, errors.New("无效 Room ID")
+func cloneContext(value map[string]string) map[string]string {
+	if value == nil {
+		return map[string]string{}
 	}
-	cfg, err := Load(home)
-	if err != nil {
-		return RoomSettings{}, err
+	result := make(map[string]string, len(value))
+	for key, item := range value {
+		result[key] = item
 	}
-	settings, exists := cfg.Rooms[id]
-	if !exists {
-		return DefaultRoomSettings(), nil
-	}
-	return settings, settings.Validate()
-}
-
-func SetRoomSettings(home, id string, settings RoomSettings) error {
-	return saveRoomSettings(home, id, settings, false)
-}
-
-func EnsureRoomSettings(home, id string, settings RoomSettings) error {
-	return saveRoomSettings(home, id, settings, true)
-}
-
-func saveRoomSettings(home, id string, settings RoomSettings, onlyMissing bool) error {
-	if !ValidRoomID(id) {
-		return errors.New("无效 Room ID")
-	}
-	if err := settings.Validate(); err != nil {
-		return err
-	}
-	return update(home, func(root *yaml.Node) error {
-		rooms := mapping(value(root, "rooms", yaml.MappingNode))
-		if rooms == nil {
-			return errors.New("rooms 必须是映射")
-		}
-		if onlyMissing {
-			for i := 0; i < len(rooms.Content); i += 2 {
-				if rooms.Content[i].Value == id {
-					var existing RoomSettings
-					if err := rooms.Content[i+1].Decode(&existing); err != nil {
-						return err
-					}
-					return existing.Validate()
-				}
-			}
-		}
-		return value(rooms, id, yaml.MappingNode).Encode(settings)
-	})
+	return result
 }

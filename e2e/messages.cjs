@@ -208,7 +208,12 @@ async function screenshot(name) {
             { key: "account", type: "string", required: true, label: "账号" },
           ],
           capabilities: { send: true },
-          room: { mode: "conversation", trigger: { all: true } },
+          room: {
+            trigger: {
+              chat: { enabled: true },
+              regex: { enabled: true, pattern: ".*", self: false },
+            },
+          },
         },
       }),
     );
@@ -374,7 +379,6 @@ async function screenshot(name) {
       name: "牌桌 10291",
       automatic: true,
       model: "room-b",
-      mode: "snapshot",
     });
     await emit(
       "table",
@@ -383,7 +387,6 @@ async function screenshot(name) {
       {
         summary: "牌桌状态 1",
         context_key: "hand-one",
-        agent_snapshot: { content: "state 1" },
       },
     );
     await wait(async () =>
@@ -396,7 +399,6 @@ async function screenshot(name) {
       {
         summary: "牌桌状态 2",
         context_key: "hand-one",
-        agent_snapshot: { content: "state 2" },
       },
     );
     await wait(async () =>

@@ -22,6 +22,25 @@ type RoomIdentity struct {
 	CreatedAt    string `json:"createdAt"`
 }
 
+const roomRecordVersion = 1
+
+type RoomRecord struct {
+	Version      int               `json:"version"`
+	ID           string            `json:"id"`
+	Channel      string            `json:"channel"`
+	Source       string            `json:"source"`
+	Conversation string            `json:"conversation"`
+	CreatedAt    string            `json:"createdAt"`
+	Settings     *roomOverrides    `json:"settings,omitempty"`
+	Runtime      *roomRuntimeState `json:"runtime,omitempty"`
+}
+
+type roomRuntimeState struct {
+	ThreadID         string `json:"threadId,omitempty"`
+	InstructionsHash string `json:"instructionsHash,omitempty"`
+	Model            string `json:"model,omitempty"`
+}
+
 type RoomSummary struct {
 	RoomIdentity
 	Presentation RoomPresentation    `json:"presentation"`
@@ -48,26 +67,43 @@ func roomID(channel, source, conversation string) string {
 }
 
 func readRoomIdentity(home, id string) (RoomIdentity, error) {
+	record, err := readRoomRecord(home, id)
+	if err != nil {
+		return RoomIdentity{}, err
+	}
+	return RoomIdentity{ID: record.ID, Channel: record.Channel, Source: record.Source, Conversation: record.Conversation, CreatedAt: record.CreatedAt}, nil
+}
+
+func (r RoomRecord) identity() RoomIdentity {
+	return RoomIdentity{ID: r.ID, Channel: r.Channel, Source: r.Source, Conversation: r.Conversation, CreatedAt: r.CreatedAt}
+}
+
+func readRoomRecord(home, id string) (RoomRecord, error) {
 	if !config.ValidRoomID(id) {
-		return RoomIdentity{}, errors.New("无效 Room ID")
+		return RoomRecord{}, errors.New("无效 Room ID")
 	}
 	file := filepath.Join(home, "rooms", id, "room.json")
 	info, err := os.Lstat(file)
 	if err != nil {
-		return RoomIdentity{}, err
+		return RoomRecord{}, err
 	}
-	if !info.Mode().IsRegular() || info.Size() > 4096 {
-		return RoomIdentity{}, errors.New("Room 来源记录无效")
+	if !info.Mode().IsRegular() || info.Size() > 256<<10 {
+		return RoomRecord{}, errors.New("Room 记录无效")
 	}
 	raw, err := os.ReadFile(file)
 	if err != nil {
-		return RoomIdentity{}, err
+		return RoomRecord{}, err
 	}
-	var identity RoomIdentity
-	if json.Unmarshal(raw, &identity) != nil || identity.ID != id || identity.Channel == "" || identity.Source == "" || identity.Conversation == "" || roomID(identity.Channel, identity.Source, identity.Conversation) != id {
-		return RoomIdentity{}, errors.New("Room 来源绑定无效")
+	var record RoomRecord
+	if json.Unmarshal(raw, &record) != nil || record.ID != id || record.Channel == "" || record.Source == "" || record.Conversation == "" || roomID(record.Channel, record.Source, record.Conversation) != id || record.Version < 0 || record.Version > roomRecordVersion {
+		return RoomRecord{}, errors.New("Room 记录无效")
 	}
-	return identity, nil
+	if record.Version == 0 {
+		if err = readLegacyRoomParts(home, id, &record); err != nil {
+			return RoomRecord{}, err
+		}
+	}
+	return record, nil
 }
 
 func (s *roomStore) register(source, conversation, timestamp string) error {
@@ -81,10 +117,7 @@ func (s *roomStore) register(source, conversation, timestamp string) error {
 	if !os.IsNotExist(err) {
 		return err
 	}
-	if err = config.EnsureRoomSettings(s.home, id, s.defaults); err != nil {
-		return err
-	}
-	return writeJSON(filepath.Join(s.home, "rooms", id, "room.json"), RoomIdentity{ID: id, Channel: s.channel, Source: source, Conversation: conversation, CreatedAt: timestamp})
+	return s.writeRecord(RoomRecord{Version: roomRecordVersion, ID: id, Channel: s.channel, Source: source, Conversation: conversation, CreatedAt: timestamp})
 }
 
 func ListRooms(ctx context.Context, home string) ([]RoomSummary, error) {
@@ -95,11 +128,8 @@ func ListRooms(ctx context.Context, home string) ([]RoomSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := config.Load(home)
-	if err != nil {
-		return nil, err
-	}
 	result := []RoomSummary{}
+	stores := map[string]*roomStore{}
 	for _, entry := range entries {
 		if err = ctx.Err(); err != nil {
 			return nil, err
@@ -121,14 +151,16 @@ func ListRooms(ctx context.Context, home string) ([]RoomSummary, error) {
 		if err != nil {
 			return nil, err
 		}
-		settings, exists := cfg.Rooms[identity.ID]
-		if !exists {
-			settings = config.DefaultRoomSettings()
+		store := stores[identity.Channel]
+		if store == nil {
+			store = newRoomStore(home, identity.Channel)
+			stores[identity.Channel] = store
 		}
-		if err = settings.Validate(); err != nil {
+		settings, err := store.readSettings(identity.ID)
+		if err != nil {
 			return nil, fmt.Errorf("Room %s: %w", identity.ID, err)
 		}
-		rows, err := NewInbox(home, identity.Channel).Read(identity.Source, identity.Conversation, 1)
+		rows, err := (&Inbox{rooms: store}).Read(identity.Source, identity.Conversation, 1)
 		if err != nil {
 			return nil, err
 		}
@@ -155,11 +187,12 @@ func ReadRoom(ctx context.Context, home, id string) (RoomView, error) {
 	if err != nil {
 		return RoomView{}, err
 	}
-	settings, err := config.ReadRoomSettings(home, id)
+	store := newRoomStore(home, identity.Channel)
+	settings, err := store.readSettings(id)
 	if err != nil {
 		return RoomView{}, err
 	}
-	rows, err := NewInbox(home, identity.Channel).Read(identity.Source, identity.Conversation, 200)
+	rows, err := (&Inbox{rooms: store}).Read(identity.Source, identity.Conversation, 200)
 	if err != nil {
 		return RoomView{}, err
 	}
@@ -216,8 +249,9 @@ func UpdateRoomSettings(ctx context.Context, home, id string, settings config.Ro
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if _, err := readRoomIdentity(home, id); err != nil {
+	identity, err := readRoomIdentity(home, id)
+	if err != nil {
 		return err
 	}
-	return config.SetRoomSettings(home, id, settings)
+	return newRoomStore(home, identity.Channel).writeSettings(id, settings)
 }

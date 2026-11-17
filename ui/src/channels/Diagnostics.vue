@@ -78,7 +78,6 @@ function taskStatus(status: string) {
     completed: "已完成",
     failed: "执行失败",
     unknown: "结果不明",
-    superseded: "已由更新状态替代",
     skipped: "已跳过",
   };
   return t(labels[status] ?? status);

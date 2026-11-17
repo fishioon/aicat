@@ -57,7 +57,7 @@ function archive(
         identityFields: [],
         fields: [],
         capabilities: {},
-        room: { mode: "conversation", trigger: { all: true } },
+        room: { trigger: { chat: { enabled: true } } },
       },
     }),
   );

@@ -31,7 +31,7 @@
 
 执行 `make e2e-build` 后，运行 `node e2e/schedules.cjs bin/aicat-e2e build/schedules-<run>`。使用独立 Home、真实 Bun 安装与渠道传输、真实 Room 存储和调度、认证 HTTP MCP，以及 headless 浏览器和隐藏原生应用。
 
-验收覆盖 Agent 创建、查询、修改、停用和删除；单次触发与五段 cron 时区；实际分钟边界上的 cron 投递与下一次时间；普通提及规则过滤与系统消息区分；入站不能伪造 schedule；snapshot Room 的定时消息不被合并；MCP 消息发送；自动处理或渠道关闭时跳过且恢复后不重试；重启恢复未来计时器、不补跑过期单次及离线错过的 cron；Room 落盘失败不执行、不重试；账号切换隔离。
+验收覆盖 Agent 创建、查询、修改、停用和删除；单次触发与五段 cron 时区；实际分钟边界上的 cron 投递与下一次时间；普通触发规则过滤与系统消息区分；入站不能伪造 schedule；MCP 消息发送；自动处理或渠道关闭时跳过且恢复后不重试；重启恢复未来计时器、不补跑过期单次及离线错过的 cron；Room 落盘失败不执行、不重试；账号切换隔离。
 
 真实 Agent 验证使用 `node e2e/schedules.cjs bin/aicat-e2e build/schedules-agent-<run> real-agent`，通过本机已登录的 Codex app-server 和真实模型，按自然语言创建、查询、停用和删除规则，再通过 messages_send 发送确认。可用 AICAT_CODEX_BINARY 指定二进制；使用隔离 Codex Home，结束时移除临时认证引用，不修改真实 Codex 配置。此入口不加入默认后台全套，避免自动产生模型调用。
 

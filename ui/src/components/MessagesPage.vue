@@ -34,7 +34,6 @@ const taskLabels: Record<string, string> = {
   completed: "处理完成",
   failed: "处理失败",
   unknown: "执行结果不明",
-  superseded: "已由更新状态替代",
   skipped: "已跳过",
 };
 const rooms = ref<RoomSummary[]>([]);

@@ -9,7 +9,6 @@ const props = defineProps<{ room: RoomView }>();
 const emit = defineEmits<{ saved: [] }>();
 const draft = ref<RoomSettings>();
 const context = ref("{}");
-const keywords = ref("");
 const dirty = ref(false);
 const saving = ref(false);
 const error = ref("");
@@ -28,7 +27,6 @@ const modelMissing = computed(
 function reset() {
   draft.value = JSON.parse(JSON.stringify(props.room.settings));
   context.value = JSON.stringify(props.room.settings.context ?? {}, null, 2);
-  keywords.value = (props.room.settings.trigger.keywords ?? []).join("\n");
   dirty.value = false;
   error.value = "";
 }
@@ -66,10 +64,6 @@ async function save() {
       throw Error(t("上下文必须是键值均为文本的 JSON 对象"));
     const settings: RoomSettings = JSON.parse(JSON.stringify(draft.value));
     settings.context = values as Record<string, string>;
-    settings.trigger.keywords = keywords.value
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
     await host.updateRoomSettings(props.room.id, settings);
     dirty.value = false;
     say(t("Room 设置已保存，下次任务生效"));
@@ -134,39 +128,54 @@ defineExpose({ dirty, saving });
         </label>
         <details class="room-trigger">
           <summary>{{ t("触发条件") }}</summary>
-          <div class="room-checks">
-            <label
-              ><input
-                id="room-trigger-all"
+          <label class="room-check-row">
+            <span>{{ t("Chat 模式") }}</span>
+            <input
+              id="room-trigger-chat"
+              type="checkbox"
+              v-model="draft.trigger.chat.enabled"
+            />
+          </label>
+          <p class="room-help">
+            {{
+              t(
+                "私聊直接触发；群聊中真实 @ 当前账号时触发，仅 @ 其他人不会触发。",
+              )
+            }}
+          </p>
+          <label class="room-check-row">
+            <span>{{ t("规则匹配") }}</span>
+            <input
+              id="room-trigger-regex"
+              type="checkbox"
+              v-model="draft.trigger.regex.enabled"
+            />
+          </label>
+          <template v-if="draft.trigger.regex.enabled">
+            <label class="room-field-label" for="room-regex-pattern">{{
+              t("正则表达式")
+            }}</label>
+            <input
+              id="room-regex-pattern"
+              class="field code"
+              v-model="draft.trigger.regex.pattern"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <label class="room-check-row">
+              <span>{{ t("允许匹配自己发送的消息") }}</span>
+              <input
+                id="room-regex-self"
                 type="checkbox"
-                v-model="draft.trigger.all"
-              />{{ t("所有新消息") }}</label
-            >
-            <label
-              ><input type="checkbox" v-model="draft.trigger.direct" />{{
-                t("私聊消息")
-              }}</label
-            >
-            <label
-              ><input type="checkbox" v-model="draft.trigger.mention" />{{
-                t("群聊提及本人")
-              }}</label
-            >
-            <label
-              ><input type="checkbox" v-model="draft.trigger.mentionAll" />{{
-                t("群聊提及所有人")
-              }}</label
-            >
-          </div>
-          <label class="room-field-label" for="room-keywords">{{
-            t("群聊关键词，每行一个")
-          }}</label>
-          <textarea
-            id="room-keywords"
-            class="field"
-            rows="3"
-            v-model="keywords"
-          ></textarea>
+                v-model="draft.trigger.regex.self"
+              />
+            </label>
+          </template>
+          <p class="room-help">
+            {{
+              t("两种模式可以单独开启，也可以同时开启；任一模式命中即触发。")
+            }}
+          </p>
         </details>
         <details
           id="room-advanced"
@@ -201,13 +210,6 @@ defineExpose({ dirty, saving });
               {{ t("重新获取模型") }}
             </button>
           </p>
-          <label class="room-field-label" for="room-mode">{{
-            t("处理方式")
-          }}</label>
-          <select id="room-mode" class="field" v-model="draft.mode">
-            <option value="conversation">{{ t("持续对话") }}</option>
-            <option value="snapshot">{{ t("最新状态分析") }}</option>
-          </select>
           <label class="room-field-label" for="room-prompt">Room prompt</label>
           <textarea
             id="room-prompt"
