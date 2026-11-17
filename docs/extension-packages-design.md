@@ -1,6 +1,6 @@
 # NPM 消息渠道包
 
-流量与 Codex 模型路由是内置扩展；消息渠道以 NPM 包声明交付，可从 registry、公开 GitHub 仓库或安装包地址安装。推荐目录包括企业微信官方 OpenClaw BOT、`@aicat/wecom-local` 与 `@aicat/wpk`。后两个包分别在独立的 [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local) 与 [aicat-wpk](https://github.com/fishioon/aicat-wpk) 仓库维护，尚未发布到公网 registry；目录元数据不代表包已可下载。主仓库及应用资源只提供通用宿主，不包含 NPM 扩展源码或归档。企业微信官方包走专用 OpenClaw 兼容适配，平台 SDK 不作为通用原生宿主的顶层依赖。
+流量与 Codex 模型路由是内置扩展；消息渠道以 NPM 包声明交付，可从 registry、公开 GitHub 仓库或安装包地址安装。推荐目录包括企业微信官方 OpenClaw BOT 与 `@aicat/wecom-local`。后者在独立的 [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local) 仓库维护，尚未发布到公网 registry；目录元数据不代表包已可下载。主仓库及应用资源只提供通用宿主，不包含 NPM 扩展源码或归档。企业微信官方包走专用 OpenClaw 兼容适配，平台 SDK 不作为通用原生宿主的顶层依赖。
 
 ## 安装与生命周期
 
@@ -39,7 +39,7 @@
 
 入口及可选 prepare 都必须是包内常规文件，解析符号链接后不能越界。fields 支持 string/directory/boolean/secret；公开字段存 extensions.<id>.settings，secret 保存在私有 credentials.<values>，空值保留现有凭据。身份字段只能引用必填公开文本字段，不能把 model、prompt 或 Agent 配置塞进渠道字段。
 
-Room 默认模板可以描述业务 prompt、上下文、处理模式及 Chat/规则默认值，但不能自行开启自动处理或外发。模板只在读取 Room 有效配置时叠加到 `roomDefaults`，不写入 `aicat.yaml`，也不覆盖 Room 已保存的覆盖项。
+Room 默认模板可以描述业务 prompt、上下文及 Chat、规则匹配与自己发送三项触发的默认值，但不能自行开启自动处理或外发。模板只在读取 Room 有效配置时叠加到 `roomDefaults`，不写入 `aicat.yaml`，也不覆盖 Room 已保存的覆盖项。
 
 ## 宿主协议
 
@@ -59,7 +59,7 @@ publish 先进入宿主持久待确认队列，实际 Room fsync 确认后 Promi
 
 NPM 扩展是受信任的本机可执行代码，并非沙箱。能力声明用于接缝和资源边界，不宣称隔离包自身的本机权限。
 
-统一消息页面读取 Room 服务；扩展页只负责安装、连接、平台字段与诊断。完整数据和工具契约见[消息接入规范](message-ingress-standard.md)。
+Room 管理页读取 Room 服务；扩展页只负责安装、连接、平台字段与诊断。完整数据和工具契约见[消息接入规范](message-ingress-standard.md)。
 
 ## 仓库与验收边界
 

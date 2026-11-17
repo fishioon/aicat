@@ -28,7 +28,6 @@ type Message struct {
 	Schedule      *scheduler.Occurrence `json:"schedule,omitempty"`
 	Historical    bool                  `json:"historical,omitempty"`
 	Summary       string                `json:"summary,omitempty"`
-	Delivery      *Delivery             `json:"delivery,omitempty"`
 	ReplyTo       string                `json:"reply_to,omitempty"`
 	ContextKey    string                `json:"context_key,omitempty"`
 	SearchName    string                `json:"search_name,omitempty"`
@@ -37,7 +36,7 @@ type Message struct {
 	Sequence      string                `json:"sequence,omitempty"`
 	ContentType   int64                 `json:"content_type,omitempty"`
 	Flag          int64                 `json:"flag,omitempty"`
-	Outgoing      bool                  `json:"outgoing,omitempty"`
+	Self          bool                  `json:"self,omitempty"`
 	RoomType      string                `json:"room_type,omitempty"`
 	MentionIDs    []string              `json:"mention_ids,omitempty"`
 	MentionAll    bool                  `json:"mention_all,omitempty"`

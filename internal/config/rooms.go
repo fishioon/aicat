@@ -34,23 +34,24 @@ type RoomTemplate struct {
 }
 
 type RoomTriggerTemplate struct {
-	Chat  *RoomChatTrigger  `json:"chat,omitempty"`
-	Regex *RoomRegexTrigger `json:"regex,omitempty"`
+	Chat  *RoomChatTrigger    `json:"chat,omitempty"`
+	Regex *RoomPatternTrigger `json:"regex,omitempty"`
+	Self  *RoomPatternTrigger `json:"self,omitempty"`
 }
 
 type RoomTrigger struct {
-	Chat  RoomChatTrigger  `yaml:"chat" json:"chat"`
-	Regex RoomRegexTrigger `yaml:"regex" json:"regex"`
+	Chat  RoomChatTrigger    `yaml:"chat" json:"chat"`
+	Regex RoomPatternTrigger `yaml:"regex" json:"regex"`
+	Self  RoomPatternTrigger `yaml:"self" json:"self"`
 }
 
 type RoomChatTrigger struct {
 	Enabled bool `yaml:"enabled" json:"enabled"`
 }
 
-type RoomRegexTrigger struct {
+type RoomPatternTrigger struct {
 	Enabled bool   `yaml:"enabled" json:"enabled"`
 	Pattern string `yaml:"pattern,omitempty" json:"pattern"`
-	Self    bool   `yaml:"self,omitempty" json:"self"`
 }
 
 func (d RoomDefaults) Validate() error {
@@ -68,8 +69,7 @@ func DefaultRoomDefaults() RoomDefaults {
 	return RoomDefaults{
 		Context: map[string]string{},
 		Trigger: RoomTrigger{
-			Chat:  RoomChatTrigger{Enabled: true},
-			Regex: RoomRegexTrigger{Enabled: false, Pattern: "", Self: false},
+			Chat: RoomChatTrigger{Enabled: true},
 		},
 	}
 }
@@ -111,6 +111,9 @@ func ApplyRoomTemplate(settings RoomSettings, template *RoomTemplate) RoomSettin
 		if template.Trigger.Regex != nil {
 			settings.Trigger.Regex = *template.Trigger.Regex
 		}
+		if template.Trigger.Self != nil {
+			settings.Trigger.Self = *template.Trigger.Self
+		}
 	}
 	return settings
 }
@@ -143,16 +146,24 @@ func (s RoomSettings) Validate() error {
 			return errors.New("Room 上下文无效")
 		}
 	}
-	if s.Trigger.Regex.Enabled {
-		if s.Trigger.Regex.Pattern == "" {
-			return errors.New("启用规则匹配时必须填写正则表达式")
-		}
-		if len(s.Trigger.Regex.Pattern) > 4096 || strings.ContainsRune(s.Trigger.Regex.Pattern, 0) || !utf8.ValidString(s.Trigger.Regex.Pattern) {
-			return errors.New("规则匹配表达式无效")
-		}
-		if _, err := regexp.Compile(s.Trigger.Regex.Pattern); err != nil {
-			return errors.New("规则匹配表达式无效")
-		}
+	if err := s.Trigger.Regex.validate("规则匹配"); err != nil {
+		return err
+	}
+	return s.Trigger.Self.validate("自己发送的消息")
+}
+
+func (t RoomPatternTrigger) validate(label string) error {
+	if !t.Enabled {
+		return nil
+	}
+	if t.Pattern == "" {
+		return errors.New("启用" + label + "时必须填写正则表达式")
+	}
+	if len(t.Pattern) > 4096 || strings.ContainsRune(t.Pattern, 0) || !utf8.ValidString(t.Pattern) {
+		return errors.New(label + "的正则表达式无效")
+	}
+	if _, err := regexp.Compile(t.Pattern); err != nil {
+		return errors.New(label + "的正则表达式无效")
 	}
 	return nil
 }

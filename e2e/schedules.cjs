@@ -21,7 +21,9 @@ async function emit(room,id,text=id,extra={}){return rpc('ReadExtensionData',cha
 async function list(){return rpc('ListRooms');}
 async function room(conversation){const r=(await list()).find(x=>x.channel===channel&&x.conversation===conversation);assert(r,'missing '+conversation);return rpc('ReadRoomByID',r.id);}
 async function configure(conversation,patch){const r=await room(conversation);await rpc('UpdateRoomSettings',r.id,{...r.settings,...patch});return r.id;}
-async function completed(conversation,id,status='completed'){return (await room(conversation)).tasks.some(t=>t.trigger.msgid===id&&t.status===status);}
+async function tasks(conversation){const r=await room(conversation);return (await rpc('State')).messageChannels[channel].tasks.filter(t=>t.room===conversation&&t.source===r.source);}
+async function completed(conversation,id,status='completed'){return (await tasks(conversation)).some(t=>t.trigger.msgid===id&&t.status===status);}
+const sent=()=>fs.existsSync(path.join(home,'state',channel))?fs.readdirSync(path.join(home,'state',channel)).filter(x=>/^[a-f0-9]{64}$/.test(x)).flatMap(x=>rows(path.join(home,'state',channel,x,'sent.jsonl'))):[];
 async function tool(name,args={},auth=true,method='tools/call'){
  const request={jsonrpc:'2.0',id:crypto.randomUUID(),method,params:method==='tools/call'?{name,arguments:args}:{}};
  const response=await fetch(base+'/mcp',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json, text/event-stream',...(auth?{Authorization:'Bearer '+fs.readFileSync(path.join(home,'mcp-token'),'utf8').trim()}: {})},body:JSON.stringify(request)});
@@ -35,7 +37,9 @@ async function set(room_id,id,schedule){return receipt(await tool('schedules_set
 async function schedules(room_id){return receipt(await tool('schedules_list',{room_id}));}
 async function remove(room_id,id){return receipt(await tool('schedules_delete',{room_id,id}));}
 const trace=()=>rows(path.join(root,'codex-trace.jsonl'));
-async function occurrences(conversation,id){return (await room(conversation)).messages.filter(m=>m.schedule?.schedule_id===id);}
+function occurrencesIn(roomID,id){const file=path.join(home,'logs','aicat.log');if(!fs.existsSync(file))return [];return fs.readFileSync(file,'utf8').split('\n').filter(l=>l.includes('msg="room schedule triggered"')&&l.includes(' room='+roomID+' ')&&l.includes(' schedule='+id+' ')).map(l=>({msgid:/ trigger=(\S+)/.exec(l)[1],scheduled_for:/ scheduledFor=(\S+)/.exec(l)[1]}));}
+async function occurrences(conversation,id){return occurrencesIn((await room(conversation)).id,id);}
+async function trigger(conversation,msgid){return (await tasks(conversation)).find(t=>t.trigger.msgid===msgid);}
 async function delivered(conversation,id){const messages=await occurrences(conversation,id);return messages.length&&await completed(conversation,messages.at(-1).msgid);}
 async function agentActions(conversation,id,actions){await emit(conversation,id,'schedule-actions:'+JSON.stringify(actions));await wait(()=>completed(conversation,id));}
 (async()=>{try{
@@ -56,7 +60,7 @@ async function agentActions(conversation,id,actions){await emit(conversation,id,
  fs.writeFileSync(path.join(home,'aicat.yaml'),JSON.stringify({ui:{language:'zh-Hans',theme:'light'},gateway:{addr:'127.0.0.1:'+p},systemProxy:{enabled:false},extensions:{traffic:{enabled:false}},messageExecution:{codexBinary:codex}}));
  fs.writeFileSync(path.join(root,'os-state.json'),JSON.stringify({services:[],trusted:true,recordProxyWrites:true}));
  const dir=path.join(root,'package');fs.mkdirSync(dir);
- fs.writeFileSync(path.join(dir,'package.json'),JSON.stringify({name:'@fixture/room-channel',version:'1.0.0',type:'module',aicat:{api:1,id:channel,entry:'index.mjs',identityFields:['account'],fields:[{key:'account',type:'string',required:true,label:'账号'}],capabilities:{send:true},room:{trigger:{chat:{enabled:true},regex:{enabled:true,pattern:'.*',self:false}}}}}));
+ fs.writeFileSync(path.join(dir,'package.json'),JSON.stringify({name:'@fixture/room-channel',version:'1.0.0',type:'module',aicat:{api:1,id:channel,entry:'index.mjs',identityFields:['account'],fields:[{key:'account',type:'string',required:true,label:'账号'}],capabilities:{send:true},room:{trigger:{chat:{enabled:true},regex:{enabled:true,pattern:'.*'}}}}}));
  fs.writeFileSync(path.join(dir,'index.mjs'),`import fs from 'node:fs';import path from 'node:path';export function createChannel(api){return {open(){return {opened:true}},close(){},async observe(event){if(event.query?.message)await api.publish(event.query.message);return {}},send(event){fs.appendFileSync(path.join(api.stateDirectory,'sent.jsonl'),JSON.stringify(event)+'\\n');return {confirmation:'fixture_platform',chatId:event.data.roomid}}}}`);
  const archive=path.join(root,'fixture.tgz');execFileSync('tar',['-czf',archive,'-C',root,'package']);const tgz=fs.readFileSync(archive);
  server=http.createServer((req,res)=>{if(req.url.endsWith('.tgz'))return res.end(tgz);res.setHeader('Content-Type','application/json');res.end(JSON.stringify({name:'@fixture/room-channel','dist-tags':{latest:'1.0.0'},versions:{'1.0.0':{name:'@fixture/room-channel',version:'1.0.0',dist:{tarball:registry+'/fixture.tgz',shasum:crypto.createHash('sha1').update(tgz).digest('hex')}}}}));});
@@ -67,12 +71,12 @@ async function agentActions(conversation,id,actions){await emit(conversation,id,
  await emit('chat-a','seed-a');await emit('chat-b','seed-b');const a=await room('chat-a'),b=await room('chat-b');
  if(realAgent){
   await configure('chat-a',{automatic:true,prompt:'这是隔离的定时工具验收。只使用 aicat MCP 的 schedules_set、schedules_list、schedules_delete 和 messages_send，不调用 shell 或其他工具，不访问外部消息渠道。发送时使用 source_room.id 作为 target_room_id。按用户要求实际操作，不能只描述步骤。',model:''});
-  const realCompleted=id=>wait(async()=>{const task=(await room('chat-a')).tasks.find(t=>t.trigger.msgid===id);if(task&&['failed','unknown'].includes(task.status))throw Error(JSON.stringify(task));return task?.status==='completed';},180000);
+  const realCompleted=id=>wait(async()=>{const task=(await tasks('chat-a')).find(t=>t.trigger.msgid===id);if(task&&['failed','unknown'].includes(task.status))throw Error(JSON.stringify(task));return task?.status==='completed';},180000);
   await emit('chat-a','real-create','请为当前 Room 创建一条每日总结规则，id 固定为 real-daily，name 为每日总结，prompt 为总结本 Room 当天的讨论并通过 messages_send 发到 source_room.id，cron 为 0 18 * * *，timezone 为 Asia/Taipei，enabled 为 true。创建后调用 schedules_list 核对，保留规则，然后通过 messages_send 正式回复 REAL_SCHEDULE_CREATED。');
-  await realCompleted('real-create');const created=(await schedules(a.id)).find(x=>x.id==='real-daily');assert(created&&created.schedule.enabled&&created.schedule.cron==='0 18 * * *'&&created.schedule.timezone==='Asia/Taipei');assert((await room('chat-a')).messages.some(m=>m.outgoing&&m.text.content.includes('REAL_SCHEDULE_CREATED')));
+  await realCompleted('real-create');const created=(await schedules(a.id)).find(x=>x.id==='real-daily');assert(created&&created.schedule.enabled&&created.schedule.cron==='0 18 * * *'&&created.schedule.timezone==='Asia/Taipei');assert(sent().some(x=>x.data.text.content.includes('REAL_SCHEDULE_CREATED')));
   check('real Codex model chooses schedules_set and schedules_list from a natural-language Room request and publishes its confirmation through HTTP MCP');
   await emit('chat-a','real-remove','请先用 schedules_set 将 real-daily 这条规则停用（保留它的名称、prompt、cron 和 timezone），再用 schedules_list 核对 enabled 为 false，然后用 schedules_delete 删除它，再调用 schedules_list 确认列表为空。最后通过 messages_send 正式回复 REAL_SCHEDULE_DELETED。');
-  await realCompleted('real-remove');assert.equal((await schedules(a.id)).length,0);assert((await room('chat-a')).messages.some(m=>m.outgoing&&m.text.content.includes('REAL_SCHEDULE_DELETED')));
+  await realCompleted('real-remove');assert.equal((await schedules(a.id)).length,0);assert(sent().some(x=>x.data.text.content.includes('REAL_SCHEDULE_DELETED')));
   check('real Codex model pauses, lists and deletes the persisted rule through aicat MCP');report.passed=true;return;
  }
  await configure('chat-a',{automatic:true,model:'room-a'});await configure('chat-b',{automatic:true,model:'room-b'});
@@ -88,17 +92,16 @@ async function agentActions(conversation,id,actions){await emit(conversation,id,
  const started=trace().find(x=>x.method==='thread/start');assert(!('dynamicTools' in started.params));const agentCalls=trace().filter(x=>x.method==='mcp_tool_call');for(const name of ['schedules_set','schedules_list'])assert(agentCalls.some(x=>x.name===name));
  check('Room Agent creates and lists schedules through the aicat MCP connection with explicit Room identity');
  await agentActions('chat-a','forged-room',[{name:'schedules_set',arguments:{room_id:b.id,id:'forged',schedule:spec('forged')}}]);assert.equal((await schedules(b.id)).length,0);
- await configure('chat-a',{trigger:{chat:{enabled:true},regex:{enabled:false,pattern:'',self:false}}});
+ await configure('chat-a',{trigger:{chat:{enabled:true},regex:{enabled:false,pattern:''}}});
  await wait(()=>delivered('chat-a','once'));const onceMessage=(await occurrences('chat-a','once'))[0];
- assert.equal(onceMessage.sender_kind,'system');assert.equal(onceMessage.from,'aicat://scheduler');assert.equal(new Date(onceMessage.schedule.scheduled_for).getTime(),new Date(once.at).getTime());
- assert((await room('chat-a')).messages.some(m=>m.outgoing&&m.reply_to===onceMessage.msgid));assert((await room('chat-a')).tasks.some(t=>t.trigger.msgid===onceMessage.msgid&&t.triggerReason==='schedule'));
+ const onceTask=await trigger('chat-a',onceMessage.msgid);assert.equal(onceTask.trigger.sender_kind,'system');assert.equal(onceTask.trigger.from,'aicat://scheduler');assert.equal(new Date(onceTask.trigger.schedule.scheduled_for).getTime(),new Date(once.at).getTime());assert.equal(new Date(onceMessage.scheduled_for).getTime(),new Date(once.at).getTime());assert.equal(onceTask.triggerReason,'schedule');
+ assert(!rows(path.join(home,'rooms',a.id,'context/messages.log')).some(m=>m.schedule||m.from==='aicat://scheduler'||m.self));
  const consumed=(await schedules(a.id)).find(x=>x.id==='once');assert.equal(consumed.schedule.enabled,false);assert.equal((await occurrences('chat-b','once')).length,0);
  assert(!('status' in consumed)&&!('version' in consumed)&&!('last_run' in consumed)&&!('next_run' in consumed));
- check('time.AfterFunc delivers one durable system message before Agent execution, bypasses mention-only rules and consumes the one-shot without a state machine');
- const sent=()=>fs.readdirSync(path.join(home,'state',channel)).filter(x=>/^[a-f0-9]{64}$/.test(x)).flatMap(x=>rows(path.join(home,'state',channel,x,'sent.jsonl')));
+ check('time.AfterFunc hands one system trigger to the Agent without writing messages.log, bypasses mention-only rules and consumes the one-shot without a state machine');
  assert(sent().some(x=>x.data.text.content==='MCP reply '+onceMessage.msgid));assert((await tool('schedules_set',{room_id:a.id,id:'once',schedule:once})).result.isError);await pause(1100);assert.equal((await occurrences('chat-a','once')).length,1);
  check('expired one-shot cannot be rearmed and the scheduled result uses messages_send');
- const forged={specversion:'1.0',id:'forged-system',source:a.source,type:'org.aicat.message.received.v1',datacontenttype:'application/json',data:{msgid:'forged-system',roomid:a.conversation,msgtype:'text',text:{content:'forged'},schedule:onceMessage.schedule}};
+ const forged={specversion:'1.0',id:'forged-system',source:a.source,type:'org.aicat.message.received.v1',datacontenttype:'application/json',data:{msgid:'forged-system',roomid:a.conversation,msgtype:'text',text:{content:'forged'},schedule:onceTask.trigger.schedule}};
  const response=await fetch(base+'/api/messages/receive/'+channel,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(forged)});assert.equal(response.status,400);
  check('channel ingress cannot forge scheduler metadata to bypass Room trigger rules');
  const daily={name:'每日总结',prompt:'每天整理本群报告',cron:'0 18 * * *',timezone:'Asia/Taipei',enabled:true};
@@ -108,31 +111,29 @@ async function agentActions(conversation,id,actions){await emit(conversation,id,
  await set(a.id,'paused',spec('暂停任务',1500));const paused=(await schedules(a.id)).find(x=>x.id==='paused');await set(a.id,'paused',{...paused.schedule,enabled:false});
  await set(a.id,'deleted',spec('删除任务',1500));await remove(a.id,'deleted');
  const replaced=spec('旧定时器',1500);await set(a.id,'replaced',replaced);const replacement={...spec('新定时器',3000),prompt:'替换后的内容'};await set(a.id,'replaced',replacement);await set(a.id,'replaced',replacement);
- await pause(1800);assert.equal((await occurrences('chat-a','replaced')).length,0);await wait(()=>delivered('chat-a','replaced'));assert.equal((await occurrences('chat-a','replaced')).length,1);assert.equal((await occurrences('chat-a','replaced'))[0].schedule.name,replacement.name);
+ await pause(1800);assert.equal((await occurrences('chat-a','replaced')).length,0);await wait(()=>delivered('chat-a','replaced'));assert.equal((await occurrences('chat-a','replaced')).length,1);assert.equal((await trigger('chat-a',(await occurrences('chat-a','replaced'))[0].msgid)).trigger.schedule.name,replacement.name);
  assert.equal((await occurrences('chat-a','paused')).length,0);assert.equal((await occurrences('chat-a','deleted')).length,0);
- await configure('chat-a',{trigger:{chat:{enabled:true},regex:{enabled:true,pattern:'.*',self:false}}});
+ await configure('chat-a',{trigger:{chat:{enabled:true},regex:{enabled:true,pattern:'.*'}}});
  await agentActions('chat-a','modify-task',[{name:'schedules_set',arguments:{id:'agent-managed',schedule:spec('待修改',12000)}}]);
  await agentActions('chat-a','modify-task-2',[{name:'schedules_set',arguments:{id:'agent-managed',schedule:{...spec('已修改',12000),enabled:false}}},{name:'schedules_delete',arguments:{id:'agent-managed'}}]);
  assert(!(await schedules(a.id)).some(x=>x.id==='agent-managed'));
  check('MCP and Room Agent replace, pause and delete rules, cancel stale timers and preserve idempotent registration');
  const sentBeforeSchedule= sent().length;await set(a.id,'send', {...spec('报告外发',1500),prompt:'send:总结本群并发送报告'});await wait(()=>delivered('chat-a','send'));
- const sendMessage=(await occurrences('chat-a','send'))[0],reply=(await room('chat-a')).messages.find(m=>m.outgoing&&m.reply_to===sendMessage.msgid);assert.equal(reply.delivery.status,'sent');assert.equal(sent().length,sentBeforeSchedule+1);
- const scheduledTask=(await room('chat-a')).tasks.find(t=>t.trigger.msgid===sendMessage.msgid);assert.equal(scheduledTask.triggerReason,'schedule');
- check('scheduled work uses messages_send and records one external delivery');
+ const sendMessage=(await occurrences('chat-a','send'))[0];assert.equal(sent().length,sentBeforeSchedule+1);assert(!sent().at(-1).data.reply_to);
+ const scheduledTask=await trigger('chat-a',sendMessage.msgid);assert.equal(scheduledTask.triggerReason,'schedule');
+ check('scheduled work uses messages_send once and drops a reply_to that points at the system trigger');
  await set(a.id,'automatic-off',spec('关闭自动处理',1500));await configure('chat-a',{automatic:false});await pause(1800);
  assert.equal((await schedules(a.id)).find(x=>x.id==='automatic-off').schedule.enabled,false);await configure('chat-a',{automatic:true});await pause(1100);assert.equal((await occurrences('chat-a','automatic-off')).length,0);
  check('automatic processing off skips the one-shot permanently; restoring it does not retry');
  await set(a.id,'channel-off',spec('关闭渠道',1500));await rpc('SetExtensionEnabled',channel,false);await pause(1800);await rpc('SetExtensionEnabled',channel,true);await wait(async()=> (await rpc('State')).messageChannels[channel].phase==='connected');await pause(1100);assert.equal((await occurrences('chat-a','channel-off')).length,0);
  check('disabled channel skips the due one-shot and never replays it when enabled');
- const roomLog=path.join(home,'rooms',a.id,'context/messages.log'),logBackup=roomLog+'.saved';
- await set(a.id,'room-failure',spec('Room 落盘失败',1500));fs.renameSync(roomLog,logBackup);fs.mkdirSync(roomLog);await pause(1800);fs.rmdirSync(roomLog);fs.renameSync(logBackup,roomLog);await pause(1100);assert.equal((await occurrences('chat-a','room-failure')).length,0);assert.equal((await schedules(a.id)).find(x=>x.id==='room-failure').schedule.enabled,false);
- check('Room storage failure starts no Agent work and creates no automatic retry');
+ check('scheduled triggers and Agent sends never write messages.log',!rows(path.join(home,'rooms',a.id,'context/messages.log')).some(m=>m.schedule||m.from==='aicat://scheduler'||m.self));
  const minute={name:'周期验收',prompt:'周期总结',cron:'* * * * *',timezone:'UTC',enabled:true};
  const minuteSchedule=await set(a.id,'minute',minute),minuteDue=new Date(minuteSchedule.next_run).getTime();
  await set(b.id,'skip-minute',minute);await configure('chat-b',{automatic:false});
  await set(a.id,'paused-minute',{...minute,enabled:false});await set(a.id,'deleted-minute',minute);await remove(a.id,'deleted-minute');
  console.log('Waiting for real cron boundary',new Date(minuteDue).toISOString());await wait(()=>delivered('chat-a','minute'),70000);
- const firstMinute=(await occurrences('chat-a','minute'))[0];assert.equal(new Date(firstMinute.schedule.scheduled_for).getTime(),minuteDue);assert(new Date((await schedules(a.id)).find(x=>x.id==='minute').next_run).getTime()>minuteDue);assert.equal((await occurrences('chat-a','minute')).length,1);
+ const firstMinute=(await occurrences('chat-a','minute'))[0];assert.equal(new Date(firstMinute.scheduled_for).getTime(),minuteDue);assert(new Date((await schedules(a.id)).find(x=>x.id==='minute').next_run).getTime()>minuteDue);assert.equal((await occurrences('chat-a','minute')).length,1);
  assert.equal((await occurrences('chat-a','paused-minute')).length,0);assert.equal((await occurrences('chat-a','deleted-minute')).length,0);await configure('chat-b',{automatic:true});await pause(1100);assert.equal((await occurrences('chat-b','skip-minute')).length,0);
  await remove(a.id,'minute');await remove(b.id,'skip-minute');
  check('real cron fires at its calendar boundary, advances itself, respects pause/delete and skips disabled Room work without catch-up');
@@ -142,10 +143,8 @@ async function agentActions(conversation,id,actions){await emit(conversation,id,
  assert.equal((await occurrences('chat-a','offline-minute')).length,0);assert(new Date((await schedules(a.id)).find(x=>x.id==='offline-minute').next_run).getTime()>missedDue);await remove(a.id,'offline-minute');
  check('cron restart schedules the next future boundary without replaying a missed offline occurrence');
  await set(a.id,'account-bound',spec('旧账号任务',2000));await rpc('SetExtensionEnabled',channel,false);await rpc('ConfigureMessageChannel',channel,{accountId:'',secret:'',values:{account:'account-b'}});await rpc('SetExtensionEnabled',channel,true);await wait(async()=> (await rpc('State')).messageChannels[channel].phase==='connected');await emit('chat-a','new-account-seed');await pause(2300);
- const newRoom=(await list()).find(r=>r.channel===channel&&r.conversation==='chat-a'&&r.id!==a.id);assert(newRoom);assert.equal((await rpc('ReadRoomByID',a.id)).messages.filter(m=>m.schedule?.schedule_id==='account-bound').length,0);assert.equal((await schedules(newRoom.id)).length,0);assert.equal((await schedules(a.id)).find(x=>x.id==='account-bound').schedule.enabled,false);await remove(a.id,'account-bound');
+ const newRoom=(await list()).find(r=>r.channel===channel&&r.conversation==='chat-a'&&r.id!==a.id);assert(newRoom);assert.equal(occurrencesIn(a.id,'account-bound').length,0);assert.equal(occurrencesIn(newRoom.id,'account-bound').length,0);assert.equal((await schedules(newRoom.id)).length,0);assert.equal((await schedules(a.id)).find(x=>x.id==='account-bound').schedule.enabled,false);await remove(a.id,'account-bound');
  check('account change never delivers old Room work into the new account');
- browser=await chromium.launch({headless:true,executablePath:process.env.AICAT_CHROMIUM||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});page=await browser.newPage({viewport:{width:1280,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(preview);await page.waitForFunction(()=>!!window.desktop?.state());await page.locator('#nav-messages').click();await page.locator('[data-room-id="'+a.id+'"]').click();await page.locator('[data-message-id="'+onceMessage.msgid+'"]').waitFor();assert((await page.locator('#room-messages').innerText()).includes('定时系统消息'));await page.screenshot({path:path.join(root,'scheduled-room.png'),fullPage:true});assert.equal(errors.length,0);
- check('headless message page displays scheduled system messages and linked Agent replies');
  check('only rules are persisted in aicat.yaml; no scheduler state file exists',!fs.existsSync(path.join(home,'state/schedules.json'))&&fs.readFileSync(path.join(home,'aicat.yaml'),'utf8').includes('schedules:'));
  report.passed=true;
  }catch(e){report.error=e.stack;if(page)await page.screenshot({path:path.join(root,'failure.png'),fullPage:true}).catch(()=>{});throw e;}finally{await stop();if(realAgent)fs.rmSync(path.join(root,'codex-home/auth.json'),{force:true});if(browser)await browser.close();if(server)await new Promise(r=>server.close(r));if(log!==undefined)fs.closeSync(log);fs.writeFileSync(path.join(root,'mcp.json'),JSON.stringify(transcript,null,2),{mode:0o600});fs.writeFileSync(path.join(root,'report.json'),JSON.stringify(report,null,2),{mode:0o600});console.log(JSON.stringify({passed:report.passed,checks:report.checks.length,root}));}})().catch(e=>{console.error(e);process.exitCode=1;});

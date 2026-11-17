@@ -98,7 +98,7 @@ archive("identity", {
   id: "fixture.archive",
   name: "@fixture/different-package",
 });
-archive("wpk", { id: "wpk", name: "@aicat/wpk", version: "0.1.0" });
+archive("wecom-local", { id: "wecom-local", name: "@aicat/wecom-local", version: "0.1.0" });
 const malicious = path.join(root, "unsafe.tgz");
 execFileSync("python3", [
   "-c",
@@ -518,12 +518,12 @@ async function main() {
       "认证失败在表单内明确提示；慢下载期间可导航，返回后显示真实进度和取消；重复提交拒绝，取消后可重试且暂存清理",
     );
 
-    await install(registry + "/wpk.tgz", "wpk");
+    await install(registry + "/wecom-local.tgz", "wecom-local");
     assert.equal(
-      (await state()).extensions.filter((x) => x.id === "wpk").length,
+      (await state()).extensions.filter((x) => x.id === "wecom-local").length,
       1,
     );
-    assert.equal((await extension("wpk")).name, "微扑克");
+    assert.equal((await extension("wecom-local")).name, "企业微信客户端");
     await stop();
     await start();
     for (const id of [
@@ -531,12 +531,12 @@ async function main() {
       "fixture.github",
       "fixture.archive",
       "fixture.slow",
-      "wpk",
+      "wecom-local",
     ])
       assert.equal((await extension(id)).installed, true, id);
-    assert.equal((await extension("wpk")).packageSource, "archive");
+    assert.equal((await extension("wecom-local")).packageSource, "archive");
     assert.equal(
-      (await state()).extensions.filter((x) => x.id === "wpk").length,
+      (await state()).extensions.filter((x) => x.id === "wecom-local").length,
       1,
     );
     const catalogMode =
@@ -555,7 +555,7 @@ async function main() {
       "fixture.github",
       "fixture.archive",
       "fixture.slow",
-      "wpk",
+      "wecom-local",
     ]) {
       const dir = installedPath(id);
       const files = execFileSync(

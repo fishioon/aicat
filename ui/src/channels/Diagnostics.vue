@@ -57,7 +57,7 @@ const blocked = computed(
     request.value?.text === text.value,
 );
 watch([recipient, text], () => (result.value = ""), { flush: "sync" });
-function deliveryStatus(status: string, outgoing = false) {
+function deliveryStatus(status: string, self = false) {
   const labels: Record<string, string> = {
     pending: "开始发送",
     sent: "已发送",
@@ -65,22 +65,11 @@ function deliveryStatus(status: string, outgoing = false) {
     failed: "执行失败",
     saved: "本地保存",
   };
-  return status ? t(labels[status] ?? status) : t(outgoing ? "发出" : "收到");
+  return status ? t(labels[status] ?? status) : t(self ? "发出" : "收到");
 }
 function preview(value: string) {
   const text = value.replace(/\s+/g, " ").trim();
   return text.length > 80 ? text.slice(0, 80) + "…" : text;
-}
-function taskStatus(status: string) {
-  const labels: Record<string, string> = {
-    pending: "待处理",
-    running: "处理中",
-    completed: "已完成",
-    failed: "执行失败",
-    unknown: "结果不明",
-    skipped: "已跳过",
-  };
-  return t(labels[status] ?? status);
 }
 async function send() {
   if (busy.value || blocked.value) return;
@@ -135,18 +124,6 @@ async function send() {
 </script>
 <template>
   <div id="wecom-diagnostics">
-    <h2 v-if="channel?.tasks.length">{{ t("Agent 任务") }}</h2>
-    <table class="feat" id="wecom-agent-tasks" v-if="channel?.tasks.length">
-      <tbody>
-        <tr v-for="task in [...channel.tasks].reverse()" :key="task.id">
-          <th scope="row">{{ task.room }}</th>
-          <td>
-            <span class="tag">{{ taskStatus(task.status) }}</span>
-            {{ task.error }}
-          </td>
-        </tr>
-      </tbody>
-    </table>
     <section v-if="extension?.packageFormat === 'aicat'">
       <h2>{{ t("渠道诊断") }}</h2>
       <button
@@ -206,7 +183,7 @@ async function send() {
     <p>
       {{
         t(
-          "消息、正式回复和外发状态统一保存在 Room。自动处理、model 和 prompt 在消息页面的对应会话中设置。",
+          "平台消息保存在 Room；Agent 外发、定时触发与任务执行记录在运行日志。自动处理、model 和 prompt 在消息页的对应 Room 中设置。",
         )
       }}
     </p>
@@ -226,7 +203,7 @@ async function send() {
           <th scope="row">{{ record.event.data.roomid }}</th>
           <td>
             <span class="tag">{{
-              deliveryStatus(record.status ?? "", record.event.data.outgoing)
+              deliveryStatus(record.status ?? "", record.event.data.self)
             }}</span>
             <span v-if="record.event.data.media_status === 'metadata_only'">{{
               t("{type}（仅元数据）", { type: record.event.data.msgtype })

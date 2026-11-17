@@ -3,6 +3,7 @@ package messages
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/fishioon/aicat/internal/scheduler"
@@ -43,23 +44,18 @@ func (c *Channel) ReceiveScheduled(ctx context.Context, room RoomIdentity, occur
 	if err := c.CheckScheduledRoom(ctx, room); err != nil {
 		return err
 	}
-	c.inbox.ingressMu.Lock()
-	defer c.inbox.ingressMu.Unlock()
 	now := time.Now().UTC()
 	stamp := now.UnixMilli()
 	id := "schedule-" + newID()
 	event := Event{Subject: room.ID, SpecVersion: "1.0", ID: id, Source: "aicat://scheduler", Type: Received, Time: now.Format(time.RFC3339Nano), ContentType: "application/json", Data: Message{ID: id, Action: "receive", From: "aicat://scheduler", RoomID: room.Conversation, Time: &stamp, Type: "text", SenderKind: "system", Schedule: &occurrence, Text: Text{Content: "定时任务：" + occurrence.Name + "\n" + occurrence.Prompt}}}
-	record, err := c.rooms.append(room.Source, "", event, "")
-	if err != nil {
-		return err
-	}
 	c.mu.Lock()
 	d := c.dispatcher
 	c.mu.Unlock()
 	if d == nil {
-		return errors.New("定时消息已保存，Agent 调度已停止")
+		return errors.New("Agent 调度已停止，跳过本次定时触发")
 	}
-	d.Enqueue(room.Source, record)
+	slog.Info("room schedule triggered", "channel", c.id, "room", room.ID, "schedule", occurrence.ScheduleID, "trigger", id, "scheduledFor", occurrence.ScheduledFor)
+	d.Enqueue(room.Source, Record{ID: id, RecordedAt: now.Format(time.RFC3339Nano), Event: event})
 	c.changed()
 	return nil
 }

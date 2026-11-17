@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 )
 
-func (s *Inbox) findMessage(ctx context.Context, source, room, id string, outgoing bool) (Message, bool, error) {
+func (s *Inbox) findMessage(ctx context.Context, source, room, id string) (Message, bool, error) {
 	s.rooms.logMu.Lock()
 	defer s.rooms.logMu.Unlock()
 	f, err := os.Open(filepath.Join(s.rooms.directory(source, room), "context", "messages.log"))
@@ -35,7 +35,7 @@ func (s *Inbox) findMessage(ctx context.Context, source, room, id string, outgoi
 			continue
 		}
 		var message Message
-		if json.Unmarshal(scan.Bytes(), &message) != nil || message.ID != id || message.Outgoing != outgoing {
+		if json.Unmarshal(scan.Bytes(), &message) != nil || message.ID != id {
 			continue
 		}
 		if exists {

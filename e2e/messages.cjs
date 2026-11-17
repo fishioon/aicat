@@ -18,21 +18,18 @@ const report = {
   passed: false,
   command: process.argv,
   coverage:
-    "Headless Chromium, hidden e2e desktop, installed NPM channel, real Room/dispatch/MCP/storage services. Codex and platform are protocol fixtures; no native-window or live-platform coverage.",
+    "Headless Chromium, hidden e2e desktop, installed NPM channel, real Room storage and settings services. Codex model list and platform are protocol fixtures; no native-window or live-platform coverage.",
   hashes: Object.fromEntries(
     [
       binary,
       "ui/src/components/MessagesPage.vue",
       "ui/src/components/RoomSettings.vue",
-      "ui/src/components/RoomAvatar.vue",
       "ui/index.html",
       "internal/messages/presentation.go",
       "internal/messages/catalog.go",
       "runtime/channel-host/native.mjs",
-      "e2e/message-presentation.cjs",
-      "ui/src/state/follow-latest.ts",
       "ui/src/app.css",
-      "internal/messages/issues.go",
+      "internal/messages/triggers.go",
       "e2e/messages.cjs",
     ].map((file) => [file, hash(fs.readFileSync(file))]),
   ),
@@ -145,7 +142,7 @@ async function openRoom(id) {
       (await page
         .locator('[data-room-id="' + id + '"]')
         .getAttribute("aria-current")) === "true" &&
-      (await page.locator("#room-settings-toggle").isVisible()),
+      (await page.locator("#room-settings").isVisible()),
   );
 }
 async function screenshot(name) {
@@ -211,7 +208,7 @@ async function screenshot(name) {
           room: {
             trigger: {
               chat: { enabled: true },
-              regex: { enabled: true, pattern: ".*", self: false },
+              regex: { enabled: true, pattern: ".*" },
             },
           },
         },
@@ -269,7 +266,7 @@ async function screenshot(name) {
       ),
     );
     await screenshot("empty");
-    check("empty message page offers records entry without reading states");
+    check("empty Room management page offers the add-channel entry");
     await page.locator("#room-empty-add-channel").click();
     await page.locator("#extension-search").waitFor();
     assert.equal(
@@ -324,408 +321,173 @@ async function screenshot(name) {
       async () =>
         (await rpc("State")).messageChannels[channel].phase === "connected",
     );
-    if (process.argv[4] === "presentation") {
-      await require("./message-presentation.cjs")({ page, rpc, emit, room, openRoom, configure, screenshot, check, wait, channel, home, start, stop, preview: () => preview });
-      assert.deepEqual(report.pageErrors, []);
-      report.passed = true;
-      return;
-    }
-    if (process.argv[4] === "follow-latest") {
-      await require("./follow-messages.cjs")({
-        page,
-        rpc,
-        emit,
-        room,
-        openRoom,
-        configure,
-        screenshot,
-        check,
-        wait,
-        channel,
-      });
-      assert.deepEqual(report.pageErrors, []);
-      report.passed = true;
-      return;
-    }
-    for (const id of ["orders", "notice", "table", "failed"])
-      await emit(id, "seed-" + id, "会话已接入", { historical: true });
-    await configure("orders", {
-      name: "订单协作群",
-      automatic: true,
-      model: "room-a",
-    });
-    await emit("orders", "paid", "订单已支付，请核对。");
-    await wait(async () =>
-      (await room("orders")).messages.some((m) => m.reply_to === "paid"),
-    );
-    await emit("orders", "send-confirmed", "send:请补充订单号或支付截图。");
-    await wait(async () =>
-      (await room("orders")).messages.some(
-        (m) => m.delivery?.status === "sent",
-      ),
-    );
-    await configure("notice", {
-      name: "项目通知",
-      automatic: true,
-      model: "room-a",
-    });
-    await emit("notice", "uncertain", "send:uncertain platform");
-    await wait(async () =>
-      (await room("notice")).messages.some(
-        (m) => m.delivery?.status === "unknown",
-      ),
-    );
-    await configure("table", {
-      name: "牌桌 10291",
-      automatic: true,
-      model: "room-b",
-    });
-    await emit(
-      "table",
-      "state-1",
-      JSON.stringify({ kind: "table_snapshot", state: 1 }),
-      {
-        summary: "牌桌状态 1",
-        context_key: "hand-one",
+    await emit("orders", "order-1", "订单 1001 已创建", { room_type: "group" });
+    await emit("notice", "notice-1", "系统公告");
+    await rpc("ReadExtensionData", channel, {
+      presentation: {
+        roomid: "orders",
+        name: "订单协作群",
+        kind: "group",
+        avatar: "",
+        members: {},
       },
-    );
-    await wait(async () =>
-      (await room("table")).messages.some((m) => m.reply_to === "state-1"),
-    );
-    await emit(
-      "table",
-      "state-2",
-      JSON.stringify({ kind: "table_snapshot", state: 2 }),
-      {
-        summary: "牌桌状态 2",
-        context_key: "hand-one",
-      },
-    );
-    await wait(async () =>
-      (await room("table")).messages.some((m) => m.reply_to === "state-2"),
-    );
-    await configure("failed", {
-      name: "模型接入验收",
-      automatic: true,
-      model: "bad-model",
     });
-    await emit("failed", "failed-task", "请检查当前模型。");
-    await wait(async () =>
-      (await room("failed")).tasks.some((task) => task.status === "failed"),
-    );
-    const a = await room("orders"),
-      b = await room("notice"),
-      c = await room("table"),
-      d = await room("failed");
-    check(
-      "real ingress, Agent dispatch, authenticated MCP publication and authorized platform sending remain intact",
-      a.messages.some((m) => m.reply_to === "paid") &&
-        sent().some((entry) => entry.data.text.content === "MCP reply paid") &&
-        sent().some(
-          (entry) => entry.data.text.content === "MCP reply send-confirmed",
-        ),
-    );
-    const oldRead = path.join(home, "rooms", b.id, "read.json");
-    fs.writeFileSync(oldRead, "obsolete and malformed reading marker");
-    const oldTime = fs.statSync(oldRead).mtimeMs;
-    const summaries = await list();
+    await wait(async () => (await list()).length === 2);
+    const orders = (await list()).find((r) => r.conversation === "orders");
+    const notice = (await list()).find((r) => r.conversation === "notice");
+    await wait(async () => (await page.locator(".room-item").count()) === 2);
+    const item = page.locator('[data-room-id="' + orders.id + '"]');
+    await wait(async () => (await item.innerText()).includes("订单协作群"));
+    const itemText = await item.innerText();
+    assert(itemText.includes("验收渠道") && itemText.includes("未自动处理"));
+    await page.locator("#room-search").fill("订单");
+    assert.equal(await page.locator(".room-item").count(), 1);
+    await page.locator("#room-search").fill(notice.id.slice(0, 12));
+    assert.equal(await page.locator(".room-item").count(), 1);
+    await page.locator("#room-search").fill("验收渠道");
+    assert.equal(await page.locator(".room-item").count(), 2);
+    await page.locator("#room-search").fill("missing-room");
+    assert.equal(await page.locator(".room-item").count(), 0);
     assert(
-      summaries.every((r) => !("unread" in r) && !("lastMessageKey" in r)),
-    );
-    assert(
-      (await room("notice")).issues.some(
-        (issue) => issue.kind === "delivery" && issue.status === "unknown",
+      (await page.locator(".room-empty-list").innerText()).includes(
+        "没有匹配的 Room",
       ),
     );
-    assert(
-      (await room("failed")).issues.some(
-        (issue) => issue.kind === "task" && issue.status === "failed",
-      ),
-    );
-    const httpRooms = await (await fetch(base + "/api/rooms")).json();
+    await page.locator("#room-search").fill("");
     check(
-      "Desktop and HTTP summaries share actual delivery/task issues and ignore obsolete reading files",
-      httpRooms.filter((r) => r.issues.length).length === 2,
+      "Room list shows name, channel and automatic state and searches by name, channel and ID",
     );
-    await wait(
-      async () => (await page.locator("[data-room-id]").count()) === 4,
-    );
-    await openRoom(a.id);
-    await page.locator("#room-add-channel").click();
+    await openRoom(orders.id);
     assert.equal(
-      await page.locator("#extension-search").inputValue(),
-      "tag:channel",
+      await page.locator(".room-header h1").innerText(),
+      "订单协作群",
     );
-    assert((await visibleChannels()).includes(channel));
-    await page.locator("#history-back").click();
-    await page.locator("#room-settings-toggle").waitFor();
-    await wait(
-      async () =>
-        (await page.locator("#room-messages article").count()) ===
-        a.messages.length,
-    );
-    assert.equal(await page.locator("#navigation img").count(), 0);
-    assert.equal(await page.locator(".room-message.outgoing img").count(), 2);
     assert.equal(
       await page
-        .locator("#messages-page")
-        .getByText("未读", { exact: true })
+        .locator(
+          "#room-messages, .room-message, #room-tasks, #room-filter-issues",
+        )
         .count(),
       0,
     );
-    assert.equal(await page.locator("#room-issue-banner").count(), 0);
-    await screenshot("messages-light");
-    const addBounds = await page.locator("#room-add-channel").boundingBox();
-    const sidebarBounds = await page.locator("#module-sidebar").boundingBox();
-    const searchBounds = await page.locator("#room-search").boundingBox();
-    assert(
-      addBounds.x + addBounds.width <=
-        sidebarBounds.x + sidebarBounds.width - 8,
-    );
-    assert(searchBounds.x + searchBounds.width <= addBounds.x);
-    await page.locator("#room-search").fill("订单");
-    assert.equal(await page.locator("[data-room-id]").count(), 1);
-    await page.locator("#room-search").fill("missing-room");
-    assert((await page.locator(".room-list").innerText()).includes("没有匹配"));
-    await page.locator("#room-search").fill("");
     check(
-      "conversation search, native shell and canonical reply avatars match the approved design",
+      "Room management page shows settings without chat history, tasks or send records",
     );
-    const sentBeforeIssues = sent().length;
-    await page.locator("#room-filter-issues").click();
-    await wait(
-      async () => (await page.locator("[data-room-id]").count()) === 2,
-    );
-    await openRoom(b.id);
-    await page.locator("#room-issue-details").click();
-    await page.locator("#room-tasks").waitFor();
-    assert(
-      (await page.locator("#room-tasks").innerText()).includes("发送结果不明"),
-    );
-    await screenshot("delivery-issue");
-    await page.keyboard.press("Escape");
-    await page.locator("#room-filter-all").click();
-    await openRoom(a.id);
-    await page.locator("#room-filter-issues").click();
-    await wait(
-      async () => (await page.locator("[data-room-id]").count()) === 2,
-    );
-    assert.equal(sent().length, sentBeforeIssues);
-    assert.equal(fs.statSync(oldRead).mtimeMs, oldTime);
-    assert.equal(
-      fs.existsSync(path.join(home, "rooms", a.id, "read.json")),
-      false,
-    );
-    assert(!calls.some((name) => name?.includes("MarkRoomRead")));
-    check(
-      "viewing and switching issues neither clears them nor writes reading markers or repeats sending",
-    );
-    await openRoom(d.id);
-    await page.locator("#room-issue-details").click();
-    assert(
-      (await page.locator("#room-tasks").innerText()).includes(
-        "MODEL_UNAVAILABLE",
-      ),
-    );
-    await screenshot("task-issue");
-    await page.keyboard.press("Escape");
-    await page.locator("#room-filter-all").click();
-    await openRoom(c.id);
-    assert(
-      (await page.locator("#room-messages").innerText()).includes(
-        "基于较早局面",
-      ),
-    );
-    assert.equal(
-      await page.locator(".room-business pre").first().isVisible(),
-      false,
-    );
-    await page.locator(".room-business summary").first().click();
-    assert(
-      (await page.locator(".room-business pre").first().innerText()).includes(
-        "table_snapshot",
-      ),
-    );
-    check(
-      "structured originals stay collapsed and earlier business-state replies retain their association",
-    );
-    await openRoom(a.id);
-    const traces = () =>
-      fs
-        .readFileSync(path.join(root, "codex-trace.jsonl"), "utf8")
-        .trim()
-        .split("\n")
-        .map(JSON.parse);
-    const modelQueries = traces().filter(
-      (event) => event.method === "model/list",
-    ).length;
-    await page.locator("#room-settings-toggle").click();
-    await page.locator("#room-settings").waitFor();
     assert.equal(await page.locator("#room-model").isVisible(), false);
     assert.equal(await page.locator("#room-prompt").isVisible(), false);
-    assert.equal(
-      traces().filter((event) => event.method === "model/list").length,
-      modelQueries,
-    );
-    await screenshot("settings-collapsed");
+    assert.equal(await page.locator("#room-trigger-self").isVisible(), false);
+    assert(!calls.includes("Desktop.ListRoomModels"));
     await page.locator("#room-advanced > summary").click();
     await wait(
       async () => (await page.locator("#room-model option").count()) === 3,
     );
-    await page.locator("#room-prompt").fill("UNSAVED_MESSAGE_PROMPT");
+    assert(calls.includes("Desktop.ListRoomModels"));
+    check(
+      "advanced settings stay collapsed and load the model list only when opened",
+    );
+    await page.locator("#room-prompt").fill("UNSAVED_ROOM_PROMPT");
     await rpc("SetPreferences", { language: "zh-Hans", theme: "dark" });
+    await pause(300);
     assert.equal(
       await page.locator("#room-prompt").inputValue(),
-      "UNSAVED_MESSAGE_PROMPT",
+      "UNSAVED_ROOM_PROMPT",
     );
-    await page.locator('[data-room-id="' + b.id + '"]').click();
-    await page.locator("#dialog[open]").waitFor();
+    await page.locator('[data-room-id="' + notice.id + '"]').click();
     await page
-      .locator("#dialog")
-      .getByRole("button", { name: "取消", exact: true })
-      .click();
+      .locator("#dialog-title")
+      .filter({ hasText: "放弃未保存的设置" })
+      .waitFor();
+    await page.locator("#dialog footer button").first().click();
+    await page.locator("#dialog-title").waitFor({ state: "hidden" });
+    assert.equal(await item.getAttribute("aria-current"), "true");
     assert.equal(
       await page.locator("#room-prompt").inputValue(),
-      "UNSAVED_MESSAGE_PROMPT",
+      "UNSAVED_ROOM_PROMPT",
     );
-    await page.locator(".room-quote").first().focus();
-    await page.keyboard.press("Enter");
-    await page.locator("#dialog[open]").waitFor();
-    await page
-      .locator("#dialog")
-      .getByRole("button", { name: "取消", exact: true })
-      .click();
-    assert.equal(
-      await page.locator("#room-prompt").inputValue(),
-      "UNSAVED_MESSAGE_PROMPT",
+    check(
+      "drafts survive state refresh and switching Room asks before discarding them",
     );
     await page.locator("#room-context").fill("[]");
     await page.locator("#room-settings-save").click();
     await wait(async () =>
       (await page.locator("#room-settings [role=alert]").innerText()).includes(
-        "上下文必须",
+        "上下文必须是键值均为文本的 JSON 对象",
       ),
     );
-    assert.notEqual(
-      (await room("orders")).settings.prompt,
-      "UNSAVED_MESSAGE_PROMPT",
-    );
     await page.locator("#room-context").fill('{"scope":"message-e2e"}');
+    await page.locator(".room-trigger > summary").click();
+    await page.locator("#room-trigger-self").check();
+    await page.locator("#room-settings-save").click();
+    await wait(async () =>
+      (await page.locator("#room-settings [role=alert]").innerText()).includes(
+        "启用自己发送的消息时必须填写正则表达式",
+      ),
+    );
+    assert.equal(
+      (await rpc("ReadRoomByID", orders.id)).settings.trigger.self.enabled,
+      false,
+    );
+    check(
+      "invalid context and an empty self pattern are rejected without saving",
+    );
+    await page.locator("#room-self-pattern").fill("^#run");
+    await page.locator("#room-regex-pattern").fill("订单");
+    await page.locator("#room-automatic").check();
     await page.locator("#room-model").selectOption("room-b");
-    await page.locator("#room-name").fill("订单协作群");
+    await page.locator("#room-name").fill("订单处理");
     await page.locator("#room-settings-save").click();
     await wait(
       async () =>
-        (await room("orders")).settings.prompt === "UNSAVED_MESSAGE_PROMPT",
+        (await rpc("ReadRoomByID", orders.id)).settings.name === "订单处理",
     );
-    await page.locator("#room-panel").waitFor({ state: "detached" });
-    assert.deepEqual((await room("orders")).settings.context, {
-      scope: "message-e2e",
+    const saved = (await rpc("ReadRoomByID", orders.id)).settings;
+    assert.deepEqual(saved.trigger, {
+      chat: { enabled: true },
+      regex: { enabled: true, pattern: "订单" },
+      self: { enabled: true, pattern: "^#run" },
     });
-    await page.locator("#room-settings-toggle").click();
-    assert.equal(await page.locator("#room-model").isVisible(), false);
-    await page.keyboard.press("Escape");
-    check(
-      "advanced settings load models on demand, preserve drafts across refresh, guard switching, validate and persist updates",
-    );
-    await page.locator("#room-activity-toggle").click();
-    await page.locator("#room-tasks").waitFor();
     assert(
-      (await page.locator("#room-tasks").innerText()).includes("处理完成"),
+      saved.automatic &&
+        saved.model === "room-b" &&
+        saved.prompt === "UNSAVED_ROOM_PROMPT" &&
+        saved.context.scope === "message-e2e",
     );
-    await page.keyboard.press("Escape");
-    await screenshot("messages-dark");
-    for (const width of [1180, 860]) {
-      await page.setViewportSize({ width, height: 900 });
-      const overflow = await page
-        .locator("#messages-page")
-        .evaluate((node) => node.scrollWidth > node.clientWidth);
-      assert.equal(overflow, false);
-      await page.locator("#room-settings-toggle").click();
-      await page.locator("#room-advanced > summary").click();
-      await page.locator("#room-context").scrollIntoViewIfNeeded();
-      const footer = await page.locator(".room-panel-footer").boundingBox();
-      assert(footer.y + footer.height <= 901);
-      await screenshot("settings-dark-" + width);
-      await page.keyboard.press("Escape");
-    }
+    const stored = JSON.parse(
+      fs.readFileSync(path.join(home, "rooms", orders.id, "room.json"), "utf8"),
+    );
+    assert.deepEqual(stored.settings.trigger, {
+      self: { enabled: true, pattern: "^#run" },
+      regex: { pattern: "订单" },
+    });
+    await wait(
+      async () =>
+        (await item.innerText()).includes("自动处理") &&
+        !(await item.innerText()).includes("未自动处理"),
+    );
+    check(
+      "settings save chat, regex and self triggers as room.json overrides and update the list",
+    );
+    await screenshot("rooms-dark");
     await rpc("SetPreferences", { language: "en", theme: "light" });
-    await wait(
-      async () =>
-        (await page.locator("#room-filter-issues").innerText()) === "Issues",
-    );
-    await screenshot("messages-english");
-    await page.locator("#room-add-channel").click();
-    assert.equal(
-      await page.locator("#extension-search").inputValue(),
-      "tag:channel",
-    );
-    assert.equal(
-      await page.locator("#module-sidebar #extension-codex").count(),
-      0,
-    );
-    assert.equal(
-      await page.locator("#module-sidebar #extension-traffic").count(),
-      0,
-    );
-    await page.locator("#history-back").click();
-    await page.locator("#messages-page").waitFor();
-    check(
-      "light/dark, English and narrower desktop widths keep panels and controls usable",
-    );
-    await rpc("SetPreferences", { language: "zh-Hans", theme: "light" });
-    const historical = Array.from({ length: 205 }, (_, index) => ({
-      msgid: "archive-" + index,
-      roomid: "notice",
-      from: "历史成员",
-      msgtype: "text",
-      historical: true,
-      msgtime: Date.now(),
-      text: { content: "后续记录 " + index },
-    }));
-    for (let offset = 0; offset < historical.length; offset += 10)
-      await rpc("ReadExtensionData", channel, {
-        messages: historical.slice(offset, offset + 10),
-      });
-    const retained = await room("notice");
-    check(
-      "persisted send issues remain visible after their message leaves the latest 200 records",
-      retained.messages.length === 200 &&
-        !retained.messages.some((m) => m.delivery) &&
-        retained.issues.some((issue) => issue.status === "unknown"),
-    );
-    const sentBeforeRestart = sent().length;
-    await stop();
-    await start();
-    await wait(
-      async () =>
-        (await rpc("State")).messageChannels[channel].phase === "connected",
-    );
-    const restarted = await room("notice");
-    assert(restarted.issues.some((issue) => issue.status === "unknown"));
-    assert.equal((await room("failed")).tasks.length, 0);
-    assert.equal((await room("orders")).settings.model, "room-b");
-    assert.equal(sent().length, sentBeforeRestart);
-    await page.goto(preview);
-    await page.waitForFunction(() => !!window.desktop?.state());
-    await page.locator("#nav-messages").click();
-    await page.locator("#room-filter-issues").click();
-    await wait(
-      async () => (await page.locator("[data-room-id]").count()) === 1,
-    );
-    await page.locator("#room-issue-details").click();
-    await screenshot("issue-after-restart");
-    check(
-      "restart preserves send issues and settings, clears runtime tasks and performs no repeat send",
-    );
-    await rpc("SetExtensionEnabled", channel, false);
-    await rpc("UninstallExtension", channel);
     await wait(async () =>
-      (await page.locator(".room-header p").innerText()).includes("已停用"),
+      (await page.locator(".room-trigger").innerText()).includes(
+        "Messages sent by this account",
+      ),
     );
-    assert((await room("notice")).issues.length > 0);
+    await screenshot("rooms-en-light");
+    for (const width of [1180, 860]) {
+      await page.setViewportSize({ width, height: 800 });
+      await pause(200);
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+      await screenshot("rooms-" + width);
+    }
+    await rpc("SetPreferences", { language: "zh-Hans", theme: "light" });
     check(
-      "uninstalled channel history and persisted issues remain inspectable",
+      "English, light and dark themes and 1180/860 widths keep the Room page usable",
     );
     assert.deepEqual(report.pageErrors, []);
     report.passed = true;

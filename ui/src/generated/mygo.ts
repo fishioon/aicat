@@ -199,7 +199,6 @@ export interface Message {
   schedule?: Occurrence;
   historical?: boolean;
   summary?: string;
-  delivery?: Delivery;
   reply_to?: string;
   context_key?: string;
   search_name?: string;
@@ -208,7 +207,7 @@ export interface Message {
   sequence?: string;
   content_type?: number;
   flag?: number;
-  outgoing?: boolean;
+  self?: boolean;
   room_type?: string;
   mention_ids?: string[];
   mention_all?: boolean;
@@ -384,12 +383,9 @@ export interface RoomChatTrigger {
   enabled: boolean;
 }
 
-export interface RoomIssue {
-  id: string;
-  kind: string;
-  status: string;
-  error: string;
-  messageId: string;
+export interface RoomPatternTrigger {
+  enabled: boolean;
+  pattern: string;
 }
 
 export interface RoomPresentation {
@@ -398,12 +394,6 @@ export interface RoomPresentation {
   avatar: string;
   kind: string;
   members: Record<string, PersonPresentation>;
-}
-
-export interface RoomRegexTrigger {
-  enabled: boolean;
-  pattern: string;
-  self: boolean;
 }
 
 export interface RoomSettings {
@@ -423,38 +413,15 @@ export interface RoomSummary {
   conversation: string;
   createdAt: string;
   presentation: RoomPresentation;
-  lastSender: string;
-  lastType: string;
-  lastOutgoing: boolean;
-  lastAgent: boolean;
   lastMessage: string;
   updatedAt: string;
   settings: RoomSettings;
-  issues: RoomIssue[];
 }
 
 export interface RoomTrigger {
   chat: RoomChatTrigger;
-  regex: RoomRegexTrigger;
-}
-
-export interface RoomView {
-  id: string;
-  channel: string;
-  source: string;
-  conversation: string;
-  createdAt: string;
-  presentation: RoomPresentation;
-  lastSender: string;
-  lastType: string;
-  lastOutgoing: boolean;
-  lastAgent: boolean;
-  lastMessage: string;
-  updatedAt: string;
-  settings: RoomSettings;
-  issues: RoomIssue[];
-  messages: Message[];
-  tasks: Task[];
+  regex: RoomPatternTrigger;
+  self: RoomPatternTrigger;
 }
 
 export interface Source {
@@ -636,7 +603,7 @@ export const Desktop = {
   readRoom(id: string, room: string): Promise<Record<string, unknown>> {
     return call("Desktop.ReadRoom", id, room);
   },
-  readRoomByID(id: string): Promise<RoomView> {
+  readRoomByID(id: string): Promise<RoomSummary> {
     return call("Desktop.ReadRoomByID", id);
   },
   recheckCertificate(): Promise<void> {

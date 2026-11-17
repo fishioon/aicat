@@ -98,8 +98,7 @@ async function open(binding) {
           throw Error("INVALID_CHANNEL_MESSAGE");
         if (typeof message.msgid !== "string" || typeof message.roomid !== "string" || message.roomid.length>256 || message.reply_id || message.delivery ||
             (message.msgtime != null && (!Number.isSafeInteger(message.msgtime) || message.msgtime<0 || message.msgtime>253402300799999)) ||
-            (message.summary != null && (typeof message.summary!=="string" || Buffer.byteLength(message.summary)>8192)) ||
-            (message.agent_snapshot != null && (message.outgoing || message.msgtype!=="text" || typeof message.context_key!=="string" || !message.context_key.trim() || typeof message.agent_snapshot.content!=="string" || !message.agent_snapshot.content.trim() || Buffer.byteLength(message.agent_snapshot.content)>65536)))
+            (message.summary != null && (typeof message.summary!=="string" || Buffer.byteLength(message.summary)>8192)))
           throw Error("INVALID_CHANNEL_MESSAGE");
         const eventId = crypto.createHash("sha256").update(binding.source + "\0" + message.roomid + "\0" + message.msgid).digest("hex");
         const event = { specversion: "1.0", id: eventId, source: binding.source,

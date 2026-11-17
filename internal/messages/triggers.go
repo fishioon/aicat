@@ -10,24 +10,36 @@ func roomTriggerReason(trigger config.RoomTrigger, message Message, self string)
 	if message.Schedule != nil {
 		return "schedule"
 	}
-	chatMatched := trigger.Chat.Enabled && !message.Outgoing &&
-		(message.RoomType == "direct" || message.RoomType == "private")
-	if trigger.Chat.Enabled && !message.Outgoing && message.RoomType == "group" && message.MentionStatus == "parsed" && self != "" {
-		for _, id := range message.MentionIDs {
-			if id == self {
-				chatMatched = true
-				break
-			}
+	if message.Self {
+		if matchesPattern(trigger.Self, message) {
+			return "self"
 		}
+		return ""
 	}
-	regexMatched := trigger.Regex.Enabled &&
-		(trigger.Regex.Self || !message.Outgoing) &&
-		regexp.MustCompile(trigger.Regex.Pattern).MatchString(message.Text.Content)
-	if chatMatched {
+	if trigger.Chat.Enabled && chatAddressed(message, self) {
 		return "chat"
 	}
-	if regexMatched {
+	if matchesPattern(trigger.Regex, message) {
 		return "regex"
 	}
 	return ""
+}
+
+func chatAddressed(message Message, self string) bool {
+	if message.RoomType == "direct" || message.RoomType == "private" {
+		return true
+	}
+	if message.RoomType != "group" || message.MentionStatus != "parsed" || self == "" {
+		return false
+	}
+	for _, id := range message.MentionIDs {
+		if id == self {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesPattern(trigger config.RoomPatternTrigger, message Message) bool {
+	return trigger.Enabled && regexp.MustCompile(trigger.Pattern).MatchString(message.Text.Content)
 }

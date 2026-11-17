@@ -18,7 +18,7 @@ aicat 以安装在用户节点上的常驻 Agent Gateway 连接 Agent、模型�
 - 流量扩展默认启用，保留导航入口；请求采集默认尚未开始，流量页显示“开始采集”，托盘以固定名称“采集流量”的复选项控制同一采集状态；开始后暂停显示“继续采集”，本次会话的已开始状态不随清空或扩展启停重置。基础调用统计随网关运行。启动落在主页。
 - AI 协议接入、上游模型路由、MCP 服务聚合、Skill 分发和消息渠道按此方向逐项设计实现。本节记录产品目标，具体交付状态见下文与 README。
 
-NPM 扩展的实现、打包与专属验收在独立仓库维护，主仓库及应用资源不包含其源码或归档。企业微信客户端：[aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local)；微扑克：[aicat-wpk](https://github.com/fishioon/aicat-wpk)。
+NPM 扩展的实现、打包与专属验收在独立仓库维护，主仓库及应用资源不包含其源码或归档。企业微信客户端：[aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local)。
 
 ## 领域语言
 
@@ -51,12 +51,11 @@ NPM 扩展的实现、打包与专属验收在独立仓库维护，主仓库及�
 - **用量**：`internal/usage` 为供应商入口转发的每次模型调用记一条（Agent 直连与 Codex 的供应商回合都经过这里），追加到 Home 下的 `usage.jsonl`（0600），写入失败不影响调用；不依赖流量扩展，最近 31 天读入内存供查询。记录有时间、Agent、供应商 ID、请求的模型（去掉前缀）与回复的模型、接口、状态码或错误、耗时、首字时间，以及输入、输出、缓存读、缓存写四类 Token。Token 在转发给 Agent 的同时从回复中读出：Anthropic 读 `message_start` 与 `message_delta` 的 usage，Chat Completions 读 `usage`（输入扣除 `cached_tokens` 或 `prompt_cache_hit_tokens`），Responses 读 `response.completed` 的 usage（输入扣除 `cached_tokens`）；流式 Chat 请求没写 `stream_options.include_usage` 时由 aicat 补上。首字时间是第一个正文、推理或工具调用事件到达的时间；输出速度是输出 Token 除以首字之后的耗时，只统计首字后超过 100 ms 的流式回答。缓存命中率为缓存读 /（输入 + 缓存读 + 缓存写）。Agent 取 `User-Agent` 的产品名（如 `claude-cli` 记为 Claude Code），aicat 内部调用以 `X-Aicat-Agent` 标明（Codex 扩展），转发前去掉。在本机返回的 400（模型无人提供等）不记录。汇总按今天（逐小时）、近 7 天、近 30 天（逐日），分模型、供应商与 Agent；`Desktop.Usage` 与 `GET /api/usage?period=today|7d|30d` 返回同一份汇总。不计费用。
 - **主页**：首页展示网关状态、需要处理的事项（监听失败、证书删除未完成或过期、系统代理待恢复、供应商同步失败）与用量看板：可选今天、7 天、30 天，显示 Token、请求与失败、缓存命中率、平均耗时与首字和输出速度，按模型拆分的 Token 柱状图（最大的四个模型各占一色，其余归入“其他”），以及按模型、供应商与 Agent 的用量。打开期间每 5 秒刷新。没有调用时引导接入供应商或 Agent。“接入 Agent”子页给出各客户端的 MCP 配置与接入地址（MCP、模型入口、HTTP 代理、HTTP API），“接入供应商”子页保存供应商并在表单下方管理模型列表，不显示 Agent 对接步骤。
 - **流量界面**：对齐 `docs/design/aicat-redesign.html` 的 MyGo + WebView；44 DIP 标题栏（前进后退、面包屑、常驻监听地址、主题），52 DIP 导航栏、默认 224 DIP、可拖动调整的侧边栏，主面板上列表/下详情。列表行首状态点区分成功、出错、3xx、未解密隧道与进行中，列含应用、类型（取自响应 Content-Type）；↑ ↓ 移动选择，⌘K 聚焦搜索。详情为请求与响应双栏，按内容提供 Header / Query / Body / 事件（SSE）/ Raw，默认 Header；两侧分别记住本次运行选择，切换请求不重置，列表只同步摘要，详情与正文按需读取有界快照。Header 按名称和值显示，重复值分别保留；复制跟随当前视图，并在按钮旁提示结果。请求行右键支持复制 URL、复制 cURL、固定/取消固定所属域名；cURL 仅从完整 HTTP 请求生成，CONNECT 与正文采集不完整时禁用。侧边栏分组与域名行只保留展开箭头、文字与数量，不显示固定、文件夹、地球或显示器装饰图标。域名/路径树聚合请求、右键固定持久化于 traffic.pinnedDomains；主搜索仅对完整 URL 做大小写不敏感的模糊匹配，字符按顺序出现但不必连续，空白分隔的词全部命中；前端按大小写不敏感、归一化后的字符顺序做模糊匹配，不支持扩展查询语法，保持采集顺序。实际数据行隔行底色，空白区域纯色。前进/后退恢复筛选、搜索与所选请求，失效记录不复活；清空同时复位域名与 URL 筛选，保留固定项。私云未接入时以状态说明呈现。
-- **消息渠道**：通过NPM安装的平台接入，负责连接、解析、识别平台会话及可选外发，不拥有Agent、Room存储或业务消息页面。扩展页只配置平台连接和诊断，支持动态登记第三方aicat渠道包。
-- **Room**：渠道、绑定来源、平台会话确定的持久会话；企微群/私聊各一个，扑克桌一个，一手牌是Room内的context_key。多个Room可以由同一个消息Agent处理。Room拥有消息历史、名称、自动处理、model、prompt、context、触发与寻址。新Room默认不自动执行；包模板只初始化一次。
-- **消息页面**：常驻导航入口，作为后台记录与排查入口，统一显示所有渠道的Room、消息、业务摘要、发送记录、任务和外发状态；提供搜索与异常筛选，不维护未读或阅读位置。「添加消息渠道」跳转扩展并以 `tag:channel` 筛选渠道。Room设置由右侧面板编辑，模型、prompt、context和处理模式默认折叠；停用或卸载渠道仍可读历史。
-- **定时规则（Schedule）**：Agent 通过 MCP 的 schedules_set、schedules_list、schedules_delete 管理指定 Room 的定时消息规则，room_id 使用稳定 Room ID，包含名称、任务内容、单次 at 或五段 cron、周期时区与启停状态。规则持久保存，到点向绑定 Room 写入带 schedule 标识的系统消息并复用原 Agent 处理，不引入独立的 Task 管理能力。定时消息遵守 Room 自动处理、渠道启停和账号绑定，绕过普通消息触发筛选；周期由 cron 调度，单次使用 time.AfterFunc，到点先持久停用规则再投递；应用离线或渠道不可用时跳过，不重试、不补跑。
+- **消息渠道**：通过NPM安装的平台接入，负责连接、解析、识别平台会话及可选外发，不拥有Agent、Room存储或Room管理页。扩展页只配置平台连接和诊断，支持动态登记第三方aicat渠道包。
+- **Room**：渠道、绑定来源、平台会话确定的持久会话；企微群/私聊各一个，Room内的业务对象用context_key表示。多个Room可以由同一个消息Agent处理。Room拥有平台消息历史、名称、自动处理、model、prompt、context、触发与寻址。消息历史只包含渠道提交的平台原始消息；当前账号发出的消息标记为自己发送（self），Agent 外发与定时触发只写运行日志。触发条件由 Chat、规则匹配（别人发送）与自己发送三项组成，任一命中即触发。新Room默认不自动执行；包模板只初始化一次。
+- **Room 管理页**：常驻「消息」导航入口，列出所有渠道的Room并支持搜索，右侧编辑Room设置；模型、prompt和context默认折叠。不展示聊天记录、任务或发送记录，这些查看平台本身或运行日志。「添加消息渠道」跳转扩展并以 `tag:channel` 筛选渠道。
+- **定时规则（Schedule）**：Agent 通过 MCP 的 schedules_set、schedules_list、schedules_delete 管理指定 Room 的定时消息规则，room_id 使用稳定 Room ID，包含名称、任务内容、单次 at 或五段 cron、周期时区与启停状态。规则持久保存，到点写运行日志并把带 schedule 标识的系统触发直接交给原 Agent 处理，不写入 Room 消息历史，不引入独立的 Task 管理能力。定时触发遵守 Room 自动处理、渠道启停和账号绑定，绕过普通触发条件；周期由 cron 调度，单次使用 time.AfterFunc，到点先持久停用规则再投递；应用离线或渠道不可用时跳过，不重试、不补跑。
 - **消息 Agent**：所有消息渠道共用一个固定 Codex app-server 和 Agent 配置，按Room建立持久thread。启动 app-server 时直接注入 aicat MCP 地址与凭据，Agent 自行发现rooms_list、messages_send、schedules_*及流量工具。固定 Agent prompt只约束数据与权限边界，Room prompt描述业务角色；普通 Agent output不发布、不转发，也不进入Room消息。
 - **消息发送**：Agent 通过 MCP messages_send 发送文本，target_room_id 必填，可使用 rooms_list 解析稳定 ID；目标可以是当前Room或其他可见Room。aicat 只解析目标、检查账号绑定并调用渠道，是否支持发送、确认类型和结果语义由渠道实现。发送请求与渠道返回持久记录；unknown不自动重发。sent只代表渠道声明的确认边界，不表示对端已读。
 - **企业微信客户端**：NPM包@aicat/wecom-local，平台Profile、一次性密钥准备、原版SQLite3MC只读DB/WAL、游标与发送脚本均由包维护；首次跳历史，后续续读，落盘确认后推进游标；账号和目录隔离，提及来自结构化ID。见[客户端](docs/feature-map/wecom-local.md)。
 - **企业微信 BOT**：推荐安装官方OpenClaw长连接包，应用提供兼容适配、独立Bun宿主和凭据保管。平台会话进入Room，鉴权验证与正式启用分开；当前平台能力见[BOT](docs/feature-map/wecom.md)。
-- **微扑克**：NPM包@aicat/wpk，限定游戏页采集与私有采样，完整状态消息进入桌Room；公共调度执行。无平台外发能力时，可见结果由渠道包自身声明和实现。见[微扑克](docs/feature-map/wpk.md)。

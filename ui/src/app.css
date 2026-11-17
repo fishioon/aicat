@@ -596,23 +596,6 @@ select.field {
   display: block;
   margin-top: 12px;
 }
-.room-filters {
-  display: flex;
-  gap: 12px;
-  margin-top: 12px;
-}
-.room-filters button {
-  border: 0;
-  border-bottom: 2px solid transparent;
-  padding: 0 0 6px;
-  background: none;
-  color: var(--ink-3);
-  font-size: var(--t11);
-}
-.room-filters button[aria-pressed="true"] {
-  color: var(--ink);
-  border-bottom-color: var(--mark-line);
-}
 .room-list {
   min-height: 0;
   flex: 1;
@@ -620,11 +603,10 @@ select.field {
 }
 .room-item {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 3px;
   width: 100%;
-  min-height: 76px;
-  padding: 12px;
+  padding: 10px 12px;
   border: 0;
   background: none;
   text-align: left;
@@ -635,36 +617,6 @@ select.field {
 .room-item[aria-current="true"] {
   background: var(--mark-soft);
 }
-.room-avatar {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  flex: none;
-  border-radius: var(--r2);
-  background: var(--sunken);
-  color: var(--ink-3);
-}
-.room-avatar img {
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  background: #f5f2ed;
-  object-fit: cover;
-}
-.room-avatar-group {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 1px;
-  overflow: hidden;
-}
-.room-avatar-group img {
-  border-radius: 0;
-}
-.room-item-copy {
-  flex: 1;
-  min-width: 0;
-}
 .room-item-heading,
 .room-source {
   display: flex;
@@ -672,7 +624,6 @@ select.field {
   gap: 6px;
 }
 .room-item-heading strong,
-.room-preview,
 .room-source > span:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -683,7 +634,6 @@ select.field {
   font-weight: 500;
 }
 .room-item-heading time,
-.room-preview,
 .room-source {
   font-size: var(--t11);
   color: var(--ink-3);
@@ -691,32 +641,10 @@ select.field {
 .room-item-heading time {
   flex: none;
 }
-.room-preview {
-  display: block;
-  margin-top: 3px;
-}
-.room-source {
-  flex-wrap: wrap;
-  margin-top: 2px;
-}
-.room-issue-label,
-.room-issue-banner > span,
-.room-issue-banner .link,
-.room-records-footer .link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.room-issue-label,
 .room-error {
   color: var(--bad);
 }
-.room-issue-label .icon svg {
-  width: 12px;
-  height: 12px;
-}
-.room-list-footer,
-.room-records-footer {
+.room-list-footer {
   flex: none;
   border-top: 1px solid var(--line);
   color: var(--ink-3);
@@ -724,25 +652,14 @@ select.field {
   padding: 12px;
 }
 .room-main {
-  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--sunken);
 }
 .room-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
   flex: none;
-  min-height: 80px;
-  padding: 16px 24px;
-  background: var(--surface);
+  padding: 16px 20px;
   border-bottom: 1px solid var(--line);
-}
-.room-header > div {
-  min-width: 0;
 }
 .room-header h1 {
   font-size: var(--t15);
@@ -756,127 +673,6 @@ select.field {
   font-size: var(--t11);
   color: var(--ink-3);
 }
-.room-issue-banner {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  flex: none;
-  padding: 10px 24px;
-  background: var(--bad-soft);
-  color: var(--bad);
-  font-size: var(--t12);
-}
-.room-issue-banner .link {
-  color: inherit;
-}
-.room-messages {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 20px 24px 28px;
-  user-select: text;
-  -webkit-user-select: text;
-}
-.room-date {
-  text-align: center;
-  color: var(--ink-3);
-  font-size: var(--t11);
-}
-.room-message {
-  display: flex;
-  gap: 9px;
-  max-width: 87%;
-  align-self: flex-start;
-  overflow-wrap: anywhere;
-}
-.room-message.outgoing {
-  flex-direction: row-reverse;
-  align-self: flex-end;
-}
-.room-message-content {
-  min-width: 0;
-}
-.room-message-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 5px;
-  font-size: var(--t11);
-  color: var(--ink-3);
-}
-.outgoing .room-message-meta {
-  justify-content: flex-end;
-}
-.room-agent-label {
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 0 3px;
-}
-.room-bubble {
-  background: var(--surface);
-  border-radius: 2px var(--r2) var(--r2);
-  padding: 10px 13px;
-  line-height: 1.7;
-}
-.outgoing .room-bubble {
-  background: var(--mark-soft);
-  border-radius: var(--r2) 2px var(--r2) var(--r2);
-}
-.room-message-text,
-.room-business pre {
-  white-space: pre-wrap;
-}
-.room-business pre {
-  font: var(--t11) / 1.6 var(--code);
-  margin: 8px 0 0;
-}
-.room-business summary {
-  color: var(--ink-3);
-  font-size: var(--t12);
-}
-.room-quote {
-  display: block;
-  width: 100%;
-  border: 0;
-  border-left: 2px solid var(--line-strong);
-  padding: 0 0 0 8px;
-  margin-bottom: 8px;
-  background: none;
-  color: var(--ink-3);
-  text-align: left;
-  font-size: var(--t11);
-  overflow-wrap: anywhere;
-}
-.room-message-note,
-.room-delivery {
-  margin-top: 5px;
-  font-size: var(--t11);
-  color: var(--ink-3);
-}
-.room-delivery.room-error {
-  color: var(--bad);
-}
-.outgoing .room-delivery,
-.outgoing .room-message-note {
-  text-align: right;
-}
-.room-records-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 24px;
-  background: var(--surface);
-}
-.room-records-footer .link {
-  color: var(--ink-3);
-}
 .follow-latest {
   display: inline-flex;
   align-items: center;
@@ -884,23 +680,6 @@ select.field {
   white-space: nowrap;
   cursor: pointer;
 }
-.room-panel-shade {
-  position: absolute;
-  inset: 0;
-  background: #0001;
-  z-index: 1;
-}
-.room-panel {
-  position: absolute;
-  inset: 0 0 0 auto;
-  width: min(360px, 100%);
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  border-left: 1px solid var(--line);
-  background: var(--surface);
-}
-.room-panel-header,
 .room-panel-footer {
   display: flex;
   flex: none;
@@ -908,13 +687,7 @@ select.field {
   justify-content: space-between;
   gap: 12px;
   padding: 16px 20px;
-}
-.room-panel-header {
-  border-bottom: 1px solid var(--line);
-}
-.room-panel-header h2 {
-  font-size: var(--t13);
-  font-weight: 500;
+  border-top: 1px solid var(--line);
 }
 .room-panel-body {
   flex: 1;
@@ -922,9 +695,6 @@ select.field {
   overflow: auto;
   padding: 20px;
   overflow-wrap: anywhere;
-}
-.room-panel-footer {
-  border-top: 1px solid var(--line);
 }
 .room-settings-form {
   display: flex;
@@ -942,7 +712,7 @@ select.field {
 }
 .room-settings-form .field {
   width: 100%;
-  max-width: none;
+  max-width: 560px;
 }
 .room-settings-form textarea.field {
   height: auto;
@@ -966,6 +736,7 @@ select.field {
   margin-top: 8px;
 }
 .room-setting-section {
+  max-width: 560px;
   margin: 24px 0 0;
   padding: 12px 0 0;
   border: 0;
@@ -981,71 +752,13 @@ select.field {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: var(--t12);
-}
-.room-checks {
-  display: grid;
-  gap: 8px;
   margin-top: 12px;
-}
-.room-checks label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  font-size: var(--t12);
 }
 .room-help {
-  margin-top: 10px;
+  margin-top: 6px;
   font-size: var(--t11);
   color: var(--ink-3);
-}
-.room-issue-detail,
-.room-task {
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 18px;
-  margin-bottom: 18px;
-}
-.room-issue-detail h3 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--bad);
-  font-size: var(--t12);
-  font-weight: 500;
-  margin: 0 0 8px;
-}
-.room-issue-detail code {
-  display: block;
-  margin-top: 8px;
-  font-size: var(--t11);
-  color: var(--ink-3);
-}
-.room-issue-detail .link {
-  margin-top: 12px;
-}
-.room-task-heading {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: var(--t12);
-}
-.room-task-heading time,
-.room-task details {
-  font-size: var(--t11);
-  color: var(--ink-3);
-}
-.room-task p,
-.room-task details {
-  margin-top: 8px;
-}
-.room-task dl {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px 12px;
-  margin-top: 8px;
-}
-.room-task dd {
-  margin: 0;
 }
 .room-page-error,
 .room-empty-list {
@@ -1061,20 +774,6 @@ select.field {
   margin: auto;
   padding: 24px;
   color: var(--ink-3);
-}
-@media (max-width: 860px) {
-  .room-header,
-  .room-records-footer,
-  .room-issue-banner {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-  .room-messages {
-    padding: 16px;
-  }
-  .room-message {
-    max-width: 100%;
-  }
 }
 /* Traffic sidebar: one outline, as in Proxyman and Rockxy. Groups are the
    top-level rows; chevrons step in by 14px per level and the whole row,

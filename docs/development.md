@@ -102,7 +102,7 @@ node e2e/provider.cjs bin/aicat-e2e build/provider-e2e
 # 仅验证 Codex 扩展：证书提示与启停、模型列表同步、models.dev 补全、直连与解密两个入口的分流、426、流量记录不含密钥
 node e2e/codex.cjs bin/aicat-e2e build/codex-e2e
 
-# 仅验证统一消息页的记录、异常排查和折叠设置，输出报告、日志和截图
+# 仅验证 Room 管理页的列表、搜索与设置保存，输出报告、日志和截图
 node e2e/messages.cjs bin/aicat-e2e build/messages-<run>
 # 仅验证企业微信 BOT 的配置、私聊收发、Room 确认和重启恢复
 node e2e/wecom.cjs bin/aicat-e2e
@@ -122,7 +122,7 @@ python3 e2e/prototype.py --background --scenarios http-origins control-traffic a
 
 场景之间恢复运行前的剪贴板内容；报告保留实际命令与覆盖范围。原生窗口、macOS 授权及真实消息送达仍需单独验收。
 
-NPM 扩展的专属验收在各自仓库执行：企业微信客户端见 [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local)，微扑克见 [aicat-wpk](https://github.com/fishioon/aicat-wpk)。在对应仓库运行 `npm run e2e -- --aicat ../aicat`，以实际外部 NPM 包和本机 registry 验证完整接入链路，不需要发布包或复制源码到主仓库。
+NPM 扩展的专属验收在各自仓库执行：企业微信客户端见 [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local)。在对应仓库运行 `npm run e2e -- --aicat ../aicat`，以实际外部 NPM 包和本机 registry 验证完整接入链路，不需要发布包或复制源码到主仓库。
 
 `make e2e` 使用 `e2e/prototype.py --background` 汇总后台场景，包含品牌语言、标题栏导航、托盘资源及 WebSocket 补丁验证，保留每组报告、日志、截图、运行命令、源码和二进制 hash；源码摘要包含依赖补丁与构建入口，失败仍执行其余组并以非零状态退出。原生窗口、WKWebView 交互、真实授权和真实消息送达不在后台覆盖内。
 

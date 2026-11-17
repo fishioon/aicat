@@ -21,7 +21,7 @@ func NewInbox(home, channel string) *Inbox {
 
 func (s *Inbox) Receive(source string, raw json.RawMessage) (Record, error) {
 	var event Event
-	if len(raw) > 16<<20 || json.Unmarshal(raw, &event) != nil || event.SpecVersion != "1.0" || event.ContentType != "application/json" || event.Type != Received || event.Source != source || event.ID == "" || event.Data.ID == "" || event.Data.RoomID == "" || event.Data.Delivery != nil || event.Data.Schedule != nil {
+	if len(raw) > 16<<20 || json.Unmarshal(raw, &event) != nil || event.SpecVersion != "1.0" || event.ContentType != "application/json" || event.Type != Received || event.Source != source || event.ID == "" || event.Data.ID == "" || event.Data.RoomID == "" || event.Data.Schedule != nil {
 		return Record{}, errors.New("无效渠道消息")
 	}
 	if event.Time != "" {
@@ -35,7 +35,7 @@ func (s *Inbox) Receive(source string, raw json.RawMessage) (Record, error) {
 	if len(event.Data.Summary) > 8<<10 || !utf8.ValidString(event.Data.Summary) {
 		return Record{}, errors.New("消息摘要无效或过长")
 	}
-	return s.rooms.append(source, "", event, "")
+	return s.rooms.append(source, event)
 }
 
 func (s *Inbox) KnownRoom(source, room string) bool {

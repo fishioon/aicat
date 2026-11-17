@@ -174,7 +174,7 @@ func (d *Dispatcher) saveTasks(tasks []queuedTask, status string, cause error) {
 		}
 		d.rooms.tasks.save(item)
 		if cause != nil {
-			slog.Error("message task failed", "channel", d.id, "task", item.task.ID, "status", status, "message", item.task.Trigger.ID, "localID", item.task.Trigger.LocalID, "room", item.task.Room, "reason", item.task.TriggerReason)
+			slog.Error("message task failed", "channel", d.id, "task", item.task.ID, "status", status, "message", item.task.Trigger.ID, "localID", item.task.Trigger.LocalID, "room", item.task.Room, "reason", item.task.TriggerReason, "error", cause)
 		} else {
 			slog.Info("message task updated", "channel", d.id, "task", item.task.ID, "status", status, "message", item.task.Trigger.ID, "localID", item.task.Trigger.LocalID, "room", item.task.Room, "reason", item.task.TriggerReason)
 		}

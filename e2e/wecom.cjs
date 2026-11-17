@@ -300,7 +300,6 @@ async function mcp(outgoing, auth = true) {
         arguments: {
           target_room_id: room.id,
           text: outgoing.data.text.content,
-          request_id: outgoing.id,
         },
       },
     }),
@@ -383,8 +382,11 @@ async function runAgent() {
   for (const log of logs()) {
     assert(!fs.existsSync(path.join(home, "rooms", log.dir, "messages.jsonl")));
     assert(!fs.existsSync(path.join(home, "rooms", log.dir, "tasks")));
+    assert(!fs.existsSync(path.join(home, "rooms", log.dir, "outbound")));
     assert(
-      log.records.every((m) => m.msgid && m.msgtype && !m.event && !m.status),
+      log.records.every(
+        (m) => m.msgid && m.msgtype && !m.event && !m.status && !m.self,
+      ),
     );
   }
   assert(!fs.existsSync(path.join(home, "messages/receipts")));
@@ -419,11 +421,11 @@ async function runAgent() {
   publish("group-seed","alice","image",Date.now(),"group-room");
   await wait(async()=> (await rpc("ListRooms")).some(r=>r.conversation==="group-room"));
   const groupRoom=(await rpc("ListRooms")).find(r=>r.conversation==="group-room");
-  await rpc("UpdateRoomSettings",[groupRoom.id,{...groupRoom.settings,automatic:true,trigger:{...groupRoom.settings.trigger,regex:{enabled:true,pattern:".*",self:false}}}]);
+  await rpc("UpdateRoomSettings",[groupRoom.id,{...groupRoom.settings,automatic:true,trigger:{...groupRoom.settings.trigger,regex:{enabled:true,pattern:".*"}}}]);
   publish("group-alice","alice","text",Date.now(),"group-room");publish("group-bob","bob","text",Date.now(),"group-room");
   await wait(async()=> await completed("group-alice")&&await completed("group-bob"));
-  const groupView=await rpc("ReadRoomByID",[groupRoom.id]);
-  assert(groupView.messages.some(m=>m.from==="alice"&&m.room_type==="group")&&groupView.messages.some(m=>m.from==="bob"&&m.room_type==="group"));
+  const groupLog=logs().find(l=>l.dir===groupRoom.id).records;
+  assert(groupLog.some(m=>m.from==="alice"&&m.room_type==="group")&&groupLog.some(m=>m.from==="bob"&&m.room_type==="group"));
   assert(deliveries.some(d=>d.body.chatid==="group-room"&&d.body.markdown.content.includes("group-alice")));
   check("group text from different senders shares one platform conversation Room and explicit MCP replies return to that group");
   publish("hold-agent-disable", "alice", "text", Date.now());
@@ -499,11 +501,8 @@ async function runRecovery() {
     longText,
   );
   assert(longReceipt.parts.every((part) => part.status === "sent"));
-  assert.equal(receipt(await mcp(longEvent)).status, "sent");
   assert.equal(deliveries.length, before + 4);
-  check(
-    "long explicit send returns segment results; repeated request returns the stored receipt without sending again",
-  );
+  check("long explicit send returns segment results in UTF-8-safe parts");
   const partialEvent = event("partial-mcp", "乙🙂".repeat(2200));
   const partialBefore = deliveries.length;
   holdAt = partialBefore + 2;
@@ -911,13 +910,9 @@ async function runRecovery() {
       });
       check("UI explicit send reaches platform and returns the result");
       assert.equal((await mcp(event("unauth"), false)).httpStatus, 401);
-      const sendEvent = event("mcp-1");
-      assert.equal(receipt(await mcp(sendEvent)).status, "sent");
-      assert.equal(receipt(await mcp(sendEvent)).status, "sent");
+      assert.equal(receipt(await mcp(event("mcp-1"))).status, "sent");
       assert.equal(deliveries.length, 2);
-      assert.equal((await mcp(event("mcp-1","different"))).isError,true);
-      assert.equal(deliveries.length,2);
-      check("authenticated sends persist a request ID; repeated request returns its receipt and conflicting content is rejected");
+      check("authenticated MCP send reaches the platform once per call");
       const uncertainPid = (await state()).pid;
       hold = true;
       const uncertainEvent = event("mcp-unknown", "uncertain outgoing");

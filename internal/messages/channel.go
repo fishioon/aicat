@@ -322,20 +322,6 @@ func (c *Channel) ReadRoom(ctx context.Context, room string) (map[string]any, er
 	return c.inbox.Room(source, room)
 }
 
-func (c *Channel) appendRecord(identity, botID string, event Event, status string) (Record, error) {
-	record, err := c.rooms.append(identity, botID, event, status)
-	if err != nil {
-		return Record{}, err
-	}
-	c.mu.Lock()
-	c.state.Records = append(c.state.Records, record)
-	if len(c.state.Records) > 50 {
-		c.state.Records = c.state.Records[len(c.state.Records)-50:]
-	}
-	c.mu.Unlock()
-	return record, nil
-}
-
 func (c *Channel) Installed() bool {
 	_, err := channelplugin.New(c.home).Entry(c.id)
 	return err == nil

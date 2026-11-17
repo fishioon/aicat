@@ -55,8 +55,6 @@ def main():
             stages[name] = ['node', f'e2e/{name}-headless.cjs', args.binary, str(root / name)]
         for name, flag in (('provider-appearance', '--appearance'), ('provider-model-path', '--model-path'), ('overview-provider', '--overview-provider')):
             stages[name] = ['node', 'e2e/provider.cjs', args.binary, str(root / name), flag]
-        stages['follow-messages'] = ['node', 'e2e/messages.cjs', args.binary, str(root / 'follow-messages'), 'follow-latest']
-        stages['message-presentation'] = ['node', 'e2e/messages.cjs', args.binary, str(root / 'message-presentation'), 'presentation']
         stages['wecom-agent'].append('agent')
         stages['tray-assets'] = ['node', 'e2e/tray-assets.cjs', str(root / 'tray-assets')]
         stages['websocket'] = [str(Path(args.binary).resolve().parent / 'websocket-e2e'), str(root / 'websocket')]

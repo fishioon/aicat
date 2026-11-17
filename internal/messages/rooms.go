@@ -53,29 +53,23 @@ func (s *roomStore) directory(source, room string) string {
 	return filepath.Join(s.home, "rooms", roomID(s.channel, source, room))
 }
 
-func (s *roomStore) append(source, botID string, event Event, status string) (Record, error) {
+func (s *roomStore) append(source string, event Event) (Record, error) {
 	s.logMu.Lock()
 	defer s.logMu.Unlock()
 	dir := s.directory(source, event.Data.RoomID)
-	record := Record{ID: newID(), RecordedAt: time.Now().UTC().Format(time.RFC3339Nano), Event: event, Status: status}
+	record := Record{ID: newID(), RecordedAt: time.Now().UTC().Format(time.RFC3339Nano), Event: event}
 	if err := s.register(source, event.Data.RoomID, record.RecordedAt); err != nil {
 		return Record{}, err
 	}
-	if event.Type == Received || event.Type == SendRequested {
-		message := event.Data
-		if event.Type == SendRequested {
-			message.ID, message.From, message.ToList = event.ID, botID, []string{message.RoomID}
-			message.Outgoing = true
-			stamp := time.Now().UnixMilli()
-			message.Time = &stamp
-		}
-		err := appendJSONL(filepath.Join(dir, "context", "messages.log"), func(offset int64) any {
-			record.Offset = offset
-			return message
-		})
-		if err != nil {
-			return Record{}, err
-		}
+	if event.Type != Received {
+		return Record{}, errors.New("Room 日志只保存平台消息")
+	}
+	err := appendJSONL(filepath.Join(dir, "context", "messages.log"), func(offset int64) any {
+		record.Offset = offset
+		return event.Data
+	})
+	if err != nil {
+		return Record{}, err
 	}
 	legacy := filepath.Join(dir, "messages.jsonl")
 	if info, err := os.Lstat(legacy); err == nil && info.Mode().IsRegular() {

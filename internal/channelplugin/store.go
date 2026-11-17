@@ -31,7 +31,6 @@ type Descriptor struct {
 
 var Catalog = []Descriptor{
 	{ID: "wecom", Name: "企业微信 BOT", Summary: "官方 OpenClaw 企业微信长连接机器人插件", Package: "@wecom/wecom-openclaw-plugin", Version: catalogVersion("2026.10.30"), Publisher: "WecomTeam", Registry: registry()},
-	{ID: "wpk", Name: "微扑克", Summary: "将游戏桌的牌局消息接入 Room", Format: "aicat", Package: "@aicat/wpk", Version: "0.1.0", Publisher: "aicat", Registry: registry()},
 	{ID: "wecom-local", Name: "企业微信客户端", Summary: "读取客户端会话消息到 Room，经授权可通过客户端发送文本", Format: "aicat", Package: "@aicat/wecom-local", Version: "0.1.0", Publisher: "aicat", Registry: registry()},
 }
 

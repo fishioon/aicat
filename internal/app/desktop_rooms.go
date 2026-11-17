@@ -31,9 +31,9 @@ func (d *Desktop) ListRooms(ctx context.Context) ([]messages.RoomSummary, error)
 	return d.app.r.extensions.ListRooms(ctx)
 }
 
-func (d *Desktop) ReadRoomByID(ctx context.Context, id string) (messages.RoomView, error) {
+func (d *Desktop) ReadRoomByID(ctx context.Context, id string) (messages.RoomSummary, error) {
 	if !d.app.ready.Load() || d.app.quitting.Load() {
-		return messages.RoomView{}, errors.New("应用尚未就绪或正在退出")
+		return messages.RoomSummary{}, errors.New("应用尚未就绪或正在退出")
 	}
 	return d.app.r.extensions.ReadRoomByID(ctx, id)
 }

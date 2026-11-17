@@ -85,7 +85,6 @@ async function finish(thread) {
       target_room_id: turn.roomID,
       text,
       reply_to: message.msgid,
-      request_id: "fixture-" + message.msgid,
     });
     return finish(thread);
   }
@@ -177,7 +176,6 @@ readline.createInterface({ input: process.stdin }).on("line", async (line) => {
         await mcpTool("messages_send", {
           target_room_id: "unauthorized-room",
           text: "forbidden",
-          request_id: "fixture-forbidden",
         });
       } catch (error) {
         trace({ method: "forbidden_send_rejected", error: error.message });

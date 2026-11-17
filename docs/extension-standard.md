@@ -18,7 +18,7 @@ aicat 会不断接入新的能力，每项能力都做成可以整块开关的�
 - **配置**：`aicat.yaml` 的 `extensions.<ID>` 一节，`enabled` 是开关，扩展自己的行为设置也放在这一节，由配置服务按扩展分区读取、合并提交字段后原子保存；扩展负责字段语义与专属校验，凭据由对应业务服务按私有文件约定保存，不写入行为配置或回传界面。
 - **只读数据**：非消息扩展可通过 `Parts.ReadData` 提供按需查询，宿主与 `Desktop.ReadExtensionData` 只负责分发；结果由扩展自己整理。停用后可读取已有数据，不启动后台采集；配置与只读数据接口分开。
 - **ID**：内置扩展不含点（`traffic`、`codex`）；社区扩展包写作「发布者.名称」（如 `acme.header-label`）。
-- **内置与 NPM**：内置流量与 Codex 在 Go 进程内执行。企业微信 BOT 兼容官方 OpenClaw 包；企业微信客户端与微扑克使用 aicat API 的 NPM 包。推荐安装及任意声明 aicat API 的社区渠道包复用同一安装、配置、启停和消息服务；完整 OpenClaw 能力未开放，见[渠道宿主](extension-packages-design.md)。
+- **内置与 NPM**：内置流量与 Codex 在 Go 进程内执行。企业微信 BOT 兼容官方 OpenClaw 包；企业微信客户端使用 aicat API 的 NPM 包。推荐安装及任意声明 aicat API 的社区渠道包复用同一安装、配置、启停和消息服务；完整 OpenClaw 能力未开放，见[渠道宿主](extension-packages-design.md)。
 
 消息扩展必须遵守[消息接入规范](message-ingress-standard.md)，通过 Parts.Messages 提供统一的账号配置、状态与发送服务；宿主按开关运行 Run，经 Desktop 的类型绑定提供配置和显式发送。状态变化沿用 DesktopChanged，不增加管理 listener。具体企业微信范围见[企业微信 BOT](feature-map/wecom.md)。
 

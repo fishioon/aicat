@@ -19,38 +19,11 @@ type roomReader interface {
 }
 
 func (h *Host) ListRooms(ctx context.Context) ([]messages.RoomSummary, error) {
-	rooms, err := messages.ListRooms(ctx, h.home)
-	if err != nil {
-		return nil, err
-	}
-	tasks := map[string][]messages.Task{}
-	for i := range rooms {
-		channel := rooms[i].Channel
-		if _, loaded := tasks[channel]; !loaded {
-			tasks[channel] = nil
-			if it := h.find(channel); it != nil && it.parts.Messages != nil {
-				tasks[channel] = it.parts.Messages.Snapshot().Tasks
-			}
-		}
-		rooms[i].AddTaskIssues(tasks[channel])
-	}
-	return rooms, nil
+	return messages.ListRooms(ctx, h.home)
 }
 
-func (h *Host) ReadRoomByID(ctx context.Context, id string) (messages.RoomView, error) {
-	view, err := messages.ReadRoom(ctx, h.home, id)
-	if err != nil {
-		return messages.RoomView{}, err
-	}
-	if it := h.find(view.Channel); it != nil && it.parts.Messages != nil {
-		for _, task := range it.parts.Messages.Snapshot().Tasks {
-			if task.Source == view.Source && task.Room == view.Conversation {
-				view.Tasks = append(view.Tasks, task)
-			}
-		}
-	}
-	view.AddTaskIssues(view.Tasks)
-	return view, nil
+func (h *Host) ReadRoomByID(ctx context.Context, id string) (messages.RoomSummary, error) {
+	return messages.ReadRoom(ctx, h.home, id)
 }
 
 func (h *Host) ReceiveMessage(ctx context.Context, id string, event messages.Event) (messages.Record, error) {
@@ -65,18 +38,15 @@ func (h *Host) ReceiveMessage(ctx context.Context, id string, event messages.Eve
 	return receiver.Receive(ctx, event)
 }
 
-func (h *Host) SendRoomMessage(ctx context.Context, targetRoomID, text, replyTo, requestID string) (messages.Receipt, error) {
+func (h *Host) SendRoomMessage(ctx context.Context, targetRoomID, text, replyTo string) (messages.Receipt, error) {
 	room, err := messages.RoomIdentityByID(h.home, targetRoomID)
 	if err != nil {
 		return messages.Receipt{}, err
 	}
-	if requestID == "" {
-		requestID = messages.NewEventID()
-	}
 	event := messages.Event{
 		Subject:     targetRoomID,
 		SpecVersion: "1.0",
-		ID:          requestID,
+		ID:          messages.NewEventID(),
 		Source:      "aicat-agent://mcp",
 		Type:        messages.SendRequested,
 		ContentType: "application/json",

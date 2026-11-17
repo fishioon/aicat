@@ -23,7 +23,7 @@ aicat 在你自己的机器上连接 Agent、模型、工具与消息渠道，�
 | 企业微信客户端 | NPM客户端渠道，启用时检查登录态并自动准备数据库与密钥，使用原版 SQLite3MC 读取本地数据库与 WAL，增量保存到 Room，重启续读，按会话触发 Agent 并通过 MCP 请求客户端发送文本 |
 | 企业微信 BOT | 从推荐列表安装官方插件，配置并通过 Bot 鉴权验证后启用；接收私聊、持久保存 Room 历史，在消息页面按Room配置model与自动处理，显式MCP发布或授权外发 |
 | Agent 接口 | HTTP API 与 MCP 查询实际经过网关的请求 |
-| 统一消息 | 企微与扑克等渠道按会话进入Room；固定Codex app-server，两层prompt，model和触发按Room设置，本地发布与授权外发分开 |
+| 统一消息 | 企微等渠道按会话进入Room；固定Codex app-server，两层prompt，model和触发在Room管理页按Room设置，回复通过MCP显式发送 |
 
 每项能力的入口、操作步骤与验证方式见 [Feature map](docs/feature-map/README.md)，其中也列出了尚未交付的能力。
 
@@ -107,4 +107,4 @@ traffic:
 | [架构](docs/architecture.md) | 模块边界、数据流与约束 |
 | [开发约定](docs/development.md) | 构建、验证与本地安装约束 |
 
-本仓库维护桌面端、内置扩展和通用扩展宿主。NPM 扩展的实现与专属验收在独立仓库：[aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local)、[aicat-wpk](https://github.com/fishioon/aicat-wpk)。这两个包不随应用提供，尚未发布到公网 NPM。
+本仓库维护桌面端、内置扩展和通用扩展宿主。NPM 扩展的实现与专属验收在独立仓库：[aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local)。该包不随应用提供，尚未发布到公网 NPM。

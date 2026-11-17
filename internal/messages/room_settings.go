@@ -20,14 +20,14 @@ type roomOverrides struct {
 }
 
 type roomTriggerOverrides struct {
-	Chat  *bool               `json:"chat,omitempty"`
-	Regex *roomRegexOverrides `json:"regex,omitempty"`
+	Chat  *bool                 `json:"chat,omitempty"`
+	Regex *roomPatternOverrides `json:"regex,omitempty"`
+	Self  *roomPatternOverrides `json:"self,omitempty"`
 }
 
-type roomRegexOverrides struct {
+type roomPatternOverrides struct {
 	Enabled *bool   `json:"enabled,omitempty"`
 	Pattern *string `json:"pattern,omitempty"`
-	Self    *bool   `json:"self,omitempty"`
 }
 
 func (s *roomStore) readSettings(id string) (config.RoomSettings, error) {
@@ -86,17 +86,8 @@ func applyRoomOverrides(settings *config.RoomSettings, overrides roomOverrides) 
 		if overrides.Trigger.Chat != nil {
 			settings.Trigger.Chat.Enabled = *overrides.Trigger.Chat
 		}
-		if overrides.Trigger.Regex != nil {
-			if overrides.Trigger.Regex.Enabled != nil {
-				settings.Trigger.Regex.Enabled = *overrides.Trigger.Regex.Enabled
-			}
-			if overrides.Trigger.Regex.Pattern != nil {
-				settings.Trigger.Regex.Pattern = *overrides.Trigger.Regex.Pattern
-			}
-			if overrides.Trigger.Regex.Self != nil {
-				settings.Trigger.Regex.Self = *overrides.Trigger.Regex.Self
-			}
-		}
+		applyPatternOverrides(&settings.Trigger.Regex, overrides.Trigger.Regex)
+		applyPatternOverrides(&settings.Trigger.Self, overrides.Trigger.Self)
 	}
 }
 
@@ -121,14 +112,29 @@ func diffRoomOverrides(defaults, settings config.RoomSettings) *roomOverrides {
 func diffRoomTrigger(defaults, settings config.RoomTrigger) *roomTriggerOverrides {
 	result := roomTriggerOverrides{}
 	result.Chat = changedBool(defaults.Chat.Enabled, settings.Chat.Enabled)
-	regex := roomRegexOverrides{}
-	regex.Enabled = changedBool(defaults.Regex.Enabled, settings.Regex.Enabled)
-	regex.Pattern = changedString(defaults.Regex.Pattern, settings.Regex.Pattern)
-	regex.Self = changedBool(defaults.Regex.Self, settings.Regex.Self)
-	if regex.Enabled != nil || regex.Pattern != nil || regex.Self != nil {
-		result.Regex = &regex
+	result.Regex = diffPatternTrigger(defaults.Regex, settings.Regex)
+	result.Self = diffPatternTrigger(defaults.Self, settings.Self)
+	if result.Chat == nil && result.Regex == nil && result.Self == nil {
+		return nil
 	}
-	if result.Chat == nil && result.Regex == nil {
+	return &result
+}
+
+func applyPatternOverrides(trigger *config.RoomPatternTrigger, overrides *roomPatternOverrides) {
+	if overrides == nil {
+		return
+	}
+	if overrides.Enabled != nil {
+		trigger.Enabled = *overrides.Enabled
+	}
+	if overrides.Pattern != nil {
+		trigger.Pattern = *overrides.Pattern
+	}
+}
+
+func diffPatternTrigger(defaults, settings config.RoomPatternTrigger) *roomPatternOverrides {
+	result := roomPatternOverrides{Enabled: changedBool(defaults.Enabled, settings.Enabled), Pattern: changedString(defaults.Pattern, settings.Pattern)}
+	if result.Enabled == nil && result.Pattern == nil {
 		return nil
 	}
 	return &result

@@ -3,9 +3,9 @@ import { computed, ref, watch } from "vue";
 import { host } from "../host";
 import { state, say } from "../state/desktop";
 import { t } from "../i18n";
-import type { RoomSettings, RoomView } from "../generated/mygo";
+import type { RoomSettings, RoomSummary } from "../generated/mygo";
 
-const props = defineProps<{ room: RoomView }>();
+const props = defineProps<{ room: RoomSummary }>();
 const emit = defineEmits<{ saved: [] }>();
 const draft = ref<RoomSettings>();
 const context = ref("{}");
@@ -151,6 +151,7 @@ defineExpose({ dirty, saving });
               v-model="draft.trigger.regex.enabled"
             />
           </label>
+          <p class="room-help">{{ t("正则匹配别人发送的消息。") }}</p>
           <template v-if="draft.trigger.regex.enabled">
             <label class="room-field-label" for="room-regex-pattern">{{
               t("正则表达式")
@@ -162,19 +163,36 @@ defineExpose({ dirty, saving });
               autocomplete="off"
               spellcheck="false"
             />
-            <label class="room-check-row">
-              <span>{{ t("允许匹配自己发送的消息") }}</span>
-              <input
-                id="room-regex-self"
-                type="checkbox"
-                v-model="draft.trigger.regex.self"
-              />
-            </label>
           </template>
+          <label class="room-check-row">
+            <span>{{ t("自己发送的消息") }}</span>
+            <input
+              id="room-trigger-self"
+              type="checkbox"
+              v-model="draft.trigger.self.enabled"
+            />
+          </label>
           <p class="room-help">
             {{
-              t("两种模式可以单独开启，也可以同时开启；任一模式命中即触发。")
+              t(
+                "正则匹配当前账号发出的消息。Agent 的回复也属于自己发送的消息，请确保回复不会匹配。",
+              )
             }}
+          </p>
+          <template v-if="draft.trigger.self.enabled">
+            <label class="room-field-label" for="room-self-pattern">{{
+              t("正则表达式")
+            }}</label>
+            <input
+              id="room-self-pattern"
+              class="field code"
+              v-model="draft.trigger.self.pattern"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </template>
+          <p class="room-help">
+            {{ t("三项可以单独开启，也可以同时开启；任一项命中即触发。") }}
           </p>
         </details>
         <details

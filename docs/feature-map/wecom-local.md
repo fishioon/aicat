@@ -10,7 +10,7 @@
 
 ## How to get to it (user POV)
 
-扩展 → 推荐 → 企业微信客户端。包可下载后安装并启用；平台配置在扩展详情中，消息、自动处理与发送能力在「消息」对应 Room 中管理。已有安装、配置和 Room 历史保留在用户 Home。
+扩展 → 推荐 → 企业微信客户端。包可下载后安装并启用；平台配置在扩展详情中，自动处理与发送寻址在「消息」Room 管理页对应 Room 中设置。已有安装、配置和 Room 历史保留在用户 Home。
 
 ## Driving it with Playwright and native harness
 

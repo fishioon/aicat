@@ -64,7 +64,7 @@ type BodyOutput struct {
 
 type AgentRooms interface {
 	ListRooms(context.Context) ([]messages.RoomSummary, error)
-	SendRoomMessage(context.Context, string, string, string, string) (messages.Receipt, error)
+	SendRoomMessage(context.Context, string, string, string) (messages.Receipt, error)
 }
 
 type RoomListInput struct {
@@ -85,7 +85,6 @@ type SendMessageInput struct {
 	TargetRoomID string `json:"target_room_id" jsonschema:"Stable aicat Room ID returned by rooms_list."`
 	Text         string `json:"text" jsonschema:"Text to send to the target Room."`
 	ReplyTo      string `json:"reply_to,omitempty" jsonschema:"Optional message ID in the target Room."`
-	RequestID    string `json:"request_id,omitempty" jsonschema:"Optional stable operation ID. Reuse it when checking an uncertain send."`
 }
 
 func add[In, Out any](s *mcp.Server, name, description string, readOnly, destructive bool, fn func(context.Context, In) (Out, error), schemas ...any) {
@@ -138,11 +137,11 @@ func New(home string, flows *traffic.Service, rooms AgentRooms, schedules *sched
 		}
 		return result, nil
 	})
-	add(server, "messages_send", "Send text to a specific aicat Room. target_room_id is required and must come from rooms_list; the channel implementation decides local persistence, platform delivery and the returned confirmation.", false, false, func(ctx context.Context, in SendMessageInput) (messages.Receipt, error) {
+	add(server, "messages_send", "Send text to a specific aicat Room. target_room_id is required and must come from rooms_list; the channel implementation decides platform delivery and the returned confirmation. Each call sends once. If the result is failed or unknown, or the call returns an error, do not resend automatically; report the result instead.", false, false, func(ctx context.Context, in SendMessageInput) (messages.Receipt, error) {
 		if strings.TrimSpace(in.TargetRoomID) == "" || strings.TrimSpace(in.Text) == "" {
 			return messages.Receipt{}, errors.New("target_room_id and text are required")
 		}
-		return rooms.SendRoomMessage(ctx, in.TargetRoomID, in.Text, in.ReplyTo, in.RequestID)
+		return rooms.SendRoomMessage(ctx, in.TargetRoomID, in.Text, in.ReplyTo)
 	})
 	listSchema, err := jsonschema.For[ListInput](nil)
 	if err != nil {

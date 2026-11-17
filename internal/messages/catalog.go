@@ -44,20 +44,9 @@ type roomRuntimeState struct {
 type RoomSummary struct {
 	RoomIdentity
 	Presentation RoomPresentation    `json:"presentation"`
-	LastSender   string              `json:"lastSender"`
-	LastType     string              `json:"lastType"`
-	LastOutgoing bool                `json:"lastOutgoing"`
-	LastAgent    bool                `json:"lastAgent"`
 	LastMessage  string              `json:"lastMessage"`
 	UpdatedAt    time.Time           `json:"updatedAt"`
 	Settings     config.RoomSettings `json:"settings"`
-	Issues       []RoomIssue         `json:"issues"`
-}
-
-type RoomView struct {
-	RoomSummary
-	Messages []Message `json:"messages"`
-	Tasks    []Task    `json:"tasks"`
 }
 
 var roomCatalogMu sync.Mutex
@@ -72,10 +61,6 @@ func readRoomIdentity(home, id string) (RoomIdentity, error) {
 		return RoomIdentity{}, err
 	}
 	return RoomIdentity{ID: record.ID, Channel: record.Channel, Source: record.Source, Conversation: record.Conversation, CreatedAt: record.CreatedAt}, nil
-}
-
-func (r RoomRecord) identity() RoomIdentity {
-	return RoomIdentity{ID: r.ID, Channel: r.Channel, Source: r.Source, Conversation: r.Conversation, CreatedAt: r.CreatedAt}
 }
 
 func readRoomRecord(home, id string) (RoomRecord, error) {
@@ -166,7 +151,7 @@ func ListRooms(ctx context.Context, home string) ([]RoomSummary, error) {
 		}
 		summary, err := summarizeRoom(home, identity, settings, info.ModTime().UTC(), rows)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Room %s: %w", identity.ID, err)
 		}
 		result = append(result, summary)
 	}
@@ -179,57 +164,43 @@ func ListRooms(ctx context.Context, home string) ([]RoomSummary, error) {
 	return result, nil
 }
 
-func ReadRoom(ctx context.Context, home, id string) (RoomView, error) {
+func ReadRoom(ctx context.Context, home, id string) (RoomSummary, error) {
 	if err := ctx.Err(); err != nil {
-		return RoomView{}, err
+		return RoomSummary{}, err
 	}
 	identity, err := readRoomIdentity(home, id)
 	if err != nil {
-		return RoomView{}, err
+		return RoomSummary{}, err
 	}
 	store := newRoomStore(home, identity.Channel)
 	settings, err := store.readSettings(id)
 	if err != nil {
-		return RoomView{}, err
+		return RoomSummary{}, err
 	}
-	rows, err := (&Inbox{rooms: store}).Read(identity.Source, identity.Conversation, 200)
+	rows, err := (&Inbox{rooms: store}).Read(identity.Source, identity.Conversation, 1)
 	if err != nil {
-		return RoomView{}, err
-	}
-	if err = attachDeliveries(home, id, rows); err != nil {
-		return RoomView{}, err
+		return RoomSummary{}, err
 	}
 	info, err := os.Stat(filepath.Join(home, "rooms", id, "context", "messages.log"))
 	if os.IsNotExist(err) {
 		info, err = os.Stat(filepath.Join(home, "rooms", id, "room.json"))
 	}
 	if err != nil {
-		return RoomView{}, err
+		return RoomSummary{}, err
 	}
-	summary, err := summarizeRoom(home, identity, settings, info.ModTime().UTC(), rows)
-	if err != nil {
-		return RoomView{}, err
-	}
-	return RoomView{RoomSummary: summary, Messages: rows, Tasks: []Task{}}, nil
+	return summarizeRoom(home, identity, settings, info.ModTime().UTC(), rows)
 }
 
 func summarizeRoom(home string, identity RoomIdentity, settings config.RoomSettings, updated time.Time, rows []Message) (RoomSummary, error) {
-	issues, err := deliveryIssues(home, identity.ID)
-	if err != nil {
-		return RoomSummary{}, err
-	}
 	presentation, err := readPresentation(home, identity.ID)
 	if err != nil {
 		return RoomSummary{}, err
 	}
-	result := RoomSummary{Presentation: presentation, RoomIdentity: identity, Settings: settings, UpdatedAt: updated, Issues: issues}
+	result := RoomSummary{Presentation: presentation, RoomIdentity: identity, Settings: settings, UpdatedAt: updated}
 	if len(rows) == 0 {
 		return result, nil
 	}
 	last := rows[len(rows)-1]
-	result.LastSender, result.LastType, result.LastOutgoing = last.From, last.Type, last.Outgoing
-	_, known := presentation.Members[last.From]
-	result.LastAgent = last.Outgoing && (last.Action != "receive" && !known)
 	if last.Time != nil {
 		result.UpdatedAt = time.UnixMilli(*last.Time)
 	}

@@ -106,7 +106,7 @@ async function rpc(method, args = []) {
     await page.waitForFunction(() => !!window.desktop?.state());
     await page.locator("#nav-extensions").click();
     const search = page.locator("#extension-search");
-    const ids = ["wecom-local", "wecom", "wpk"];
+    const ids = ["wecom-local", "wecom"];
     const enabledSection = page.locator("#module-sidebar > section").filter({
       has: page.locator("#extensions-enabled"),
     });
@@ -168,7 +168,7 @@ async function rpc(method, args = []) {
           { language, theme },
         );
         await search.fill(category);
-        await wait(async () => (await page.locator(".xitem").count()) === 3);
+        await wait(async () => (await page.locator(".xitem").count()) === 2);
         for (const id of ids) {
           const item = page.locator("#extension-" + id);
           assert.equal(await item.locator(".tag, .tags").count(), 0);
@@ -213,7 +213,7 @@ async function rpc(method, args = []) {
           }
         }
         await search.fill("");
-        await wait(async () => (await page.locator(".xitem").count()) === 5);
+        await wait(async () => (await page.locator(".xitem").count()) === 4);
         await page.setViewportSize({ width: 1180, height: 900 });
         assert.equal(
           await page
@@ -225,17 +225,17 @@ async function rpc(method, args = []) {
           path: path.join(root, `extensions-${language}-${theme}.png`),
         });
         report.checks.push(
-          `${language} ${theme}: category search finds all three NPM message channels; list and title contain no tags; name and summary remain; repeated status and tabs are absent; technical information is collapsed and can be opened; 1180/860px screenshots saved`,
+          `${language} ${theme}: category search finds both message channels; list and title contain no tags; name and summary remain; repeated status and tabs are absent; technical information is collapsed and can be opened; 1180/860px screenshots saved`,
         );
       }
       await search.fill(
         language === "en" ? "  mEsSaGe ChAnNeLs  " : "  消息渠道  ",
       );
-      await wait(async () => (await page.locator(".xitem").count()) === 3);
+      await wait(async () => (await page.locator(".xitem").count()) === 2);
       await search.fill("no-such-extension-category");
       await wait(async () => (await page.locator(".xitem").count()) === 0);
       await search.fill("");
-      await wait(async () => (await page.locator(".xitem").count()) === 5);
+      await wait(async () => (await page.locator(".xitem").count()) === 4);
       await search.fill("wecom-local");
       await wait(async () => (await page.locator(".xitem").count()) === 1);
       assert.equal(

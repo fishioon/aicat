@@ -23,7 +23,7 @@ Currently available for macOS. The Go process runs the gateway, and messaging ex
 | WeCom desktop client | An NPM channel that checks sign-in and prepares database access and keys when enabled. Reads the local database and WAL with stock SQLite3MC, saves incremental messages to Rooms, resumes after restart, triggers agents per conversation, and requests text sends through MCP. |
 | WeCom BOT | Install the official plugin from the recommended extensions, configure it, verify Bot authentication, and enable it. Receive direct messages, persist Room history, configure each Room's model and automatic processing in Messages, and explicitly publish replies or authorize outbound sends through MCP. |
 | Agent interfaces | Query requests that actually passed through the gateway using HTTP API and MCP. |
-| Unified messaging | Route WeCom and poker channel conversations into Rooms. Use Codex app-server with two prompt layers, configure models and triggers per Room, and manage local publishing separately from authorized outbound sends. |
+| Unified messaging | Route WeCom channel conversations into Rooms. Use Codex app-server with two prompt layers, configure models and triggers per Room in the Room management page, and send replies explicitly through MCP. |
 
 See the [Feature map](docs/feature-map/README.md) for entry points, usage, verification steps, and capabilities that have not yet shipped. Linked project documentation is currently in Chinese.
 
@@ -107,4 +107,4 @@ Traffic records are held in bounded memory. Records may be evicted or truncated 
 | [Architecture](docs/architecture.md) | Module boundaries, data flow, and constraints |
 | [Development](docs/development.md) | Build, verification, and local installation requirements |
 
-This repository contains the desktop application, built-in extensions, and the shared extension host. NPM extension source and acceptance tests live in separate repositories: [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local) and [aicat-wpk](https://github.com/fishioon/aicat-wpk). Their packages are not bundled with the app and have not yet been published to the public NPM registry.
+This repository contains the desktop application, built-in extensions, and the shared extension host. NPM extension source and acceptance tests live in a separate repository: [aicat-wecom-local](https://github.com/fishioon/aicat-wecom-local). Its package is not bundled with the app and has not yet been published to the public NPM registry.

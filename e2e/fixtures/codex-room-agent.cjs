@@ -92,7 +92,6 @@ async function reply(thread, content) {
     target_room_id: turn.roomID,
     text: content,
     reply_to: message.msgid,
-    request_id: "fixture-" + message.msgid,
   });
   finish(thread);
 }
@@ -129,7 +128,6 @@ async function processTrigger(thread) {
       await mcpTool("messages_send", {
         target_room_id: "not-a-room",
         text: "forged",
-        request_id: "fixture-forged",
       });
       trace({ method: "forged_target_unexpectedly_accepted" });
     } catch (error) {
@@ -185,7 +183,10 @@ readline.createInterface({ input: process.stdin }).on("line", async (line) => {
       .split("\n")
       .map(JSON.parse);
     for (const item of messages) {
-      assert(history.some((row) => row.msgid === item.msgid));
+      assert.equal(
+        history.some((row) => row.msgid === item.msgid),
+        !item.schedule,
+      );
     }
     const id = "turn-" + ++seq;
     active.set(params.threadId, {
