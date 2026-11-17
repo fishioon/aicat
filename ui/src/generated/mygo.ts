@@ -109,7 +109,6 @@ export interface Event {
 export interface ExtensionState {
   statusMessages?: Record<string, Record<string, string>>;
   automaticSetup: boolean;
-  sendTargetLabel?: string;
   canSend: boolean;
   packageSource?: string;
   packageOrigin?: string;
@@ -201,7 +200,6 @@ export interface Message {
   summary?: string;
   reply_to?: string;
   context_key?: string;
-  search_name?: string;
   local_id?: string;
   server_id?: string;
   sequence?: string;
@@ -398,7 +396,6 @@ export interface RoomPresentation {
 
 export interface RoomSettings {
   name: string;
-  sendTarget: string;
   automatic: boolean;
   prompt: string;
   model: string;

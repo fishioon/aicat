@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { host } from "../host";
-import { state, say } from "../state/desktop";
+import { say } from "../state/desktop";
 import { t } from "../i18n";
 import type { RoomSettings, RoomSummary } from "../generated/mygo";
 
@@ -15,9 +15,6 @@ const error = ref("");
 const modelError = ref("");
 const modelsLoading = ref(false);
 const models = ref<Awaited<ReturnType<typeof host.listRoomModels>>>([]);
-const channel = computed(() =>
-  state.value?.extensions.find((item) => item.id === props.room.channel),
-);
 const modelMissing = computed(
   () =>
     draft.value?.model &&
@@ -110,12 +107,6 @@ defineExpose({ dirty, saving });
         <code>{{ room.conversation }}</code>
         <span>{{ room.source }}</span>
       </details>
-      <template v-if="channel?.sendTargetLabel">
-        <label class="room-field-label" for="room-send-target">{{
-          channel.sendTargetLabel
-        }}</label>
-        <input id="room-send-target" class="field" v-model="draft.sendTarget" />
-      </template>
       <fieldset class="room-setting-section">
         <legend>{{ t("Agent 处理") }}</legend>
         <label class="room-check-row">

@@ -9,14 +9,13 @@ import (
 const roomSettingsVersion = 1
 
 type roomOverrides struct {
-	Version    int                   `json:"version,omitempty"`
-	Name       *string               `json:"name,omitempty"`
-	SendTarget *string               `json:"sendTarget,omitempty"`
-	Automatic  *bool                 `json:"automatic,omitempty"`
-	Prompt     *string               `json:"prompt,omitempty"`
-	Model      *string               `json:"model,omitempty"`
-	Context    *map[string]string    `json:"context,omitempty"`
-	Trigger    *roomTriggerOverrides `json:"trigger,omitempty"`
+	Version   int                   `json:"version,omitempty"`
+	Name      *string               `json:"name,omitempty"`
+	Automatic *bool                 `json:"automatic,omitempty"`
+	Prompt    *string               `json:"prompt,omitempty"`
+	Model     *string               `json:"model,omitempty"`
+	Context   *map[string]string    `json:"context,omitempty"`
+	Trigger   *roomTriggerOverrides `json:"trigger,omitempty"`
 }
 
 type roomTriggerOverrides struct {
@@ -67,9 +66,6 @@ func applyRoomOverrides(settings *config.RoomSettings, overrides roomOverrides) 
 	if overrides.Name != nil {
 		settings.Name = *overrides.Name
 	}
-	if overrides.SendTarget != nil {
-		settings.SendTarget = *overrides.SendTarget
-	}
 	if overrides.Automatic != nil {
 		settings.Automatic = *overrides.Automatic
 	}
@@ -94,7 +90,6 @@ func applyRoomOverrides(settings *config.RoomSettings, overrides roomOverrides) 
 func diffRoomOverrides(defaults, settings config.RoomSettings) *roomOverrides {
 	result := roomOverrides{}
 	result.Name = changedString(defaults.Name, settings.Name)
-	result.SendTarget = changedString(defaults.SendTarget, settings.SendTarget)
 	result.Automatic = changedBool(defaults.Automatic, settings.Automatic)
 	result.Prompt = changedString(defaults.Prompt, settings.Prompt)
 	result.Model = changedString(defaults.Model, settings.Model)
@@ -103,7 +98,7 @@ func diffRoomOverrides(defaults, settings config.RoomSettings) *roomOverrides {
 		result.Context = &context
 	}
 	result.Trigger = diffRoomTrigger(defaults.Trigger, settings.Trigger)
-	if result.Name == nil && result.SendTarget == nil && result.Automatic == nil && result.Prompt == nil && result.Model == nil && result.Context == nil && result.Trigger == nil {
+	if result.Name == nil && result.Automatic == nil && result.Prompt == nil && result.Model == nil && result.Context == nil && result.Trigger == nil {
 		return nil
 	}
 	return &result

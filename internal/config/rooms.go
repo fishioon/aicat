@@ -8,13 +8,12 @@ import (
 )
 
 type RoomSettings struct {
-	Name       string            `yaml:"name,omitempty" json:"name"`
-	SendTarget string            `yaml:"sendTarget,omitempty" json:"sendTarget"`
-	Automatic  bool              `yaml:"automatic" json:"automatic"`
-	Prompt     string            `yaml:"prompt" json:"prompt"`
-	Model      string            `yaml:"model" json:"model"`
-	Context    map[string]string `yaml:"context,omitempty" json:"context"`
-	Trigger    RoomTrigger       `yaml:"trigger" json:"trigger"`
+	Name      string            `yaml:"name,omitempty" json:"name"`
+	Automatic bool              `yaml:"automatic" json:"automatic"`
+	Prompt    string            `yaml:"prompt" json:"prompt"`
+	Model     string            `yaml:"model" json:"model"`
+	Context   map[string]string `yaml:"context,omitempty" json:"context"`
+	Trigger   RoomTrigger       `yaml:"trigger" json:"trigger"`
 }
 
 type RoomDefaults struct {
@@ -128,9 +127,6 @@ func (t RoomTemplate) Validate() error {
 func (s RoomSettings) Validate() error {
 	if len(s.Name) > 256 || strings.ContainsAny(s.Name, "\r\n\x00") || !utf8.ValidString(s.Name) {
 		return errors.New("Room 名称无效")
-	}
-	if len(s.SendTarget) > 256 || strings.ContainsAny(s.SendTarget, "\r\n\x00") || !utf8.ValidString(s.SendTarget) {
-		return errors.New("Room 外发寻址名称无效")
 	}
 	if len(s.Prompt) > 64<<10 || !utf8.ValidString(s.Prompt) || strings.ContainsRune(s.Prompt, 0) {
 		return errors.New("Room prompt 必须是有效文本且不超过 64 KiB")

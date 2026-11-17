@@ -30,7 +30,6 @@ type Message struct {
 	Summary       string                `json:"summary,omitempty"`
 	ReplyTo       string                `json:"reply_to,omitempty"`
 	ContextKey    string                `json:"context_key,omitempty"`
-	SearchName    string                `json:"search_name,omitempty"`
 	LocalID       string                `json:"local_id,omitempty"`
 	ServerID      string                `json:"server_id,omitempty"`
 	Sequence      string                `json:"sequence,omitempty"`

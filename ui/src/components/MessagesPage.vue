@@ -20,10 +20,7 @@ let refreshing = false;
 const channelName = (id: string) =>
   state.value?.extensions.find((x) => x.id === id)?.name ?? id;
 const roomName = (room: RoomSummary) =>
-  room.settings.name ||
-  room.presentation.name ||
-  room.settings.sendTarget ||
-  room.conversation;
+  room.settings.name || room.presentation.name || room.conversation;
 const filteredRooms = computed(() => {
   const search = query.value.trim().toLocaleLowerCase();
   return rooms.value.filter((room) =>

@@ -24,11 +24,9 @@ func Deliver(ctx context.Context, home, channel, source string, event Event, sen
 	}
 	room := roomID(channel, source, m.RoomID)
 	store := newRoomStore(home, channel)
-	settings, err := store.readSettings(room)
-	if err != nil || (m.SearchName != "" && m.SearchName != settings.SendTarget) {
-		return Receipt{}, errors.New("外发寻址必须与 Room 配置一致")
+	if _, err := store.readSettings(room); err != nil {
+		return Receipt{}, err
 	}
-	event.Data.SearchName = settings.SendTarget
 	if m.ReplyTo != "" {
 		if _, exists, err := (&Inbox{rooms: store}).findMessage(ctx, source, m.RoomID, m.ReplyTo); err != nil || !exists {
 			slog.Info("room message reply target ignored", "channel", channel, "room", room, "request", event.ID, "replyTo", m.ReplyTo)

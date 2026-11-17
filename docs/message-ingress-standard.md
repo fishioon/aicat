@@ -43,7 +43,7 @@
 
 ## Room 配置与执行
 
-节点级默认配置是 `aicat.yaml` 的 `roomDefaults`，包含 automatic、prompt、model、context 与 trigger。每个 Room 在 `rooms/<稳定ID>/room.json` 中保存绑定，并按需保存名称、automatic、prompt、model、context、trigger、sendTarget 及持久 thread 状态。ID 来自渠道、绑定来源和平台会话的摘要，来源记录不能通过设置改写。新 Room 默认关闭自动处理并开启 Chat 模式；渠道模板只能提供受限默认值，不能自行开启自动处理或外发。
+节点级默认配置是 `aicat.yaml` 的 `roomDefaults`，包含 automatic、prompt、model、context 与 trigger。每个 Room 在 `rooms/<稳定ID>/room.json` 中保存绑定，并按需保存名称、automatic、prompt、model、context、trigger 及持久 thread 状态。ID 来自渠道、绑定来源和平台会话的摘要，来源记录不能通过设置改写。新 Room 默认关闭自动处理并开启 Chat 模式；渠道模板只能提供受限默认值，不能自行开启自动处理或外发。
 
 触发条件由三项组成，各自独立开关，任一命中即触发：
 
@@ -101,7 +101,7 @@ Agent 通过真实 HTTP `/mcp` 及 Bearer 认证调用工具。普通 commentary
 
 - `rooms_list({query?,channel?,limit?})`：返回稳定Room ID、渠道、名称、最近摘要和更新时间。
 - `messages_send({target_room_id,text,reply_to?})`：`target_room_id`必填，可以是当前Room或其他可见Room；`reply_to`只在命中目标Room的平台消息时传给渠道，否则忽略（例如回复定时触发）。
-- aicat解析稳定Room ID，校验渠道账号绑定与 sendTarget，直接调用渠道实现并写一条运行日志；外发不写入 messages.log，也不保存持久请求记录。渠道决定是否支持发送、确认类型和返回状态。
+- aicat解析稳定Room ID，校验渠道账号绑定，把 roomid、正文与 reply_to 交给渠道实现并写一条运行日志；平台寻址（会话名称、搜索方式与发送前核对）完全由渠道负责，Room 不保存平台寻址配置；外发不写入 messages.log，也不保存持久请求记录。渠道决定是否支持发送、确认类型和返回状态。
 - 不把模型提供的来源当作可信身份。
 - 每次调用只发送一次，结果直接返回。结果为 failed、unknown 或报错时不自动重发，由 Agent 如实说明；工具描述包含这一约束。
 - sent 仅代表渠道声明的确认边界，不代表对端已读。发送后平台回流的消息作为自己发送的消息进入 messages.log。

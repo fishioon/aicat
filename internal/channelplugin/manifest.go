@@ -14,17 +14,16 @@ import (
 const ChannelAPI = 1
 
 type Manifest struct {
-	StatusMessages  map[string]map[string]string `json:"statusMessages,omitempty"`
-	Prepare         string                       `json:"prepare"`
-	IdentityFields  []string                     `json:"identityFields"`
-	SelfField       string                       `json:"selfField"`
-	SendTargetLabel string                       `json:"sendTargetLabel"`
-	API             int                          `json:"api"`
-	ID              string                       `json:"id"`
-	Entry           string                       `json:"entry"`
-	Capabilities    Capabilities                 `json:"capabilities"`
-	Room            *config.RoomTemplate         `json:"room,omitempty"`
-	Fields          []Field                      `json:"fields"`
+	StatusMessages map[string]map[string]string `json:"statusMessages,omitempty"`
+	Prepare        string                       `json:"prepare"`
+	IdentityFields []string                     `json:"identityFields"`
+	SelfField      string                       `json:"selfField"`
+	API            int                          `json:"api"`
+	ID             string                       `json:"id"`
+	Entry          string                       `json:"entry"`
+	Capabilities   Capabilities                 `json:"capabilities"`
+	Room           *config.RoomTemplate         `json:"room,omitempty"`
+	Fields         []Field                      `json:"fields"`
 }
 
 type Capabilities struct {
@@ -79,7 +78,7 @@ func inspectManifest(packageDir string, d Descriptor) (Manifest, string, error) 
 			}
 		}
 	}
-	if m.API != ChannelAPI || m.ID != d.ID || m.Entry == "" || len(m.Fields) > 64 || len(m.IdentityFields) > 64 || len(m.SendTargetLabel) > 256 || len(m.Capabilities.Intercepts) > 64 || len(m.Capabilities.Native) > 16 {
+	if m.API != ChannelAPI || m.ID != d.ID || m.Entry == "" || len(m.Fields) > 64 || len(m.IdentityFields) > 64 || len(m.Capabilities.Intercepts) > 64 || len(m.Capabilities.Native) > 16 {
 		return Manifest{}, "", errors.New("渠道 API 版本、标识或入口无效")
 	}
 	if m.Room != nil {
